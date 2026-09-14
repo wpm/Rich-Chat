@@ -1,0 +1,568 @@
+/* rich-chat: layout and palette.
+ *
+ * Every colour is a custom property on the component roots, so a host can
+ * override any of them. Dark mode follows prefers-color-scheme unless the
+ * document forces a theme with data-theme="light" or "dark" on its root.
+ */
+
+.rc-chat,
+.rc-rich,
+.rc-composer {
+  --rc-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --rc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --rc-font-size: 15px;
+  --rc-line-height: 1.55;
+  --rc-radius: 16px;
+
+  --rc-fg: #1f2328;
+  --rc-muted: #59636e;
+  --rc-bg: #ffffff;
+  --rc-surface: #f6f8fa;
+  --rc-border: #d1d9e0;
+  --rc-accent: #0969da;
+  --rc-accent-fg: #ffffff;
+  --rc-link: #0969da;
+  --rc-user-bg: #ddf4ff;
+  --rc-user-fg: #1f2328;
+  --rc-assistant-bg: #f6f8fa;
+  --rc-assistant-fg: #1f2328;
+  --rc-code-bg: #ffffff;
+  --rc-inline-code-bg: rgba(175, 184, 193, 0.3);
+  --rc-quote-border: #d1d9e0;
+  --rc-selection: rgba(9, 105, 218, 0.25);
+  --rc-alert-note: #0969da;
+  --rc-alert-tip: #1a7f37;
+  --rc-alert-important: #8250df;
+  --rc-alert-warning: #9a6700;
+  --rc-alert-caution: #cf222e;
+  --rc-error: #cf222e;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) :is(.rc-chat, .rc-rich, .rc-composer) {
+    --rc-fg: #e6edf3;
+    --rc-muted: #9198a1;
+    --rc-bg: #0d1117;
+    --rc-surface: #161b22;
+    --rc-border: #3d444d;
+    --rc-accent: #4493f8;
+    --rc-accent-fg: #ffffff;
+    --rc-link: #4493f8;
+    --rc-user-bg: #172b45;
+    --rc-user-fg: #e6edf3;
+    --rc-assistant-bg: #161b22;
+    --rc-assistant-fg: #e6edf3;
+    --rc-code-bg: #0d1117;
+    --rc-inline-code-bg: rgba(110, 118, 129, 0.4);
+    --rc-quote-border: #3d444d;
+    --rc-selection: rgba(68, 147, 248, 0.35);
+    --rc-alert-note: #4493f8;
+    --rc-alert-tip: #3fb950;
+    --rc-alert-important: #ab7df8;
+    --rc-alert-warning: #d29922;
+    --rc-alert-caution: #f85149;
+    --rc-error: #f85149;
+
+    color-scheme: dark;
+  }
+}
+
+[data-theme="dark"] :is(.rc-chat, .rc-rich, .rc-composer) {
+  --rc-fg: #e6edf3;
+  --rc-muted: #9198a1;
+  --rc-bg: #0d1117;
+  --rc-surface: #161b22;
+  --rc-border: #3d444d;
+  --rc-accent: #4493f8;
+  --rc-accent-fg: #ffffff;
+  --rc-link: #4493f8;
+  --rc-user-bg: #172b45;
+  --rc-user-fg: #e6edf3;
+  --rc-assistant-bg: #161b22;
+  --rc-assistant-fg: #e6edf3;
+  --rc-code-bg: #0d1117;
+  --rc-inline-code-bg: rgba(110, 118, 129, 0.4);
+  --rc-quote-border: #3d444d;
+  --rc-selection: rgba(68, 147, 248, 0.35);
+  --rc-alert-note: #4493f8;
+  --rc-alert-tip: #3fb950;
+  --rc-alert-important: #ab7df8;
+  --rc-alert-warning: #d29922;
+  --rc-alert-caution: #f85149;
+  --rc-error: #f85149;
+
+  color-scheme: dark;
+}
+
+/* ---- The window ------------------------------------------------------ */
+
+.rc-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--rc-bg);
+  color: var(--rc-fg);
+  font: var(--rc-font-size) / var(--rc-line-height) var(--rc-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+.rc-chat ::selection {
+  background: var(--rc-selection);
+}
+
+.rc-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 16px;
+}
+
+.rc-empty {
+  margin: auto;
+  color: var(--rc-muted);
+  text-align: center;
+  max-width: 40ch;
+}
+
+.rc-message {
+  display: flex;
+}
+
+.rc-message-user {
+  justify-content: flex-end;
+}
+
+.rc-message-assistant {
+  justify-content: flex-start;
+}
+
+.rc-message-system {
+  justify-content: center;
+}
+
+.rc-bubble {
+  box-sizing: border-box;
+  max-width: min(85%, 76ch);
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: var(--rc-radius);
+  background: var(--rc-assistant-bg);
+  color: var(--rc-assistant-fg);
+  overflow-wrap: anywhere;
+}
+
+.rc-message-user .rc-bubble {
+  background: var(--rc-user-bg);
+  color: var(--rc-user-fg);
+  border-bottom-right-radius: 5px;
+}
+
+.rc-message-assistant .rc-bubble {
+  border-bottom-left-radius: 5px;
+}
+
+.rc-message-system .rc-bubble {
+  background: transparent;
+  color: var(--rc-muted);
+  font-size: 0.9em;
+  text-align: center;
+}
+
+/* ---- Rendered Markdown ------------------------------------------------ */
+
+.rc-rich {
+  font: inherit;
+  line-height: var(--rc-line-height);
+  color: inherit;
+  min-width: 0;
+}
+
+.rc-block {
+  display: contents;
+}
+
+.rc-rich p,
+.rc-rich ul,
+.rc-rich ol,
+.rc-rich dl,
+.rc-rich blockquote,
+.rc-rich hr,
+.rc-rich .rc-table-wrap,
+.rc-rich .rc-codeblock,
+.rc-rich .rc-math-block,
+.rc-rich .rc-block > pre.rc-code,
+.rc-rich .rc-footnotes {
+  margin: 0.6em 0;
+}
+
+.rc-rich h1,
+.rc-rich h2,
+.rc-rich h3,
+.rc-rich h4,
+.rc-rich h5,
+.rc-rich h6 {
+  margin: 0.9em 0 0.4em;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.rc-rich h1 { font-size: 1.5em; }
+.rc-rich h2 { font-size: 1.3em; }
+.rc-rich h3 { font-size: 1.15em; }
+.rc-rich h4 { font-size: 1.05em; }
+.rc-rich h5,
+.rc-rich h6 { font-size: 1em; }
+
+.rc-rich > .rc-block:first-child > :first-child,
+.rc-rich > .rc-codeblock:first-child,
+.rc-rich > .rc-math-block:first-child {
+  margin-top: 0;
+}
+
+.rc-rich > .rc-block:last-child > :last-child,
+.rc-rich > .rc-codeblock:last-child,
+.rc-rich > .rc-math-block:last-child {
+  margin-bottom: 0;
+}
+
+.rc-rich a {
+  color: var(--rc-link);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--rc-link) 45%, transparent);
+  text-underline-offset: 2px;
+}
+
+.rc-rich a:hover {
+  text-decoration-color: currentColor;
+}
+
+.rc-rich strong {
+  font-weight: 650;
+}
+
+.rc-rich ul,
+.rc-rich ol {
+  padding-left: 1.6em;
+}
+
+.rc-rich li + li {
+  margin-top: 0.2em;
+}
+
+.rc-rich li > p {
+  margin: 0.3em 0;
+}
+
+.rc-rich li > ul,
+.rc-rich li > ol {
+  margin: 0.2em 0;
+}
+
+.rc-rich li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.3em;
+}
+
+.rc-rich li > input[type="checkbox"] {
+  margin: 0 0.5em 0 0;
+  vertical-align: -0.1em;
+  accent-color: var(--rc-accent);
+}
+
+.rc-rich hr {
+  border: 0;
+  border-top: 1px solid var(--rc-border);
+  margin: 1em 0;
+}
+
+.rc-rich img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.rc-image-alt {
+  font-style: italic;
+  color: var(--rc-muted);
+}
+
+.rc-rich blockquote {
+  padding: 0.05em 0 0.05em 1em;
+  border-left: 3px solid var(--rc-quote-border);
+  color: var(--rc-muted);
+}
+
+.rc-rich blockquote > :first-child { margin-top: 0; }
+.rc-rich blockquote > :last-child { margin-bottom: 0; }
+
+.rc-rich blockquote[class^="markdown-alert-"] {
+  color: inherit;
+}
+
+.rc-rich blockquote[class^="markdown-alert-"]::before {
+  display: block;
+  margin-bottom: 0.2em;
+  font-weight: 650;
+}
+
+.rc-rich blockquote.markdown-alert-note { border-color: var(--rc-alert-note); }
+.rc-rich blockquote.markdown-alert-note::before { content: "Note"; color: var(--rc-alert-note); }
+.rc-rich blockquote.markdown-alert-tip { border-color: var(--rc-alert-tip); }
+.rc-rich blockquote.markdown-alert-tip::before { content: "Tip"; color: var(--rc-alert-tip); }
+.rc-rich blockquote.markdown-alert-important { border-color: var(--rc-alert-important); }
+.rc-rich blockquote.markdown-alert-important::before { content: "Important"; color: var(--rc-alert-important); }
+.rc-rich blockquote.markdown-alert-warning { border-color: var(--rc-alert-warning); }
+.rc-rich blockquote.markdown-alert-warning::before { content: "Warning"; color: var(--rc-alert-warning); }
+.rc-rich blockquote.markdown-alert-caution { border-color: var(--rc-alert-caution); }
+.rc-rich blockquote.markdown-alert-caution::before { content: "Caution"; color: var(--rc-alert-caution); }
+
+/* Tables */
+
+.rc-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.rc-rich table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 0.95em;
+  max-width: 100%;
+}
+
+.rc-rich th,
+.rc-rich td {
+  border: 1px solid var(--rc-border);
+  padding: 5px 11px;
+  vertical-align: top;
+}
+
+.rc-rich th {
+  background: var(--rc-surface);
+  font-weight: 650;
+}
+
+.rc-message-assistant .rc-rich th {
+  background: color-mix(in srgb, var(--rc-border) 35%, transparent);
+}
+
+/* Code */
+
+.rc-rich code {
+  font-family: var(--rc-mono);
+  font-size: 0.9em;
+}
+
+.rc-rich :not(pre) > code {
+  padding: 0.12em 0.35em;
+  border-radius: 5px;
+  background: var(--rc-inline-code-bg);
+  overflow-wrap: anywhere;
+}
+
+.rc-codeblock {
+  border: 1px solid var(--rc-border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--rc-code-bg);
+}
+
+.rc-codeblock-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 5px 3px 12px;
+  border-bottom: 1px solid var(--rc-border);
+  background: var(--rc-surface);
+  color: var(--rc-muted);
+  font-size: 0.78em;
+  line-height: 1.6;
+  user-select: none;
+}
+
+.rc-codeblock-language {
+  font-family: var(--rc-mono);
+}
+
+.rc-copy {
+  font: inherit;
+  padding: 2px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rc-muted);
+  cursor: pointer;
+}
+
+.rc-copy:hover,
+.rc-copy:focus-visible {
+  border-color: var(--rc-border);
+  background: var(--rc-code-bg);
+  color: var(--rc-fg);
+}
+
+.rc-copy.rc-copied {
+  color: var(--rc-alert-tip);
+}
+
+pre.rc-code {
+  margin: 0;
+  padding: 11px 14px;
+  overflow-x: auto;
+  background: var(--rc-code-bg);
+  color: var(--rc-fg);
+  font-family: var(--rc-mono);
+  font-size: 0.875em;
+  line-height: 1.5;
+  tab-size: 4;
+}
+
+pre.rc-code code {
+  display: block;
+  padding: 0;
+  background: none;
+  font-size: inherit;
+  white-space: pre;
+}
+
+.rc-rich .rc-block pre.rc-code {
+  border: 1px solid var(--rc-border);
+  border-radius: 9px;
+}
+
+/* Footnotes */
+
+.rc-footnote-ref a {
+  text-decoration: none;
+  padding: 0 0.15em;
+}
+
+.rc-footnotes {
+  margin-top: 1.2em;
+  padding-top: 0.6em;
+  border-top: 1px solid var(--rc-border);
+  font-size: 0.85em;
+  color: var(--rc-muted);
+}
+
+.rc-footnotes ol {
+  margin: 0;
+  padding-left: 1.6em;
+}
+
+.rc-footnotes li > p {
+  margin: 0.2em 0;
+}
+
+.rc-footnote-backref {
+  margin-left: 0.3em;
+  text-decoration: none;
+}
+
+/* ---- The composer ----------------------------------------------------- */
+
+.rc-composer {
+  flex: 0 0 auto;
+  padding: 10px 16px 10px;
+  border-top: 1px solid var(--rc-border);
+  background: var(--rc-bg);
+  color: var(--rc-fg);
+  font: var(--rc-font-size) / var(--rc-line-height) var(--rc-font);
+}
+
+.rc-composer-preview {
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  padding: 8px 14px 10px;
+  border: 1px dashed var(--rc-border);
+  border-radius: var(--rc-radius);
+  background: var(--rc-user-bg);
+  color: var(--rc-user-fg);
+  max-height: 40vh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.rc-composer-preview-label {
+  margin-bottom: 4px;
+  font-size: 0.7em;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+  user-select: none;
+}
+
+.rc-composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.rc-composer-input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 42px;
+  max-height: 30vh;
+  padding: 10px 13px;
+  border: 1px solid var(--rc-border);
+  border-radius: 13px;
+  background: var(--rc-bg);
+  color: var(--rc-fg);
+  font: inherit;
+  line-height: 1.4;
+  resize: none;
+  overflow-y: auto;
+  outline: none;
+}
+
+.rc-composer-input::placeholder {
+  color: var(--rc-muted);
+}
+
+.rc-composer-input:focus {
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rc-accent) 22%, transparent);
+}
+
+.rc-composer-input:disabled {
+  opacity: 0.6;
+}
+
+.rc-send {
+  flex: 0 0 auto;
+  height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 13px;
+  background: var(--rc-accent);
+  color: var(--rc-accent-fg);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.rc-send:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.rc-send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.rc-composer-hint {
+  margin-top: 6px;
+  font-size: 0.75em;
+  color: var(--rc-muted);
+  user-select: none;
+}

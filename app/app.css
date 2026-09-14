@@ -1,0 +1,19 @@
+/* The window is the chat. */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body {
+    background: #0d1117;
+  }
+}
+
+.app {
+  height: 100vh;
+  height: 100dvh;
+}

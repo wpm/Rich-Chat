@@ -1,0 +1,11 @@
+[build]
+target = "index.html"
+
+[serve]
+port = 1420
+open = false
+
+[watch]
+# Tauri writes under src-tauri while the app runs; that is not a reason
+# to rebuild the frontend.
+ignore = ["src-tauri"]

@@ -1,0 +1,54 @@
+[package]
+name = "rich-chat"
+version = "0.1.0"
+description = "Leptos chat components that render Markdown, LaTeX math, and syntax-highlighted code"
+readme = "README.md"
+keywords = ["leptos", "chat", "markdown", "latex", "syntax-highlighting"]
+categories = ["gui", "wasm", "text-processing"]
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+include = ["src/**", "assets/**", "examples/**", "README.md", "LICENSE*"]
+
+[features]
+default = ["highlight", "bundled-fonts"]
+# Syntax highlighting of fenced code blocks. Costs roughly a megabyte of
+# grammar tables in the binary; without it code blocks render plain.
+highlight = ["dep:syntect", "dep:two-face"]
+# Embeds the Latin Modern math fonts (about 530 KB) so equations look the
+# same on every platform. Without it, MathML falls back to whatever math
+# font the system has.
+bundled-fonts = []
+
+[dependencies]
+leptos.workspace = true
+pulldown-cmark.workspace = true
+pulldown-cmark-escape.workspace = true
+pulldown-latex.workspace = true
+syntect = { workspace = true, optional = true }
+two-face = { workspace = true, optional = true }
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+web-sys = { workspace = true, features = [
+    "Clipboard",
+    "CssStyleDeclaration",
+    "Element",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "KeyboardEvent",
+    "MouseEvent",
+    "Navigator",
+    "Window",
+] }
+
+[lints.rust]
+unused_qualifications = "warn"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"
+
+[[example]]
+name = "theme_css"
+required-features = ["highlight"]
