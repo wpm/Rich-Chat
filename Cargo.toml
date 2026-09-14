@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["rich-chat", "app", "app/src-tauri"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/wpm/Rich-Chat"
+rust-version = "1.88"
+
+[workspace.dependencies]
+leptos = "0.8"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+pulldown-cmark-escape = "0.11"
+pulldown-latex = "0.8"
+# fancy-regex only: the default onig backend is a C dependency that does
+# not build for wasm32-unknown-unknown.
+syntect = { version = "5", default-features = false, features = ["parsing", "regex-fancy", "dump-load", "html"] }
+two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
+console_error_panic_hook = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = "2"
+tauri-build = "2"
+tauri-plugin-opener = "2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

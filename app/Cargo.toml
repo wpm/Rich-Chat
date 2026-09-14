@@ -1,0 +1,16 @@
+[package]
+name = "rich-chat-app"
+version = "0.1.0"
+description = "A chat window for trying rich-chat: what you type comes back as a bubble"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+rich-chat = { path = "../rich-chat" }
+leptos = { workspace = true, features = ["csr"] }
+console_error_panic_hook.workspace = true
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+js-sys.workspace = true
+web-sys = { workspace = true, features = ["Window"] }
