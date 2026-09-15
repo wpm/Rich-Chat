@@ -692,7 +692,16 @@ mod tests {
 
     /// Renders a view to its HTML string, the way a server would, under a
     /// reactive owner so that `For` and `Show` have somewhere to live.
+    ///
+    /// Building the view creates effects (`NodeRef::on_load` is one) that
+    /// are inert in a plain test build but spawn a task when Leptos's
+    /// `effects` feature is on, which a workspace-wide build turns on by
+    /// unifying the app's `csr` feature into this crate. An executor to
+    /// spawn on keeps the render from panicking either way; the tasks are
+    /// never polled, which is what a server render wants.
     fn html<V: IntoView>(build: impl FnOnce() -> V) -> String {
+        // Err means one is already set, by an earlier test in this process.
+        let _ = any_spawner::Executor::init_futures_executor();
         Owner::new().with(|| build().into_view().to_html())
     }
 

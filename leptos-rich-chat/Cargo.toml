@@ -47,6 +47,11 @@ web-sys = { workspace = true, features = [
 # Tests render the components to HTML strings natively; the ssr feature is
 # what makes `to_html` available and is unified into test builds only.
 leptos = { workspace = true, features = ["ssr"] }
+# The tests install an executor before rendering. Leptos's csr feature
+# turns on reactive effects, and if another crate in the same build (the
+# app) enables it, Cargo unifies it into this crate's test build too; an
+# effect then spawns a task and panics without an executor to spawn on.
+any_spawner = { version = "0.3", features = ["futures-executor"] }
 
 [lints.rust]
 unused_qualifications = "warn"
