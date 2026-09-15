@@ -41,7 +41,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: wasm
+      # Pinned: with "latest" the action asks the GitHub API for the newest
+      # release unauthenticated, and when that is rate-limited it silently
+      # installs v0.19.1, whose wasm-opt lacks bulk memory and which ignores
+      # data-wasm-opt-params, so the build fails.
       - uses: jetli/trunk-action@v0.5.0
+        with:
+          version: v0.21.14
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -64,14 +70,26 @@ jobs:
           name: screenshots
           path: app/e2e/screenshots
 
+  # One leg per desktop platform, since the shell has code only one of them
+  # compiles: the macOS menu and debug Info.plist, and the Windows
+  # subsystem attribute.
   desktop:
-    name: Desktop shell (Linux)
-    runs-on: ubuntu-latest
+    name: Desktop shell (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux, os: ubuntu-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: |
+      # Only Linux needs system packages: macOS and Windows ship their webviews.
+      - if: runner.os == 'Linux'
+        run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
       - run: cargo check -p rich-chat-desktop
