@@ -280,6 +280,33 @@ pub fn Composer(
     }
 }
 
+/// Compiles the grammars of the languages in
+/// [`WARM_LANGUAGES`](crate::render::WARM_LANGUAGES), one per idle
+/// callback, so the first code block in any of them renders without the
+/// pause that compiling a grammar on demand costs (up to half a second for
+/// TypeScript). [`Chat`] calls this after mounting; a host that uses
+/// [`RichText`] on its own can call it once at startup. Where the browser
+/// has no `requestIdleCallback`, the steps run on short timeouts instead.
+/// A no-op outside the browser or without the `highlight` feature.
+pub fn warm_up() {
+    #[cfg(target_arch = "wasm32")]
+    warm_from(0);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn warm_from(index: usize) {
+    let Some(token) = render::WARM_LANGUAGES.get(index) else {
+        return;
+    };
+    let step = move || {
+        render::warm(token);
+        warm_from(index + 1);
+    };
+    if request_idle_callback_with_handle(step).is_err() {
+        set_timeout(step, Duration::from_millis(200));
+    }
+}
+
 /// A chat window: the transcript, then a [`Composer`].
 ///
 /// The transcript follows new messages and growing ones, unless the
@@ -311,6 +338,10 @@ pub fn Chat(
     /// Shown in the transcript while it is empty.
     #[prop(optional, into)]
     empty: Option<String>,
+    /// Compile the common languages' grammars in idle time after mount,
+    /// so the first code block renders without a pause. See [`warm_up`].
+    #[prop(default = true)]
+    warm_up: bool,
 ) -> impl IntoView {
     let pane = NodeRef::<html::Div>::new();
     let pinned = RwSignal::new(true);
@@ -328,10 +359,9 @@ pub fn Chat(
         }
     });
 
-    // The grammar tables deserialize on first use; do that in a moment of
-    // quiet rather than on the first keystroke into a code fence.
-    #[cfg(target_arch = "wasm32")]
-    set_timeout(render::preload, Duration::from_millis(250));
+    if warm_up {
+        set_timeout(self::warm_up, Duration::from_millis(250));
+    }
 
     let bubble_options = options.clone();
     view! {

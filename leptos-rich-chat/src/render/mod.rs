@@ -36,7 +36,7 @@ use pulldown_cmark::{
 };
 use pulldown_cmark_escape::{escape_href, escape_html};
 
-pub use code::{Highlighted, highlight, preload};
+pub use code::{Highlighted, WARM_LANGUAGES, highlight, preload, warm};
 pub use draft::complete_draft;
 pub use math::latex_to_mathml;
 

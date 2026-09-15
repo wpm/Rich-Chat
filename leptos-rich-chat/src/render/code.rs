@@ -8,8 +8,11 @@
 //!
 //! The grammar set is two-face's superset of Sublime Text's defaults:
 //! about two hundred languages, resolved by name, alias, or file
-//! extension. It deserializes lazily on first use; call [`preload`] during
-//! an idle moment to keep that off the first keystroke.
+//! extension. Deserializing it is cheap; what costs is that syntect
+//! compiles each grammar's regular expressions the first time that
+//! language is highlighted, up to half a second for a large grammar like
+//! TypeScript. [`warm`] pays that price ahead of time, and
+//! [`WARM_LANGUAGES`] lists the languages worth paying it for.
 
 use pulldown_cmark_escape::escape_html;
 
@@ -52,6 +55,55 @@ pub fn highlight(token: Option<&str>, code: &str) -> Highlighted {
 pub fn preload() {
     #[cfg(feature = "highlight")]
     syntect_impl::preload();
+}
+
+/// The languages most often pasted into a chat, in the order a warm-up
+/// should compile them.
+pub const WARM_LANGUAGES: &[&str] = &[
+    "rust",
+    "python",
+    "javascript",
+    "typescript",
+    "bash",
+    "json",
+    "yaml",
+    "toml",
+    "html",
+    "css",
+    "sql",
+    "go",
+    "java",
+    "c",
+    "cpp",
+    "markdown",
+];
+
+/// Compiles a language's grammar now, so that the first block in it
+/// renders without a pause. Every pattern a grammar tries on a line is
+/// compiled by the attempt, so a few lines with the usual shapes of code
+/// in them cover what an ordinary block would reach. A no-op for an
+/// unknown token or without the `highlight` feature.
+pub fn warm(token: &str) {
+    const SNIPPET: &str = "\
+// comment  # comment  -- comment  /* comment */
+fn f(x: u32) -> Option<&str> { return Some(\"text\"); } // rust, go, c, java
+def f(x=1.5): return 'text' + str(x)  # python
+const g = async (a, b) => { await a?.b ?? `tmpl ${b}`; };  // javascript
+let y = 2; var z = [1, 2]; y += z[0]; if (y === 3 && !z) { y++; } else { y--; }
+for (let i = 0; i < 10; i++) { while (true) { break; } }
+import { a } from \"b\"; export default function h(p: string): void {}
+class C<T> extends B implements I { private x: number = 0; constructor() { super(); } }
+struct S { a: Vec<u8> } impl S { pub fn new() -> Self { Self { a: vec![] } } }
+match x { Some(v) => v, None => 0 }
+try: pass\nexcept Exception as e: raise\nwith open(f) as h: pass\nfor i in range(3): print(i)
+<div class=\"a\" id='b'>{ x }</div>
+SELECT a, count(*) FROM t WHERE b = 'c' GROUP BY a;
+key: [1, 2.0, true, null, \"s\"]
+[section]
+name = \"value\"
+if [ -f \"$file\" ]; then echo \"$file\" | grep -c x; fi
+";
+    let _ = highlight(Some(token), SNIPPET);
 }
 
 fn escape(code: &str) -> String {
@@ -257,6 +309,25 @@ mod tests {
     fn html_in_code_is_escaped() {
         let out = highlight(Some("html"), "<script>alert(1)</script>\n");
         assert!(!out.html.contains("<script>"), "{}", out.html);
+    }
+
+    #[test]
+    fn warming_is_harmless_and_changes_nothing() {
+        let cold = highlight(Some("rust"), "fn main() {}\n");
+        super::warm("rust");
+        super::warm("no-such-language");
+        super::warm("");
+        assert_eq!(highlight(Some("rust"), "fn main() {}\n"), cold);
+    }
+
+    #[cfg(feature = "highlight")]
+    #[test]
+    fn every_warm_language_resolves() {
+        let unresolved: Vec<_> = super::WARM_LANGUAGES
+            .iter()
+            .filter(|token| highlight(Some(token), "x\n").language.is_none())
+            .collect();
+        assert!(unresolved.is_empty(), "unresolved: {unresolved:?}");
     }
 
     #[cfg(feature = "highlight")]
