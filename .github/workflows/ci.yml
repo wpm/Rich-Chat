@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Versions in more than one place: this job and the desktop job set
+      # up the toolchain and cache themselves, and the frontend jobs get
+      # them from .github/actions/wasm-toolchain. Bump both together.
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -34,14 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      # Shared with the Pages and Preview workflows, which build the same thing.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: wasm
-      - uses: jetli/trunk-action@v0.5.0
+      - uses: ./.github/actions/wasm-toolchain
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -64,14 +60,26 @@ jobs:
           name: screenshots
           path: app/e2e/screenshots
 
+  # One leg per desktop platform, since the shell has code only one of them
+  # compiles: the macOS dev app bundle, and the Windows
+  # subsystem attribute.
   desktop:
-    name: Desktop shell (Linux)
-    runs-on: ubuntu-latest
+    name: Desktop shell (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux, os: ubuntu-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: |
+      # Only Linux needs system packages: macOS and Windows ship their webviews.
+      - if: runner.os == 'Linux'
+        run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
       - run: cargo check -p rich-chat-desktop

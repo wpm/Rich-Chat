@@ -34,22 +34,11 @@ jobs:
       url: ${{ steps.site.outputs.url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: wasm
-      - uses: jetli/trunk-action@v0.5.0
+      - uses: ./.github/actions/wasm-toolchain
       # Where the preview will be served from, which Trunk needs for
       # asset URLs and the deployment shows as its link.
       - id: site
-        run: |
-          site=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url 2>/dev/null) \
-            || site="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
-          url="${site}${PREVIEW}/"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "path=$(printf '%s' "$url" | sed -E 's#^https?://[^/]+##')" >> "$GITHUB_OUTPUT"
+        run: .github/scripts/site-url.sh "$PREVIEW"
       - run: trunk build --release --public-url "${{ steps.site.outputs.path }}"
         working-directory: app
       - run: .github/scripts/publish-site.sh "$PREVIEW" app/dist
