@@ -1,0 +1,29 @@
+# Everything a job needs to build the frontend, so that the CI, Pages and
+# Preview workflows set it up the same way: the toolchain with the wasm
+# target, one cargo cache they all share, and Trunk. A workflow checks the
+# repository out first, then `uses: ./.github/actions/wasm-toolchain`.
+#
+# Versions in more than one place: dtolnay/rust-toolchain and
+# Swatinem/rust-cache are also used directly by the library and desktop
+# jobs in ci.yml, which build natively and do not need Trunk, and
+# actions/checkout is in every job of every workflow. Bump each of them
+# everywhere at once.
+name: Wasm toolchain
+description: Rust with the wasm32 target, the shared cargo cache, and Trunk.
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+    # The key is what makes the cache one cache across the three workflows.
+    - uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: wasm
+    # Pinned: with "latest" the action asks the GitHub API for the newest
+    # release unauthenticated, and when that is rate-limited it silently
+    # installs v0.19.1, whose wasm-opt lacks bulk memory and which ignores
+    # data-wasm-opt-params, so the build fails.
+    - uses: jetli/trunk-action@v0.5.0
+      with:
+        version: v0.21.14
