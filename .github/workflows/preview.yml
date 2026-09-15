@@ -1,0 +1,92 @@
+name: Preview
+
+# Every pull request that builds gets its own copy of the site at
+# <site>/pr/<number>/, as a deployment on the pull request, so reviewing
+# it means opening it rather than building it. The preview follows every
+# push and is removed when the pull request closes. Pull requests from
+# forks are left out: their runs cannot push to the site, and the site
+# should not serve code from outside the repository.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write # push to gh-pages
+  deployments: write # retire the deployment on close
+  pages: write # where the site is served from, and that it is the branch
+
+# One run per pull request; a newer push supersedes a running one.
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  PREVIEW: pr/${{ github.event.number }}
+
+jobs:
+  deploy:
+    name: Deploy the preview
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment:
+      name: pr-${{ github.event.number }}
+      url: ${{ steps.site.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm
+      - uses: jetli/trunk-action@v0.5.0
+      # Where the preview will be served from, which Trunk needs for
+      # asset URLs and the deployment shows as its link.
+      - id: site
+        run: |
+          site=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url 2>/dev/null) \
+            || site="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+          url="${site}${PREVIEW}/"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "path=$(printf '%s' "$url" | sed -E 's#^https?://[^/]+##')" >> "$GITHUB_OUTPUT"
+      - run: trunk build --release --public-url "${{ steps.site.outputs.path }}"
+        working-directory: app
+      - run: .github/scripts/publish-site.sh "$PREVIEW" app/dist
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      # Where Pages builds from: the branch. Makes the first preview
+      # reachable before the Pages workflow has run under this scheme.
+      - name: Serve the branch
+        run: |
+          .github/scripts/serve-site-branch.sh
+          echo "Preview: ${{ steps.site.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+
+  remove:
+    name: Remove the preview
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      # The pull request's own ref outlives its branch and its merge ref,
+      # so this works whether the pull request was merged or closed.
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.number }}/head
+      - run: .github/scripts/publish-site.sh "$PREVIEW"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      # The deployment goes inactive, so the pull request stops offering
+      # a link to a page that is gone. Deleting the environment itself
+      # needs more than the workflow token has; without it the empty
+      # environment stays listed under Settings > Environments.
+      - name: Retire the deployment
+        run: |
+          environment="pr-${{ github.event.number }}"
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=$environment" --paginate --jq '.[].id'); do
+            gh api -X POST "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" \
+              -f state=inactive -f description='The pull request was closed.' > /dev/null
+            echo "deployment $id is inactive"
+          done
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/environments/$environment" 2>/dev/null \
+            && echo "environment $environment deleted" \
+            || echo "::notice::Environment $environment stays listed; the workflow token cannot delete environments."

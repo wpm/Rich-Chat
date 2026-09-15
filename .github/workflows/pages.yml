@@ -2,51 +2,59 @@ name: Pages
 
 # Publishes the chat as a website, so it can be used with nothing
 # installed: https://wpm.github.io/Rich-Chat/
+#
+# The site is the gh-pages branch, served as it is. Its root is the app
+# built from main, and pr/<number>/ holds one preview per open pull
+# request, put there by the Preview workflow. This workflow replaces the
+# root and removes previews whose pull request is no longer open, in
+# case the Preview workflow missed its closing.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write # push to gh-pages
+  pages: write # point Pages at the branch
+  pull-requests: read # which previews to keep
 
-# One deployment at a time; a newer push supersedes a running one.
+# One publish at a time; a newer push supersedes a running one.
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build the site
+  publish:
+    name: Publish the site
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm
       - uses: jetli/trunk-action@v0.5.0
-      # Enables Pages for the repository on first run and reports the
-      # path the site is served under, which Trunk needs for asset URLs.
-      - id: pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - run: trunk build --release --public-url "${{ steps.pages.outputs.base_path }}/"
+      # Where the site is served from, which Trunk needs for asset URLs.
+      # Before Pages is enabled the address is the default one.
+      - id: site
+        run: |
+          url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url 2>/dev/null) \
+            || url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "path=$(printf '%s' "$url" | sed -E 's#^https?://[^/]+##')" >> "$GITHUB_OUTPUT"
+      - run: trunk build --release --public-url "${{ steps.site.outputs.path }}"
         working-directory: app
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: app/dist
-
-  deploy:
-    name: Deploy
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish
+        run: |
+          KEEP_PREVIEWS=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --paginate --jq '.[].number' | tr '\n' ' ')
+          export KEEP_PREVIEWS
+          .github/scripts/publish-site.sh . app/dist
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      # Where Pages builds from: the branch. Enables Pages the first time.
+      - name: Serve the branch
+        run: .github/scripts/serve-site-branch.sh | tee -a "$GITHUB_STEP_SUMMARY"
