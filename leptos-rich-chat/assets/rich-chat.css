@@ -1,4 +1,4 @@
-/* rich-chat: layout and palette.
+/* leptos-rich-chat: layout and palette.
  *
  * Every colour is a custom property on the component roots, so a host can
  * override any of them. Dark mode follows prefers-color-scheme unless the

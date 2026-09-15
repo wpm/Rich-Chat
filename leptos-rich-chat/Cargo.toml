@@ -1,5 +1,5 @@
 [package]
-name = "rich-chat"
+name = "leptos-rich-chat"
 version = "0.1.0"
 description = "Leptos chat components that render Markdown, LaTeX math, and syntax-highlighted code"
 readme = "README.md"

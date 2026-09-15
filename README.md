@@ -5,8 +5,8 @@ syntax-highlighted code in every language, rendered as you type.
 
 Two crates:
 
-- [`rich-chat`](rich-chat/) — the Leptos components, published to
-  crates.io. See its [README](rich-chat/README.md) for the API.
+- [`leptos-rich-chat`](leptos-rich-chat/) — the Leptos components, published to
+  crates.io. See its [README](leptos-rich-chat/README.md) for the API.
 - [`app`](app/) — a Tauri desktop app for trying them: a chat window with
   a text box at the bottom. What you send appears as a bubble.
 
@@ -28,14 +28,14 @@ In the browser instead of a window: `cd app && trunk serve` and open
 ## Development
 
 ```sh
-cargo test -p rich-chat            # the rendering core, natively
+cargo test -p leptos-rich-chat            # the rendering core, natively
 cargo clippy --workspace --all-targets
 cd app && trunk build              # the frontend, to app/dist
-cargo run -p rich-chat --example theme_css -- OneHalfDark dark
+cargo run -p leptos-rich-chat --example theme_css -- OneHalfDark dark
 ```
 
 ## License
 
 MIT. See [LICENSE](LICENSE). The bundled Latin Modern fonts are under
 the GUST Font License; see
-[rich-chat/assets/fonts/LICENSE.md](rich-chat/assets/fonts/LICENSE.md).
+[leptos-rich-chat/assets/fonts/LICENSE.md](leptos-rich-chat/assets/fonts/LICENSE.md).

@@ -2291,6 +2291,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "leptos-rich-chat"
+version = "0.1.0"
+dependencies = [
+ "leptos",
+ "pulldown-cmark",
+ "pulldown-cmark-escape",
+ "pulldown-latex",
+ "syntect",
+ "two-face",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "leptos_config"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3507,28 +3522,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "rich-chat"
-version = "0.1.0"
-dependencies = [
- "leptos",
- "pulldown-cmark",
- "pulldown-cmark-escape",
- "pulldown-latex",
- "syntect",
- "two-face",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "rich-chat-app"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
  "leptos",
- "rich-chat",
+ "leptos-rich-chat",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

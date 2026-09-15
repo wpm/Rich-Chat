@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["rich-chat", "app", "app/src-tauri"]
+members = ["leptos-rich-chat", "app", "app/src-tauri"]
 
 [workspace.package]
 edition = "2024"
