@@ -21,7 +21,8 @@ use std::borrow::Cow;
 /// a run of backticks is closed by a run of the same length; whichever
 /// opener comes first wins, so a `$` inside a code span is text and a
 /// backtick inside math is math. Inline constructs cannot cross a blank
-/// line or enter a fenced code block, and neither does the scan.
+/// line or enter a fenced or indented code block, and neither does the
+/// scan.
 ///
 /// Returns the input unchanged (without allocating) when nothing is open.
 pub fn complete_draft(text: &str) -> Cow<'_, str> {
@@ -33,6 +34,11 @@ pub fn complete_draft(text: &str) -> Cow<'_, str> {
     // math delimiters at the same brace depth, so a `$$\frac{a}{b` has
     // to be closed as `}$$`.
     let mut braces = 0usize;
+    // Indented code: a line indented four spaces or a tab after a blank
+    // line (or at the start) opens a block that runs through indented and
+    // blank lines. Nothing inside it is inline syntax.
+    let mut indented = false;
+    let mut previous_blank = true;
 
     for line in text.split_inclusive('\n') {
         if let Some((marker, len)) = fence {
@@ -41,6 +47,18 @@ pub fn complete_draft(text: &str) -> Cow<'_, str> {
             }
             continue;
         }
+        let blank = line.trim().is_empty();
+        let is_indented = line.starts_with("    ") || line.starts_with('\t');
+        if indented {
+            if blank || is_indented {
+                continue;
+            }
+            indented = false;
+        } else if is_indented && previous_blank && !blank {
+            indented = true;
+            continue;
+        }
+        previous_blank = blank;
         if let Some(opened) = opens_fence(line) {
             fence = Some(opened);
             inline_code = None;
@@ -49,7 +67,7 @@ pub fn complete_draft(text: &str) -> Cow<'_, str> {
             braces = 0;
             continue;
         }
-        if line.trim().is_empty() {
+        if blank {
             inline_code = None;
             inline_math = false;
             display_math = false;
@@ -176,6 +194,8 @@ fn closes_fence(line: &str, marker: u8, len: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use super::complete_draft;
 
     #[test]
@@ -192,7 +212,7 @@ mod tests {
             "escaped \\$x",
         ] {
             assert!(
-                matches!(complete_draft(text), std::borrow::Cow::Borrowed(_)),
+                matches!(complete_draft(text), Cow::Borrowed(_)),
                 "{text:?} should be left alone"
             );
         }
@@ -227,10 +247,7 @@ mod tests {
 
     #[test]
     fn dollars_inside_code_spans_are_text() {
-        assert!(matches!(
-            complete_draft("`$x`"),
-            std::borrow::Cow::Borrowed(_)
-        ));
+        assert!(matches!(complete_draft("`$x`"), Cow::Borrowed(_)));
         assert_eq!(complete_draft("`$x` and $y"), "`$x` and $y$");
     }
 
@@ -243,33 +260,83 @@ mod tests {
     fn a_blank_line_ends_inline_constructs() {
         assert!(matches!(
             complete_draft("$open\n\nnew paragraph"),
-            std::borrow::Cow::Borrowed(_)
+            Cow::Borrowed(_)
         ));
     }
 
     #[test]
     fn fenced_code_is_opaque() {
-        assert!(matches!(
-            complete_draft("```\n$x\n`y\n"),
-            std::borrow::Cow::Borrowed(_)
-        ));
-        assert!(matches!(
-            complete_draft("~~~\n$$\n~~~\n"),
-            std::borrow::Cow::Borrowed(_)
-        ));
+        assert!(matches!(complete_draft("```\n$x\n`y\n"), Cow::Borrowed(_)));
+        assert!(matches!(complete_draft("~~~\n$$\n~~~\n"), Cow::Borrowed(_)));
         assert_eq!(complete_draft("```\n$x\n```\n$y"), "```\n$x\n```\n$y$");
     }
 
     #[test]
+    fn tilde_fences_and_longer_closers() {
+        // A closer must be at least as long as the opener.
+        assert!(matches!(
+            complete_draft("````\n$x\n```\n$y"),
+            Cow::Borrowed(_)
+        ));
+        assert_eq!(complete_draft("```\n$x\n````\n$y"), "```\n$x\n````\n$y$");
+        assert!(matches!(
+            complete_draft("~~~\n`a\n~~~~\n"),
+            Cow::Borrowed(_)
+        ));
+        // A backtick fence's info string may not contain a backtick, so
+        // this is a paragraph whose three-backtick code span is still open.
+        assert_eq!(complete_draft("``` a`b\n$x"), "``` a`b\n$x```");
+    }
+
+    #[test]
+    fn four_spaces_of_indentation_is_indented_code_not_a_fence() {
+        assert_eq!(complete_draft("    ```\n$x"), "    ```\n$x$");
+        assert_eq!(complete_draft("   ```\n$x"), "   ```\n$x");
+        assert!(matches!(complete_draft("    $x\n    `y"), Cow::Borrowed(_)));
+        assert!(matches!(complete_draft("\t$x"), Cow::Borrowed(_)));
+        // An indented line after a paragraph line continues the paragraph.
+        assert_eq!(complete_draft("text\n    $x"), "text\n    $x$");
+        // The block ends at the first unindented line.
+        assert_eq!(
+            complete_draft("    code\n\n    more\n$x"),
+            "    code\n\n    more\n$x$"
+        );
+    }
+
+    #[test]
+    fn windows_line_endings() {
+        assert_eq!(
+            complete_draft("```\r\n$x\r\n```\r\n$y"),
+            "```\r\n$x\r\n```\r\n$y$"
+        );
+        assert!(matches!(
+            complete_draft("$open\r\n\r\nnext"),
+            Cow::Borrowed(_)
+        ));
+    }
+
+    #[test]
+    fn escaped_delimiters_are_ignored() {
+        assert!(matches!(complete_draft("\\`not code"), Cow::Borrowed(_)));
+        assert_eq!(complete_draft("$a \\$ b"), "$a \\$ b$");
+    }
+
+    #[test]
+    fn display_math_ignores_single_dollars_and_needs_balanced_braces() {
+        assert_eq!(complete_draft("$$a $ b"), "$$a $ b$$");
+        assert_eq!(complete_draft("$$\\{a\\}"), "$$\\{a\\}$$");
+        assert_eq!(complete_draft("$${a$$ b"), "$${a$$ b}$$");
+    }
+
+    #[test]
+    fn brace_depth_resets_between_spans() {
+        assert_eq!(complete_draft("${a}$ then ${b"), "${a}$ then ${b}$");
+    }
+
+    #[test]
     fn a_dollar_before_whitespace_or_a_digit_does_not_open() {
-        assert!(matches!(
-            complete_draft("$ x"),
-            std::borrow::Cow::Borrowed(_)
-        ));
-        assert!(matches!(
-            complete_draft("$5 and then"),
-            std::borrow::Cow::Borrowed(_)
-        ));
+        assert!(matches!(complete_draft("$ x"), Cow::Borrowed(_)));
+        assert!(matches!(complete_draft("$5 and then"), Cow::Borrowed(_)));
     }
 
     #[test]

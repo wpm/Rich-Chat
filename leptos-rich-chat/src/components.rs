@@ -359,9 +359,14 @@ pub fn Chat(
         }
     });
 
+    // Browser only: the timer does not exist off it, and a server render
+    // has no grammars to warm.
+    #[cfg(target_arch = "wasm32")]
     if warm_up {
         set_timeout(self::warm_up, Duration::from_millis(250));
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = warm_up;
 
     let bubble_options = options.clone();
     view! {
@@ -396,5 +401,154 @@ pub fn Chat(
                 on_link=on_link
             />
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::message::Role;
+
+    /// Renders a view to its HTML string, the way a server would, under a
+    /// reactive owner so that `For` and `Show` have somewhere to live.
+    fn html<V: IntoView>(build: impl FnOnce() -> V) -> String {
+        Owner::new().with(|| build().into_view().to_html())
+    }
+
+    #[test]
+    fn rich_text_renders_keyed_blocks() {
+        let out = html(|| view! { <RichText content="# Title\n\nBody with $x$.".to_string() /> });
+        assert!(out.starts_with("<div class=\"rc-rich\""), "{out}");
+        assert_eq!(out.matches("<div class=\"rc-block\"").count(), 2, "{out}");
+        assert!(out.contains("<h1>Title</h1>"), "{out}");
+        assert!(out.contains("<math"), "{out}");
+    }
+
+    #[test]
+    fn rich_text_extra_class_and_draft() {
+        let out =
+            html(|| view! { <RichText content="so $x".to_string() draft=true class="mine" /> });
+        assert!(out.contains("class=\"rc-rich mine\""), "{out}");
+        assert!(out.contains("<math"), "{out}");
+        let plain = html(|| view! { <RichText content="so $x".to_string() /> });
+        assert!(!plain.contains("<math"), "{plain}");
+    }
+
+    #[test]
+    fn code_blocks_become_the_component_with_a_copy_button() {
+        let out = html(|| view! { <RichText content="```rust\nfn main() {}\n```".to_string() /> });
+        assert!(out.contains("class=\"rc-codeblock\""), "{out}");
+        assert!(out.contains("class=\"rc-copy\""), "{out}");
+        assert!(out.contains("aria-label=\"Copy code\""), "{out}");
+        assert!(out.contains("<pre class=\"rc-code\"><code>"), "{out}");
+        if cfg!(feature = "highlight") {
+            assert!(
+                out.contains("<span class=\"rc-codeblock-language\">Rust</span>"),
+                "{out}"
+            );
+        }
+    }
+
+    #[test]
+    fn code_block_without_a_language_says_text() {
+        let out = html(|| view! { <CodeBlock source="x" html="x" /> });
+        assert!(out.contains(">text</span>"), "{out}");
+        assert!(out.contains("<code>x</code>"), "{out}");
+    }
+
+    #[test]
+    fn display_math_becomes_a_math_block() {
+        let out = html(|| view! { <RichText content="$$\\int x$$".to_string() /> });
+        assert!(
+            out.contains("<div class=\"rc-math-block\"><math display=\"block\""),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn bubbles_carry_role_and_id() {
+        for (role, class) in [
+            (Role::User, "rc-message-user"),
+            (Role::Assistant, "rc-message-assistant"),
+            (Role::System, "rc-message-system"),
+        ] {
+            let message = Message::new("m7", role, "hi");
+            let out = html(|| view! { <MessageBubble message=message /> });
+            assert!(
+                out.contains(&format!("class=\"rc-message {class}\"")),
+                "{out}"
+            );
+            assert!(out.contains("data-message-id=\"m7\""), "{out}");
+            assert!(out.contains("<div class=\"rc-bubble\">"), "{out}");
+            assert!(out.contains("<p>hi</p>"), "{out}");
+        }
+    }
+
+    #[test]
+    fn a_live_bubble_renders_as_a_draft() {
+        let text = RwSignal::new(String::from("so $x^2"));
+        let live = html(
+            || view! { <MessageBubble message=Message::streaming("s", Role::Assistant, text) /> },
+        );
+        assert!(live.contains("<math"), "{live}");
+        let done = html(
+            || view! { <MessageBubble message=Message::streaming("s", Role::Assistant, text).finished() /> },
+        );
+        assert!(!done.contains("<math"), "{done}");
+    }
+
+    #[test]
+    fn composer_has_the_controls_and_no_preview_when_empty() {
+        let out = html(|| view! { <Composer on_send=|_text: String| {} placeholder="Say it" /> });
+        assert!(out.contains("<textarea"), "{out}");
+        assert!(out.contains("placeholder=\"Say it\""), "{out}");
+        assert!(out.contains("class=\"rc-send\""), "{out}");
+        assert!(out.contains("rc-composer-hint"), "{out}");
+        assert!(!out.contains("rc-composer-preview"), "{out}");
+    }
+
+    #[test]
+    fn chat_shows_the_empty_text_then_the_messages() {
+        let messages = RwSignal::new(Vec::<Message>::new());
+        let empty = html(
+            || view! { <Chat messages=messages on_send=|_: String| {} empty="Nothing yet" /> },
+        );
+        assert!(
+            empty.contains("<div class=\"rc-empty\">Nothing yet</div>"),
+            "{empty}"
+        );
+        assert!(empty.contains("<div class=\"rc-composer\">"), "{empty}");
+
+        messages.set(vec![
+            Message::new("1", Role::User, "Hello"),
+            Message::new("2", Role::Assistant, "Hi *there*"),
+        ]);
+        let full = html(
+            || view! { <Chat messages=messages on_send=|_: String| {} empty="Nothing yet" /> },
+        );
+        assert!(!full.contains("Nothing yet"), "{full}");
+        assert!(full.contains("rc-message-user"), "{full}");
+        assert!(full.contains("<p>Hi <em>there</em></p>"), "{full}");
+        let user = full.find("rc-message-user").unwrap();
+        let assistant = full.find("rc-message-assistant").unwrap();
+        assert!(user < assistant, "messages keep their order");
+    }
+
+    #[test]
+    fn style_component_carries_the_stylesheet_and_fonts() {
+        let out = html(|| view! { <RichChatStyle /> });
+        assert!(out.starts_with("<style>"), "{}", &out[..40]);
+        assert!(out.contains(".rc-chat"), "stylesheet missing");
+        assert!(out.contains(".rc-rich math"), "math rules missing");
+        if cfg!(feature = "bundled-fonts") {
+            assert!(out.contains("data:font/woff2;base64,"), "fonts missing");
+        }
+        // Raw CSS, not entity-escaped: selectors with `>` must survive.
+        assert!(out.contains(" > "), "CSS was escaped");
+    }
+
+    #[test]
+    fn warm_up_is_a_no_op_off_the_browser() {
+        warm_up();
     }
 }
