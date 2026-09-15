@@ -19,7 +19,7 @@ else
       | gh api -X "$method" "repos/$repo/pages" --input - > /dev/null; then
     echo "Pages now serves the $branch branch (was: $current)."
   else
-    echo "::error::Could not point Pages at the $branch branch. Once, by hand: Settings > Pages > Build and deployment > Source: Deploy from a branch, $branch, / (root)."
+    echo "::error::Pages is not serving the $branch branch (it is set to: $current), and the workflow token may not change that. Once, by hand: Settings > Pages > Build and deployment > Source: Deploy from a branch, $branch, / (root). The branch is already published, so the site works as soon as that is set."
     exit 1
   fi
 fi
