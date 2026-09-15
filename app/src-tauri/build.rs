@@ -1,11 +1,13 @@
-//! Tauri's build step, plus an Info.plist embedded in the macOS debug binary.
+//! Tauri's build step, on every platform. On macOS, debug builds also get an
+//! Info.plist embedded in the binary; other platforms and release builds
+//! skip that.
 //!
-//! `cargo tauri dev` runs that binary bare rather than inside an app bundle,
-//! so macOS has no Info.plist to read and labels the Dock tile and the
-//! application menu with the executable's name, `rich-chat-desktop`. A plist
-//! linked into the binary's `__info_plist` section gives it the product name
-//! instead. Release builds go into the bundle `cargo tauri build` makes, and
-//! the bundle's own Info.plist takes over there.
+//! `cargo tauri dev` runs the debug binary bare rather than inside an app
+//! bundle, so macOS has no Info.plist to read and labels the Dock tile and
+//! the application menu with the executable's name, `rich-chat-desktop`. A
+//! plist linked into the binary's `__info_plist` section gives it the product
+//! name instead. Release builds go into the bundle `cargo tauri build` makes,
+//! and the bundle's own Info.plist takes over there.
 
 use std::{env, fs, path::PathBuf};
 
