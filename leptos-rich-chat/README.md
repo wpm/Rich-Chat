@@ -37,14 +37,14 @@ leptos-rich-chat = "0.1"
 
 ```rust
 use leptos::prelude::*;
-use leptos_rich_chat::{Chat, Message, RichChatStyle, Role};
+use leptos_rich_chat::{Chat, Message, RichChatStyle};
 
 #[component]
 fn App() -> impl IntoView {
     let messages = RwSignal::new(Vec::<Message>::new());
     let send = move |text: String| {
         let id = messages.read_untracked().len().to_string();
-        messages.update(|all| all.push(Message::new(id, Role::User, text)));
+        messages.update(|all| all.push(Message::new(id, "user", text)));
     };
     view! {
         <RichChatStyle />
@@ -63,7 +63,7 @@ append to it as tokens arrive, and mark the message finished at the end:
 
 ```rust
 let reply = RwSignal::new(String::new());
-messages.update(|all| all.push(Message::streaming("r1", Role::Assistant, reply)));
+messages.update(|all| all.push(Message::streaming("r1", "assistant", reply)));
 // … on each token:
 reply.update(|text| text.push_str(token));
 // … when done:
@@ -74,6 +74,40 @@ messages.update(|all| {
 
 A live message is rendered as a draft, so an equation shows as math
 before its closing `$$` has arrived.
+
+### Kinds of message
+
+A message's `kind` is a name you choose. The crate attaches no meaning
+to it: the bubble carries it as `data-kind`, and a `Kinds` table you
+give `RichChatStyle` says where each kind sits and what colours it has.
+The default table is `user` on the right in the theme's tint colours
+and `assistant` on the left, which is a chat with a model. Any other
+shape is another table:
+
+```rust
+use leptos_rich_chat::{Kinds, Look, Position};
+
+let kinds = Kinds::none()
+    .kind("me", Look::at(Position::Right).background("#ddf4ff").foreground("#1f2328"))
+    .kind("alice", Look::at(Position::Left).background("var(--alice)"))
+    .kind("bob", Look::at(Position::Left).background("var(--bob)"))
+    .kind("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
+
+view! { <RichChatStyle kinds=kinds /> }
+```
+
+The colours are CSS values, so `var(--…)` and `light-dark(…, …)` keep
+light and dark mode in your stylesheet. A colour left out is the theme's
+plain bubble colour, and a kind with no entry gets the plain bubble on
+the left. `kinds` can be a signal, and only its rules are rewritten when
+it changes. Position and the two colours are all a `Look` holds, because
+they are what a stylesheet cannot say without knowing the kind's name;
+anything else about a kind is a rule of yours against
+`.rc-message[data-kind="…"]`.
+
+The composer's preview takes the theme's tint colours, or those of the
+kind named in `preview_kind`, so it can look like the bubble about to be
+sent.
 
 ### Links
 
@@ -95,7 +129,7 @@ Tauri's opener plugin.
 | Component       | Renders                                              |
 |-----------------|------------------------------------------------------|
 | `Composer`      | the text box with its live preview and send button   |
-| `MessageBubble` | one message on its role's side                       |
+| `MessageBubble` | one message, placed and coloured by its kind         |
 | `RichText`      | any Markdown, from a `Signal<String>`                |
 | `CodeBlock`     | one highlighted block with label and copy button     |
 
@@ -122,7 +156,8 @@ selectors:
   the block wrappers that must not become boxes, and the alignment of
   MathML environments. No colours, fonts, spacing, or radii. Keep it.
 - `style::THEME` and `style::HIGHLIGHT`, layer `rich-chat.theme`: the
-  default look and the code colours.
+  default look and the code colours. Neither names a kind of message;
+  the rules for those are `Kinds::css()`, in the same layer.
 
 To adjust the theme, override its custom properties on the component's
 root. Every colour is a `--rc-*` property, and so are the fonts
@@ -130,8 +165,13 @@ root. Every colour is a `--rc-*` property, and so are the fonts
 radius:
 
 ```css
-.rc-chat { --rc-accent: #7c3aed; --rc-user-bg: #ede9fe; }
+.rc-chat { --rc-accent: #7c3aed; --rc-tint-bg: #ede9fe; }
 ```
+
+`--rc-bubble-bg` and `--rc-bubble-fg` are the plain bubble;
+`--rc-tint-bg` and `--rc-tint-fg` the tinted one the default kinds give
+`user` and the composer's preview; `--rc-tail` the radius of the corner
+a bubble has on its side.
 
 The theme sets them on the outermost root only (`.rc-chat`, or a
 `.rc-rich` or `.rc-composer` used on its own), so an override there

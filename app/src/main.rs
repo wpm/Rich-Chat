@@ -2,10 +2,11 @@
 //! components render, and every message sent appears as a bubble, which
 //! is all that is needed to exercise the rendering.
 //!
-//! Above the chat is a bar of controls (light or dark, which side the
-//! bubbles land on, their colour), and the composer's top edge can be
-//! dragged to make the text box taller. All of that is this app's: the
-//! library only gets attributes and custom properties to style by.
+//! Above the chat is a bar of controls (light or dark, where the bubbles
+//! land, their colour), and the composer's top edge can be dragged to
+//! make the text box taller. All of that is this app's: the library gets
+//! a table of kinds saying where its bubbles go and in what colours, and
+//! the stylesheet gets a custom property for the text box.
 
 mod controls;
 mod opener;
@@ -13,7 +14,7 @@ mod settings;
 
 use leptos::ev;
 use leptos::prelude::*;
-use leptos_rich_chat::{Chat, Message, RichChatStyle, Role};
+use leptos_rich_chat::{Chat, Kinds, Message, RichChatStyle};
 use wasm_bindgen::JsCast;
 
 use crate::controls::Controls;
@@ -40,6 +41,26 @@ struct Drag {
 /// before anything is typed.
 const WELCOME: &str = include_str!("../welcome.md");
 
+/// The kinds of message in this window. The library's default two, with
+/// the user's bubbles moved and coloured as the controls say.
+fn kinds(settings: &Settings) -> Kinds {
+    let defaults = Kinds::default();
+    let mut user = defaults.get(USER).cloned().unwrap_or_default();
+    user.position = settings.side.position();
+    if let Some(bubble) = &settings.bubble {
+        user = user.background(bubble.clone());
+        if let Some(text) = text_on(bubble) {
+            user = user.foreground(text);
+        }
+    }
+    defaults.kind(USER, user)
+}
+
+/// The kind of message the person typing sends.
+const USER: &str = "user";
+/// The kind the welcome is.
+const ASSISTANT: &str = "assistant";
+
 #[component]
 fn App() -> impl IntoView {
     let settings = RwSignal::new(Settings::load());
@@ -63,26 +84,21 @@ fn App() -> impl IntoView {
         }
     });
 
-    let messages = RwSignal::new(vec![Message::new("welcome", Role::Assistant, WELCOME)]);
+    let messages = RwSignal::new(vec![Message::new("welcome", ASSISTANT, WELCOME)]);
     let send = move |text: String| {
         let id = format!("m{}", messages.read_untracked().len());
-        messages.update(|all| all.push(Message::new(id, Role::User, text)));
+        messages.update(|all| all.push(Message::new(id, USER, text)));
     };
 
-    // The settings the stylesheet reads as custom properties.
+    // Where the bubbles go and their colours, for the library's stylesheet.
+    let kinds = Signal::derive(move || kinds(&settings.read()));
+    // The setting the app's own stylesheet reads as a custom property.
     let style = move || {
-        let settings = settings.read();
-        let mut css = String::new();
-        if let Some(bubble) = &settings.bubble {
-            css.push_str(&format!("--app-bubble-bg: {bubble};"));
-            if let Some(text) = text_on(bubble) {
-                css.push_str(&format!("--app-bubble-fg: {text};"));
-            }
-        }
-        if let Some(height) = settings.input_height {
-            css.push_str(&format!("--app-input-height: {height}px;"));
-        }
-        css
+        settings
+            .read()
+            .input_height
+            .map(|height| format!("--app-input-height: {height}px;"))
+            .unwrap_or_default()
     };
 
     // Dragging the composer's top edge sets the text box's height.
@@ -134,12 +150,10 @@ fn App() -> impl IntoView {
     let release = move |_| drag.set(None);
 
     view! {
-        <RichChatStyle />
+        <RichChatStyle kinds=kinds />
         <main
             class="app"
-            class:app-bubble=move || settings.read().bubble.is_some()
             class:app-resizing=move || drag.read().is_some()
-            data-side=move || settings.read().side.as_str()
             style=style
             on:pointerdown=press
             on:pointermove=moved
@@ -147,7 +161,12 @@ fn App() -> impl IntoView {
             on:pointercancel=release
         >
             <Controls settings=settings theme=theme />
-            <Chat messages=messages on_send=send on_link=Callback::new(opener::open_url) />
+            <Chat
+                messages=messages
+                on_send=send
+                on_link=Callback::new(opener::open_url)
+                preview_kind=USER
+            />
         </main>
     }
 }
@@ -159,8 +178,31 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::WELCOME;
+    use super::{USER, WELCOME, kinds};
+    use crate::settings::{Settings, Side};
+    use leptos_rich_chat::Position;
     use leptos_rich_chat::render::{RenderOptions, render_html};
+
+    /// The controls move and colour the user's bubbles and nothing else.
+    #[test]
+    fn the_kinds_follow_the_settings() {
+        let plain = kinds(&Settings::default());
+        let user = plain.get(USER).unwrap();
+        assert_eq!(user.position, Position::Right);
+        assert_eq!(user.background.as_deref(), Some("var(--rc-tint-bg)"));
+        assert_eq!(plain.get("assistant").unwrap().position, Position::Left);
+
+        let chosen = kinds(&Settings {
+            side: Side::Center,
+            bubble: Some("#ff8800".to_string()),
+            ..Settings::default()
+        });
+        let user = chosen.get(USER).unwrap();
+        assert_eq!(user.position, Position::Center);
+        assert_eq!(user.background.as_deref(), Some("#ff8800"));
+        assert_eq!(user.foreground.as_deref(), Some("#1f2328"));
+        assert_eq!(chosen.get("assistant"), plain.get("assistant"));
+    }
 
     /// The tour has to show off everything it claims to, and nothing in it
     /// may be a construct the renderer rejects.

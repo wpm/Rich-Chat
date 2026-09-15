@@ -1,8 +1,8 @@
 //! The bar above the chat: theme, bubble side, bubble colour.
 //!
 //! Each control edits one field of the app's [`Settings`]; the app root
-//! turns those into attributes and custom properties that the stylesheet
-//! applies to the library's components.
+//! turns those into the library's table of kinds, the root element's
+//! theme attribute, and a custom property for the stylesheet.
 
 use leptos::prelude::*;
 
@@ -62,6 +62,7 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
                 <span class="control-label">"Bubbles"</span>
                 <span class="control-segments">
                     {side_button(Side::Left, "Left")}
+                    {side_button(Side::Center, "Center")}
                     {side_button(Side::Right, "Right")}
                 </span>
             </div>

@@ -4,6 +4,8 @@
 //! Tauri), one key each, so a value that was never chosen is simply
 //! absent and the app falls back to the system's or the theme's own.
 
+use leptos_rich_chat::Position;
+
 const THEME_KEY: &str = "rich-chat.theme";
 const SIDE_KEY: &str = "rich-chat.side";
 const BUBBLE_KEY: &str = "rich-chat.bubble";
@@ -42,9 +44,9 @@ impl Theme {
         }
     }
 
-    /// The library's own background for the user's bubbles in this
-    /// theme (`--rc-user-bg`), which the colour control shows until a
-    /// colour is chosen.
+    /// The library's tint, the background its default kinds give the
+    /// user's bubbles in this theme (`--rc-tint-bg`), which the colour
+    /// control shows until a colour is chosen.
     pub fn bubble(self) -> &'static str {
         match self {
             Theme::Light => "#ddf4ff",
@@ -53,19 +55,21 @@ impl Theme {
     }
 }
 
-/// The side of the window a sent message lands on.
+/// Where a sent message lands across the window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Side {
     Left,
+    Center,
     #[default]
     Right,
 }
 
 impl Side {
-    /// The value of the app root's `data-side` attribute.
+    /// The side's name, as stored and as the control's value.
     pub fn as_str(self) -> &'static str {
         match self {
             Side::Left => "left",
+            Side::Center => "center",
             Side::Right => "right",
         }
     }
@@ -73,8 +77,18 @@ impl Side {
     fn parse(text: &str) -> Option<Self> {
         match text {
             "left" => Some(Side::Left),
+            "center" => Some(Side::Center),
             "right" => Some(Side::Right),
             _ => None,
+        }
+    }
+
+    /// The library's position for bubbles on this side.
+    pub fn position(self) -> Position {
+        match self {
+            Side::Left => Position::Left,
+            Side::Center => Position::Center,
+            Side::Right => Position::Right,
         }
     }
 }
@@ -243,9 +257,10 @@ mod tests {
             assert_eq!(theme.toggled().toggled(), theme);
             assert_ne!(theme.toggled(), theme);
         }
-        for side in [Side::Left, Side::Right] {
+        for side in [Side::Left, Side::Center, Side::Right] {
             assert_eq!(Side::parse(side.as_str()), Some(side));
         }
+        assert_eq!(Side::Center.position(), Position::Center);
         assert_eq!(Theme::parse("blue"), None);
         assert_eq!(Side::parse("middle"), None);
         assert_eq!(Settings::default().side, Side::Right);

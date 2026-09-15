@@ -21,6 +21,7 @@
   --rc-font-size: 15px;
   --rc-line-height: 1.55;
   --rc-radius: 16px;
+  --rc-tail: 5px;
 
   --rc-fg: #1f2328;
   --rc-muted: #59636e;
@@ -30,10 +31,10 @@
   --rc-accent: #0969da;
   --rc-accent-fg: #ffffff;
   --rc-link: #0969da;
-  --rc-user-bg: #ddf4ff;
-  --rc-user-fg: #1f2328;
-  --rc-assistant-bg: #f6f8fa;
-  --rc-assistant-fg: #1f2328;
+  --rc-bubble-bg: #f6f8fa;
+  --rc-bubble-fg: #1f2328;
+  --rc-tint-bg: #ddf4ff;
+  --rc-tint-fg: #1f2328;
   --rc-code-bg: #ffffff;
   --rc-inline-code-bg: rgba(175, 184, 193, 0.3);
   --rc-quote-border: #d1d9e0;
@@ -58,10 +59,10 @@
     --rc-accent: #4493f8;
     --rc-accent-fg: #ffffff;
     --rc-link: #4493f8;
-    --rc-user-bg: #172b45;
-    --rc-user-fg: #e6edf3;
-    --rc-assistant-bg: #161b22;
-    --rc-assistant-fg: #e6edf3;
+    --rc-bubble-bg: #161b22;
+    --rc-bubble-fg: #e6edf3;
+    --rc-tint-bg: #172b45;
+    --rc-tint-fg: #e6edf3;
     --rc-code-bg: #0d1117;
     --rc-inline-code-bg: rgba(110, 118, 129, 0.4);
     --rc-quote-border: #3d444d;
@@ -86,10 +87,10 @@
   --rc-accent: #4493f8;
   --rc-accent-fg: #ffffff;
   --rc-link: #4493f8;
-  --rc-user-bg: #172b45;
-  --rc-user-fg: #e6edf3;
-  --rc-assistant-bg: #161b22;
-  --rc-assistant-fg: #e6edf3;
+  --rc-bubble-bg: #161b22;
+  --rc-bubble-fg: #e6edf3;
+  --rc-tint-bg: #172b45;
+  --rc-tint-fg: #e6edf3;
   --rc-code-bg: #0d1117;
   --rc-inline-code-bg: rgba(110, 118, 129, 0.4);
   --rc-quote-border: #3d444d;
@@ -129,41 +130,17 @@
   max-width: 40ch;
 }
 
-.rc-message-user {
-  justify-content: flex-end;
-}
-
-.rc-message-assistant {
-  justify-content: flex-start;
-}
-
-.rc-message-system {
-  justify-content: center;
-}
-
+/* The plain bubble. Where a bubble sits and any other colours it has
+ * come from the host's kinds, as rules keyed on the message's data-kind
+ * attribute that RichChatStyle generates; the tail they give a bubble on
+ * its side is --rc-tail. A kind the host has not declared gets this and
+ * nothing more. */
 .rc-bubble {
   max-width: min(85%, 76ch);
   padding: 10px 14px;
   border-radius: var(--rc-radius);
-  background: var(--rc-assistant-bg);
-  color: var(--rc-assistant-fg);
-}
-
-.rc-message-user .rc-bubble {
-  background: var(--rc-user-bg);
-  color: var(--rc-user-fg);
-  border-bottom-right-radius: 5px;
-}
-
-.rc-message-assistant .rc-bubble {
-  border-bottom-left-radius: 5px;
-}
-
-.rc-message-system .rc-bubble {
-  background: transparent;
-  color: var(--rc-muted);
-  font-size: 0.9em;
-  text-align: center;
+  background: var(--rc-bubble-bg);
+  color: var(--rc-bubble-fg);
 }
 
 /* ---- Rendered Markdown ------------------------------------------------ */
@@ -328,7 +305,7 @@
   font-weight: 650;
 }
 
-.rc-message-assistant .rc-rich th {
+.rc-message .rc-rich th {
   background: color-mix(in srgb, var(--rc-border) 35%, transparent);
 }
 
@@ -492,8 +469,8 @@ pre.rc-code code {
   padding: 8px 14px 10px;
   border: 1px dashed var(--rc-border);
   border-radius: var(--rc-radius);
-  background: var(--rc-user-bg);
-  color: var(--rc-user-fg);
+  background: var(--rc-tint-bg);
+  color: var(--rc-tint-fg);
 }
 
 .rc-composer-preview-label {

@@ -14,6 +14,7 @@ use leptos::html;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
+use crate::kinds::Kinds;
 use crate::message::Message;
 use crate::render::{self, Block, BlockKind, RenderOptions};
 
@@ -26,6 +27,10 @@ use crate::render::{self, Block, BlockKind, RenderOptions};
 /// colours, or serves the fonts itself. Everything is in cascade layers,
 /// so a host's own unlayered rules win over it regardless of specificity;
 /// see [`style`](crate::style).
+///
+/// The rules for the host's kinds of message come from `kinds`, which
+/// may be a signal: only they are rewritten when it changes, in a second
+/// `<style>` element, so the fonts and the theme are injected once.
 #[component]
 pub fn RichChatStyle(
     /// The default look, [`style::THEME`](crate::style::THEME).
@@ -38,6 +43,10 @@ pub fn RichChatStyle(
     /// [`style::font_faces`](crate::style::font_faces).
     #[prop(default = true)]
     fonts: bool,
+    /// Where each kind of message sits and its colours. The default is
+    /// [`Kinds::default`]; [`Kinds::none`] leaves every bubble plain.
+    #[prop(default = Signal::stored(Kinds::default()), into)]
+    kinds: Signal<Kinds>,
 ) -> impl IntoView {
     let mut css = String::from(crate::style::STRUCTURE);
     for (wanted, part) in [
@@ -50,7 +59,10 @@ pub fn RichChatStyle(
             css.push_str(part);
         }
     }
-    view! { <style inner_html=css></style> }
+    view! {
+        <style inner_html=css></style>
+        <style inner_html=move || kinds.read().css()></style>
+    }
 }
 
 /// The copy button's labels.
@@ -228,7 +240,9 @@ fn copy_to_clipboard(text: &str) {
     }
 }
 
-/// One message in the transcript, on its role's side of the window.
+/// One message in the transcript. The outer `div.rc-message` carries the
+/// message's kind as `data-kind`, which the host's [`Kinds`] rules place
+/// and colour.
 #[component]
 pub fn MessageBubble(
     /// The message.
@@ -243,9 +257,13 @@ pub fn MessageBubble(
     #[prop(optional)]
     node_ref: NodeRef<html::Div>,
 ) -> impl IntoView {
-    let class = format!("rc-message rc-message-{}", message.role.as_str());
     view! {
-        <div class=class data-message-id=message.id.clone() node_ref=node_ref>
+        <div
+            class="rc-message"
+            data-kind=message.kind.clone()
+            data-message-id=message.id.clone()
+            node_ref=node_ref
+        >
             <div class="rc-bubble">
                 <RichText content=message.content draft=message.live options=options on_link=on_link />
             </div>
@@ -293,6 +311,11 @@ pub fn Composer(
     /// The heading over the preview.
     #[prop(default = "Preview".to_string(), into)]
     preview_label: String,
+    /// The kind of message the preview shows, so that it takes that
+    /// kind's colours from the [`Kinds`] rules. Empty, the default,
+    /// leaves it in the theme's tint colours.
+    #[prop(optional, into)]
+    preview_kind: String,
     /// The send button's content, in place of the word "Send": an icon,
     /// say. Pass a view function: `send=|| view! { <SendIcon /> }`.
     #[prop(optional, into)]
@@ -333,11 +356,12 @@ pub fn Composer(
     let has_draft = move || !draft.read().trim().is_empty();
     let send = send_content(send);
     let hint = hint_text(hint);
+    let preview_kind = (!preview_kind.is_empty()).then_some(preview_kind);
 
     view! {
         <div class="rc-composer">
             <Show when=move || preview && has_draft()>
-                <div class="rc-composer-preview" aria-live="polite">
+                <div class="rc-composer-preview" data-kind=preview_kind.clone() aria-live="polite">
                     <div class="rc-composer-preview-label">{preview_label.clone()}</div>
                     <RichText content=draft draft=true options=options.clone() on_link=on_link />
                 </div>
@@ -437,6 +461,10 @@ pub fn Chat(
     /// The heading over the preview.
     #[prop(default = "Preview".to_string(), into)]
     preview_label: String,
+    /// The kind of message the preview shows, for its colours. See
+    /// [`Composer`].
+    #[prop(optional, into)]
+    preview_kind: String,
     /// The send button's content, in place of the word "Send". See
     /// [`Composer`].
     #[prop(optional, into)]
@@ -501,6 +529,7 @@ pub fn Chat(
                 disabled=disabled
                 preview=preview
                 preview_label=preview_label
+                preview_kind=preview_kind
                 send=send_content(send)
                 hint=hint_text(hint)
                 options=options
@@ -630,7 +659,7 @@ impl Follow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::Role;
+    use crate::kinds::{Look, Position};
 
     /// Renders a view to its HTML string, the way a server would, under a
     /// reactive owner so that `For` and `Show` have somewhere to live.
@@ -689,18 +718,14 @@ mod tests {
     }
 
     #[test]
-    fn bubbles_carry_role_and_id() {
-        for (role, class) in [
-            (Role::User, "rc-message-user"),
-            (Role::Assistant, "rc-message-assistant"),
-            (Role::System, "rc-message-system"),
-        ] {
-            let message = Message::new("m7", role, "hi");
+    fn bubbles_carry_kind_and_id() {
+        for kind in ["user", "alice", "a kind \"quoted\""] {
+            let message = Message::new("m7", kind, "hi");
             let out = html(|| view! { <MessageBubble message=message /> });
-            assert!(
-                out.contains(&format!("class=\"rc-message {class}\"")),
-                "{out}"
-            );
+            assert!(out.starts_with("<div "), "{out}");
+            assert!(out.contains(" class=\"rc-message\">"), "{out}");
+            let escaped = kind.replace('"', "&quot;");
+            assert!(out.contains(&format!("data-kind=\"{escaped}\"")), "{out}");
             assert!(out.contains("data-message-id=\"m7\""), "{out}");
             assert!(out.contains("<div class=\"rc-bubble\">"), "{out}");
             assert!(out.contains("<p>hi</p>"), "{out}");
@@ -710,12 +735,11 @@ mod tests {
     #[test]
     fn a_live_bubble_renders_as_a_draft() {
         let text = RwSignal::new(String::from("so $x^2"));
-        let live = html(
-            || view! { <MessageBubble message=Message::streaming("s", Role::Assistant, text) /> },
-        );
+        let live =
+            html(|| view! { <MessageBubble message=Message::streaming("s", "bob", text) /> });
         assert!(live.contains("<math"), "{live}");
         let done = html(
-            || view! { <MessageBubble message=Message::streaming("s", Role::Assistant, text).finished() /> },
+            || view! { <MessageBubble message=Message::streaming("s", "bob", text).finished() /> },
         );
         assert!(!done.contains("<math"), "{done}");
     }
@@ -789,18 +813,45 @@ mod tests {
         assert!(empty.contains("<div class=\"rc-composer\">"), "{empty}");
 
         messages.set(vec![
-            Message::new("1", Role::User, "Hello"),
-            Message::new("2", Role::Assistant, "Hi *there*"),
+            Message::new("1", "me", "Hello"),
+            Message::new("2", "them", "Hi *there*"),
         ]);
         let full = html(
             || view! { <Chat messages=messages on_send=|_: String| {} empty="Nothing yet" /> },
         );
         assert!(!full.contains("Nothing yet"), "{full}");
-        assert!(full.contains("rc-message-user"), "{full}");
         assert!(full.contains("<p>Hi <em>there</em></p>"), "{full}");
-        let user = full.find("rc-message-user").unwrap();
-        let assistant = full.find("rc-message-assistant").unwrap();
-        assert!(user < assistant, "messages keep their order");
+        let me = full.find("data-kind=\"me\"").unwrap();
+        let them = full.find("data-kind=\"them\"").unwrap();
+        assert!(me < them, "messages keep their order");
+    }
+
+    #[test]
+    fn style_component_writes_the_kinds_rules_separately() {
+        let out = html(|| view! { <RichChatStyle /> });
+        assert_eq!(out.matches("<style>").count(), 2, "{}", &out[..80]);
+        assert!(
+            out.contains("[data-kind=\"user\"]"),
+            "default kinds missing"
+        );
+        assert!(
+            out.contains("[data-kind=\"assistant\"]"),
+            "default kinds missing"
+        );
+        let kinds = Kinds::none().kind("notice", Look::at(Position::Center));
+        let out = html(|| view! { <RichChatStyle kinds=kinds /> });
+        assert!(
+            !out.contains("[data-kind=\"user\"]"),
+            "default kinds still there"
+        );
+        assert!(
+            out.contains(
+                "[data-kind=\"notice\"] > .rc-bubble { margin-left: auto; margin-right: auto; }"
+            ),
+            "{out}"
+        );
+        let out = html(|| view! { <RichChatStyle kinds=Kinds::none() /> });
+        assert!(!out.contains("[data-kind="), "no kinds, no rules");
     }
 
     #[test]
