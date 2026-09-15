@@ -1,15 +1,23 @@
-/* leptos-rich-chat: layout and palette.
+/* leptos-rich-chat: the default theme.
  *
- * Every colour is a custom property on the component roots, so a host can
- * override any of them. Dark mode follows prefers-color-scheme unless the
- * document forces a theme with data-theme="light" or "dark" on its root.
+ * Colours, fonts, spacing, and radii: everything about how the
+ * components look, as opposed to how they work, which structure.css
+ * holds. Every colour is a custom property, so a host can override any
+ * of them. Dark mode follows prefers-color-scheme unless the document
+ * forces a theme with data-theme="light" or "dark" on its root.
+ *
+ * The properties are set on the outermost component root only: on
+ * .rc-chat, or on a .rc-rich or .rc-composer used on its own, never on
+ * one nested inside another root. A value declared on an element beats
+ * one inherited from above, so declaring them on every root would stop
+ * a host's `.rc-chat { --rc-accent: … }` from reaching the composer.
  */
 
-.rc-chat,
-.rc-rich,
-.rc-composer {
+:is(.rc-chat, .rc-rich, .rc-composer):not(:is(.rc-chat, .rc-rich, .rc-composer) *) {
   --rc-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --rc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --rc-math: "Latin Modern Math", "STIX Two Math", "Cambria Math", "Noto Sans Math", math, serif;
+  --rc-math-text: "Latin Modern Roman", "Latin Modern Math", "STIX Two Text", "Times New Roman", serif;
   --rc-font-size: 15px;
   --rc-line-height: 1.55;
   --rc-radius: 16px;
@@ -41,7 +49,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) :is(.rc-chat, .rc-rich, .rc-composer) {
+  :root:not([data-theme="light"]) :is(.rc-chat, .rc-rich, .rc-composer):not(:is(.rc-chat, .rc-rich, .rc-composer) *) {
     --rc-fg: #e6edf3;
     --rc-muted: #9198a1;
     --rc-bg: #0d1117;
@@ -69,7 +77,7 @@
   }
 }
 
-[data-theme="dark"] :is(.rc-chat, .rc-rich, .rc-composer) {
+[data-theme="dark"] :is(.rc-chat, .rc-rich, .rc-composer):not(:is(.rc-chat, .rc-rich, .rc-composer) *) {
   --rc-fg: #e6edf3;
   --rc-muted: #9198a1;
   --rc-bg: #0d1117;
@@ -99,10 +107,6 @@
 /* ---- The window ------------------------------------------------------ */
 
 .rc-chat {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
   background: var(--rc-bg);
   color: var(--rc-fg);
   font: var(--rc-font-size) / var(--rc-line-height) var(--rc-font);
@@ -114,12 +118,6 @@
 }
 
 .rc-messages {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
   gap: 12px;
   padding: 20px 16px;
 }
@@ -129,10 +127,6 @@
   color: var(--rc-muted);
   text-align: center;
   max-width: 40ch;
-}
-
-.rc-message {
-  display: flex;
 }
 
 .rc-message-user {
@@ -148,14 +142,11 @@
 }
 
 .rc-bubble {
-  box-sizing: border-box;
   max-width: min(85%, 76ch);
-  min-width: 0;
   padding: 10px 14px;
   border-radius: var(--rc-radius);
   background: var(--rc-assistant-bg);
   color: var(--rc-assistant-fg);
-  overflow-wrap: anywhere;
 }
 
 .rc-message-user .rc-bubble {
@@ -181,11 +172,6 @@
   font: inherit;
   line-height: var(--rc-line-height);
   color: inherit;
-  min-width: 0;
-}
-
-.rc-block {
-  display: contents;
 }
 
 .rc-rich p,
@@ -283,8 +269,6 @@
 }
 
 .rc-rich img {
-  max-width: 100%;
-  height: auto;
   border-radius: 6px;
 }
 
@@ -324,11 +308,6 @@
 .rc-rich blockquote.markdown-alert-caution::before { content: "Caution"; color: var(--rc-alert-caution); }
 
 /* Tables */
-
-.rc-table-wrap {
-  overflow-x: auto;
-  max-width: 100%;
-}
 
 .rc-rich table {
   border-collapse: collapse;
@@ -375,9 +354,6 @@
 }
 
 .rc-codeblock-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   gap: 8px;
   padding: 3px 5px 3px 12px;
   border-bottom: 1px solid var(--rc-border);
@@ -414,9 +390,7 @@
 }
 
 pre.rc-code {
-  margin: 0;
   padding: 11px 14px;
-  overflow-x: auto;
   background: var(--rc-code-bg);
   color: var(--rc-fg);
   font-family: var(--rc-mono);
@@ -426,11 +400,9 @@ pre.rc-code {
 }
 
 pre.rc-code code {
-  display: block;
   padding: 0;
   background: none;
   font-size: inherit;
-  white-space: pre;
 }
 
 .rc-rich .rc-block pre.rc-code {
@@ -467,10 +439,47 @@ pre.rc-code code {
   text-decoration: none;
 }
 
+/* ---- Math ------------------------------------------------------------- */
+
+.rc-rich math {
+  font-family: var(--rc-math);
+  font-size: 1.06em;
+}
+
+.rc-rich mtext {
+  font-family: var(--rc-math-text);
+}
+
+.rc-rich math[display="block"] {
+  margin: 0.2em 0;
+}
+
+.rc-math-block,
+.rc-math-display {
+  padding: 0.1em 0;
+  text-align: center;
+}
+
+.rc-math-display {
+  margin: 0.5em 0;
+}
+
+.rc-rich merror {
+  border: 1px solid;
+  border-radius: 3px;
+  padding: 0 0.2em;
+  background: color-mix(in srgb, var(--rc-error) 12%, transparent);
+  color: var(--rc-error);
+}
+
+.rc-rich merror > mtext {
+  font-family: var(--rc-mono);
+  font-size: 0.85em;
+}
+
 /* ---- The composer ----------------------------------------------------- */
 
 .rc-composer {
-  flex: 0 0 auto;
   padding: 10px 16px 10px;
   border-top: 1px solid var(--rc-border);
   background: var(--rc-bg);
@@ -479,16 +488,12 @@ pre.rc-code code {
 }
 
 .rc-composer-preview {
-  box-sizing: border-box;
   margin: 0 0 10px;
   padding: 8px 14px 10px;
   border: 1px dashed var(--rc-border);
   border-radius: var(--rc-radius);
   background: var(--rc-user-bg);
   color: var(--rc-user-fg);
-  max-height: 40vh;
-  overflow-y: auto;
-  overflow-wrap: anywhere;
 }
 
 .rc-composer-preview-label {
@@ -502,17 +507,11 @@ pre.rc-code code {
 }
 
 .rc-composer-row {
-  display: flex;
-  align-items: flex-end;
   gap: 8px;
 }
 
 .rc-composer-input {
-  box-sizing: border-box;
-  flex: 1 1 auto;
-  min-width: 0;
   min-height: 42px;
-  max-height: 30vh;
   padding: 10px 13px;
   border: 1px solid var(--rc-border);
   border-radius: 13px;
@@ -520,8 +519,6 @@ pre.rc-code code {
   color: var(--rc-fg);
   font: inherit;
   line-height: 1.4;
-  resize: none;
-  overflow-y: auto;
   outline: none;
 }
 
@@ -539,7 +536,6 @@ pre.rc-code code {
 }
 
 .rc-send {
-  flex: 0 0 auto;
   height: 42px;
   padding: 0 18px;
   border: 0;
