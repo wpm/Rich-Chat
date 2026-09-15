@@ -98,17 +98,17 @@ try {
     await page.waitForSelector('.rc-composer-input');
 
     // The window opens on a tour from the assistant's side.
-    const welcome = await page.$('.rc-message-assistant');
+    const welcome = await page.$('.rc-message[data-kind="assistant"]');
     check(welcome !== null, 'the welcome bubble is there on startup');
     check((await page.$$('.rc-message')).length === 1, 'and it is the only message');
-    const welcomeBox = await page.$eval('.rc-message-assistant .rc-bubble', (el) => el.getBoundingClientRect());
+    const welcomeBox = await page.$eval('.rc-message[data-kind="assistant"] .rc-bubble', (el) => el.getBoundingClientRect());
     const paneBox = await page.$eval('.rc-messages', (el) => el.getBoundingClientRect());
     check(welcomeBox.left - paneBox.left < paneBox.right - welcomeBox.right, 'the welcome bubble sits on the left');
-    check((await page.$$('.rc-message-assistant .rc-codeblock')).length === 2, 'the welcome has two code blocks');
-    check((await page.$$('.rc-message-assistant pre.rc-code span')).length > 40, 'both are highlighted');
-    check((await page.$$('.rc-message-assistant math[display=block]')).length >= 3, 'the welcome has display math');
-    check(await page.$('.rc-message-assistant merror') === null, 'every welcome equation parsed');
-    check(await page.$('.rc-message-assistant table') !== null, 'the welcome has a table');
+    check((await page.$$('.rc-message[data-kind="assistant"] .rc-codeblock')).length === 2, 'the welcome has two code blocks');
+    check((await page.$$('.rc-message[data-kind="assistant"] pre.rc-code span')).length > 40, 'both are highlighted');
+    check((await page.$$('.rc-message[data-kind="assistant"] math[display=block]')).length >= 3, 'the welcome has display math');
+    check(await page.$('.rc-message[data-kind="assistant"] merror') === null, 'every welcome equation parsed');
+    check(await page.$('.rc-message[data-kind="assistant"] table') !== null, 'the welcome has a table');
     await page.screenshot({ path: `${shots}/${colorScheme}-0-welcome.png` });
 
     // Progressive rendering: an unfinished equation with unbalanced braces.
@@ -136,12 +136,12 @@ try {
     const previewHtml = await page.$eval('.rc-composer-preview .rc-rich', (el) => el.innerHTML);
     await page.screenshot({ path: `${shots}/${colorScheme}-2-preview.png` });
     await page.press('.rc-composer-input', 'Enter');
-    await page.waitForSelector('.rc-message-user');
+    await page.waitForSelector('.rc-message[data-kind="user"]');
     await page.waitForTimeout(300);
     // Captured before the screenshot: Playwright hides the caret for a
     // screenshot by touching inline styles on form controls, which leaves
     // an empty style attribute on the task-list checkboxes.
-    const bubbleHtml = await page.$eval('.rc-message-user .rc-rich', (el) => el.innerHTML);
+    const bubbleHtml = await page.$eval('.rc-message[data-kind="user"] .rc-rich', (el) => el.innerHTML);
     await page.screenshot({ path: `${shots}/${colorScheme}-3-sent.png` });
 
     // Leptos leaves comment markers around keyed blocks whose placement
@@ -157,24 +157,24 @@ try {
     check(markup(previewHtml) === markup(bubbleHtml), 'the bubble renders exactly what the preview showed');
     check((await page.$eval('.rc-composer-input', (el) => el.value)) === '', 'Enter clears the box');
     check(await page.$('.rc-composer-preview') === null, 'the preview goes away when the box is empty');
-    check((await page.$$('.rc-message-user math')).length === 3, 'three equations in the bubble');
-    check((await page.$$('.rc-message-user pre.rc-code span')).length > 20, 'the Rust block is highlighted');
-    check(await page.$('.rc-message-user table') !== null, 'the table rendered');
-    check(await page.$('.rc-message-user input[type=checkbox]') !== null, 'task list boxes rendered');
-    check(await page.$('.rc-message-user blockquote.markdown-alert-tip') !== null, 'the alert rendered');
-    check(await page.$('.rc-message-user .rc-footnotes') !== null, 'footnotes collected at the end');
-    check((await page.$$('.rc-message-user a[href="https://leptos.dev"]')).length === 1, 'bare URL autolinked');
+    check((await page.$$('.rc-message[data-kind="user"] math')).length === 3, 'three equations in the bubble');
+    check((await page.$$('.rc-message[data-kind="user"] pre.rc-code span')).length > 20, 'the Rust block is highlighted');
+    check(await page.$('.rc-message[data-kind="user"] table') !== null, 'the table rendered');
+    check(await page.$('.rc-message[data-kind="user"] input[type=checkbox]') !== null, 'task list boxes rendered');
+    check(await page.$('.rc-message[data-kind="user"] blockquote.markdown-alert-tip') !== null, 'the alert rendered');
+    check(await page.$('.rc-message[data-kind="user"] .rc-footnotes') !== null, 'footnotes collected at the end');
+    check((await page.$$('.rc-message[data-kind="user"] a[href="https://leptos.dev"]')).length === 1, 'bare URL autolinked');
 
     const fonts = await page.evaluate(async () => {
       await document.fonts.ready;
       return [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family);
     });
     check(fonts.includes('Latin Modern Math'), 'the math font loaded');
-    const mathFont = await page.$eval('.rc-message-user math', (el) => getComputedStyle(el).fontFamily);
+    const mathFont = await page.$eval('.rc-message[data-kind="user"] math', (el) => getComputedStyle(el).fontFamily);
     check(mathFont.startsWith('"Latin Modern Math"'), 'equations are set in Latin Modern Math');
 
-    await page.click('.rc-message-user .rc-copy');
-    check((await page.$eval('.rc-message-user .rc-copy', (el) => el.textContent)) === 'Copied', 'copy button acknowledges');
+    await page.click('.rc-message[data-kind="user"] .rc-copy');
+    check((await page.$eval('.rc-message[data-kind="user"] .rc-copy', (el) => el.textContent)) === 'Copied', 'copy button acknowledges');
 
     await type(page, 'Shift+Enter keeps typing\nline two');
     await page.press('.rc-composer-input', 'Enter');
@@ -203,7 +203,7 @@ try {
     console.log('\ncontrols');
     const theme = () => page.$eval('html', (el) => el.dataset.theme);
     const chatBackground = () => page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
-    const bubbleStyle = (property) => page.$eval('.rc-message-user .rc-bubble', (el, property) => getComputedStyle(el)[property], property);
+    const bubbleStyle = (property) => page.$eval('.rc-message[data-kind="user"] .rc-bubble', (el, property) => getComputedStyle(el)[property], property);
     const boxHeight = () => page.$eval('.rc-composer-input', (el) => el.getBoundingClientRect().height);
     const send = async (text) => {
       await type(page, text);
@@ -223,14 +223,29 @@ try {
     check((await chatBackground()) === 'rgb(13, 17, 23)', 'the chat repaints in the dark palette');
     check((await page.$eval('.control-theme', (el) => el.getAttribute('aria-checked'))) === 'true', 'the switch reports its state');
 
-    // Side.
+    // Side. The gaps between the bubble and the transcript's edges say
+    // where it sits.
+    const gaps = async () => {
+      const bubble = await page.$eval('.rc-message[data-kind="user"] .rc-bubble', (el) => el.getBoundingClientRect());
+      const pane = await page.$eval('.rc-message[data-kind="user"]', (el) => el.getBoundingClientRect());
+      return { left: bubble.left - pane.left, right: pane.right - bubble.right };
+    };
     await send('Which side?');
-    await page.waitForSelector('.rc-message-user');
-    check((await page.$eval('.rc-message-user', (el) => getComputedStyle(el).justifyContent)) === 'flex-end', 'bubbles start on the right');
+    await page.waitForSelector('.rc-message[data-kind="user"]');
+    check((await gaps()).right < 1, 'bubbles start on the right');
+    check((await bubbleStyle('borderBottomRightRadius')) === '5px', 'with the tail at bottom right');
     await page.click('.control-side[value="left"]');
     await page.waitForTimeout(100);
-    check((await page.$eval('.rc-message-user', (el) => getComputedStyle(el).justifyContent)) === 'flex-start', 'the Left button moves them to the left');
+    check((await gaps()).left < 1, 'the Left button moves them to the left');
     check((await bubbleStyle('borderBottomLeftRadius')) === '5px', 'the bubble\'s tail moves with it');
+    check((await bubbleStyle('borderBottomRightRadius')) === '16px', 'and leaves the right corner');
+    await page.click('.control-side[value="center"]');
+    await page.waitForTimeout(100);
+    const centred = await gaps();
+    check(centred.left > 1 && Math.abs(centred.left - centred.right) < 2, 'the Center button puts them in the middle');
+    check((await bubbleStyle('borderBottomLeftRadius')) === '16px', 'with no tail');
+    await page.click('.control-side[value="left"]');
+    await page.waitForTimeout(100);
 
     // Colour.
     check((await page.$eval('.control-colour', (el) => el.value)) === '#172b45', 'the colour input shows the dark theme\'s bubble colour');
@@ -272,7 +287,7 @@ try {
 
     // Reset puts the theme's colour back.
     await send('Reset me');
-    await page.waitForSelector('.rc-message-user');
+    await page.waitForSelector('.rc-message[data-kind="user"]');
     await page.click('.control-reset');
     await page.waitForTimeout(100);
     check((await bubbleStyle('backgroundColor')) === 'rgb(23, 43, 69)', 'Reset returns the bubble to the theme\'s colour');

@@ -1,10 +1,11 @@
 /* The window is the chat, under a bar of controls.
  *
- * The library paints the chat itself; these rules paint the page around
- * it and turn the app's settings (attributes and --app-* properties on
- * the app's root element) into overrides of the library's --rc-* palette.
- * The library's own CSS is in cascade layers, so these plain rules win
- * over it without matching its specificity.
+ * The library paints the chat itself, and where the bubbles go and what
+ * colour they are reaches it as its table of kinds, not as CSS. These
+ * rules paint the page around it and turn the one setting that is a
+ * length, the text box's height, into an override of the library's
+ * composer. The library's own CSS is in cascade layers, so these plain
+ * rules win over it without matching its specificity.
  */
 
 :root {
@@ -168,28 +169,6 @@ body {
 
 .control-colour:hover {
   border-color: var(--app-accent);
-}
-
-/* ---- Which side the bubbles land on ----------------------------------- */
-
-.app[data-side="left"] .rc-message-user {
-  justify-content: flex-start;
-}
-
-.app[data-side="left"] .rc-message-user .rc-bubble {
-  border-bottom-right-radius: var(--rc-radius);
-  border-bottom-left-radius: 5px;
-}
-
-/* ---- The bubble colour ------------------------------------------------ */
-
-/* The library's theme declares its palette on the outermost component
- * root, and in a cascade layer, so an unlayered rule on that root wins.
- * The composer's preview uses the same properties, so it takes the
- * colour too. */
-.app.app-bubble .rc-chat {
-  --rc-user-bg: var(--app-bubble-bg);
-  --rc-user-fg: var(--app-bubble-fg);
 }
 
 /* ---- The resizable text box ------------------------------------------- */

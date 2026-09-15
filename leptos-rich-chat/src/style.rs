@@ -21,6 +21,14 @@
 //!   two runs of it. Run it for any other two-face theme to swap the
 //!   colours.
 //!
+//! None of it names a kind of message. Where each kind sits and what
+//! colours it has is the host's [`Kinds`](crate::Kinds) table, whose
+//! [`css`](crate::Kinds::css) is a fourth part in the same form, in
+//! `rich-chat.theme`. The theme gives it `--rc-tail`, the radius of a
+//! bubble's tail, and the plain bubble's `--rc-bubble-*` colours plus a
+//! second pair, `--rc-tint-*`, which the default table uses for `user`
+//! and the composer's preview takes.
+//!
 //! [`STYLESHEET`] is all three. The [`RichChatStyle`](crate::RichChatStyle)
 //! component injects them, each part switchable, or a consumer can serve
 //! them as files.
@@ -262,5 +270,24 @@ mod tests {
         assert!(THEME.contains("--rc-accent:"));
         assert!(STRUCTURE.contains(".rc-block {"));
         assert!(STRUCTURE.contains("mtable.menv-alignlike"));
+    }
+
+    #[test]
+    fn the_stylesheet_names_no_kind_of_message() {
+        for word in [
+            "[data-kind=",
+            "rc-message-",
+            "rc-user",
+            "rc-assistant",
+            "rc-system",
+        ] {
+            assert!(
+                !STYLESHEET.contains(word),
+                "the stylesheet knows a kind: {word}"
+            );
+        }
+        assert!(THEME.contains("--rc-tail:"));
+        assert!(THEME.contains("--rc-bubble-bg:"));
+        assert!(THEME.contains("--rc-tint-bg:"));
     }
 }

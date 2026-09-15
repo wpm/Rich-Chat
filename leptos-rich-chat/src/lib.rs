@@ -3,14 +3,14 @@
 //!
 //! ```ignore
 //! use leptos::prelude::*;
-//! use leptos_rich_chat::{Chat, Message, RichChatStyle, Role};
+//! use leptos_rich_chat::{Chat, Message, RichChatStyle};
 //!
 //! #[component]
 //! fn App() -> impl IntoView {
 //!     let messages = RwSignal::new(Vec::<Message>::new());
 //!     let send = move |text: String| {
 //!         let id = messages.read().len().to_string();
-//!         messages.update(|all| all.push(Message::new(id, Role::User, text)));
+//!         messages.update(|all| all.push(Message::new(id, "user", text)));
 //!     };
 //!     view! {
 //!         <RichChatStyle />
@@ -49,6 +49,15 @@
 //! [`render`] module is the pure Markdown-to-HTML core, with no DOM
 //! dependency, for tests and for hosts that are not Leptos.
 //!
+//! # Kinds of message
+//!
+//! A [`Message`] carries a `kind`, a name the host chooses, and the crate
+//! attaches no meaning to it. The host's [`Kinds`] table says where each
+//! kind sits and what colours it has; [`RichChatStyle`] turns that into
+//! CSS. The default table is `user` on the right and `assistant` on the
+//! left. A group chat, or a transcript with notices down the middle, is
+//! a different table, with a [`Look`] at a [`Position`] per kind.
+//!
 //! # Styling
 //!
 //! The components carry `rc-*` classes and no inline styles; the look
@@ -77,6 +86,7 @@
 #![forbid(unsafe_code)]
 
 mod components;
+mod kinds;
 mod message;
 pub mod render;
 pub mod style;
@@ -84,5 +94,6 @@ pub mod style;
 pub use components::{
     Chat, CodeBlock, CodeLabels, Composer, MessageBubble, RichChatStyle, RichText, warm_up,
 };
-pub use message::{Message, Role};
+pub use kinds::{Kinds, Look, Position};
+pub use message::Message;
 pub use render::RenderOptions;
