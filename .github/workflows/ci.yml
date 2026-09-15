@@ -22,6 +22,7 @@ jobs:
       - run: cargo clippy -p leptos-rich-chat -p rich-chat-app --all-targets -- -D warnings
       - run: cargo test -p leptos-rich-chat
       - run: cargo test -p leptos-rich-chat --no-default-features
+      - run: cargo test -p rich-chat-app
       - run: cargo doc -p leptos-rich-chat --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
