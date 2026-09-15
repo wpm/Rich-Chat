@@ -56,5 +56,5 @@ missing_docs = "warn"
 all = "warn"
 
 [[example]]
-name = "theme_css"
+name = "highlight_css"
 required-features = ["highlight"]

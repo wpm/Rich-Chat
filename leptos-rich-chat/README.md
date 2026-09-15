@@ -145,13 +145,30 @@ out and write your own against the classes:
 <RichChatStyle theme=false highlight=false />
 ```
 
-Code colours are two-face's OneHalfLight and OneHalfDark;
-`examples/theme_css.rs` prints the rules for any of its themes if you
-want another:
+#### Code colours
+
+Highlighting is class-based: a fenced block comes out as `<span>`s with
+`rc-keyword`, `rc-string`, `rc-comment`, and so on, and the colours come
+from `style::HIGHLIGHT`, which is `assets/highlight.css`. That file is
+not written by hand. It is the output of `examples/highlight_css`, a
+small tool that takes one of [two-face](https://crates.io/crates/two-face)'s
+embedded themes, has syntect print its rules against the crate's `rc-`
+classes, and scopes every rule to one side of the light and dark switch
+so both themes can live in one stylesheet. The shipped file is two runs
+of it under a short header:
 
 ```sh
-cargo run -p leptos-rich-chat --example theme_css -- Dracula dark
+cargo run -p leptos-rich-chat --example highlight_css -- OneHalfLight light
+cargo run -p leptos-rich-chat --example highlight_css -- OneHalfDark dark
 ```
+
+Run it with no arguments to list the themes. Use it to change the code
+colours without touching anything else: turn the shipped rules off with
+`<RichChatStyle highlight=false />`, then serve the tool's output for
+the theme you want (one run per side, or one run for a single theme on
+both sides) alongside your own CSS. The tool ships in the crate's
+package, so it runs the same way from a copy of the source, whether a
+checkout of this repository or the package in Cargo's registry cache.
 
 The words in the interface are props: `Chat` and `Composer` take
 `placeholder`, `hint` (empty leaves the line out), `preview_label`, and
