@@ -2,8 +2,8 @@
 //! in the form `assets/highlight.css` uses.
 //!
 //! ```sh
-//! cargo run -p rich-chat --example theme_css -- OneHalfLight light
-//! cargo run -p rich-chat --example theme_css -- OneHalfDark dark
+//! cargo run -p leptos-rich-chat --example theme_css -- OneHalfLight light
+//! cargo run -p leptos-rich-chat --example theme_css -- OneHalfDark dark
 //! ```
 //!
 //! The first argument is the theme, the second which side of the light
@@ -41,7 +41,7 @@ fn main() {
     let css = css_for_theme_with_class_style(
         theme,
         ClassStyle::SpacedPrefixed {
-            prefix: rich_chat::render::code::CLASS_PREFIX,
+            prefix: leptos_rich_chat::render::code::CLASS_PREFIX,
         },
     )
     .expect("theme renders to CSS");

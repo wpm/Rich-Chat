@@ -3,7 +3,7 @@
 //!
 //! ```ignore
 //! use leptos::prelude::*;
-//! use rich_chat::{Chat, Message, RichChatStyle, Role};
+//! use leptos_rich_chat::{Chat, Message, RichChatStyle, Role};
 //!
 //! #[component]
 //! fn App() -> impl IntoView {

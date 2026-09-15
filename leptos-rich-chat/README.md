@@ -1,4 +1,4 @@
-# rich-chat
+# leptos-rich-chat
 
 Chat components for [Leptos](https://leptos.dev) that render Markdown,
 LaTeX math, and syntax-highlighted code, progressively, as the text
@@ -29,12 +29,12 @@ arrives.
 ```toml
 [dependencies]
 leptos = { version = "0.8", features = ["csr"] }
-rich-chat = "0.1"
+leptos-rich-chat = "0.1"
 ```
 
 ```rust
 use leptos::prelude::*;
-use rich_chat::{Chat, Message, RichChatStyle, Role};
+use leptos_rich_chat::{Chat, Message, RichChatStyle, Role};
 
 #[component]
 fn App() -> impl IntoView {
@@ -121,7 +121,7 @@ colours are two-face's OneHalfLight and OneHalfDark;
 want another:
 
 ```sh
-cargo run -p rich-chat --example theme_css -- Dracula dark
+cargo run -p leptos-rich-chat --example theme_css -- Dracula dark
 ```
 
 ## Features
