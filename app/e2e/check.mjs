@@ -98,17 +98,22 @@ try {
     await page.goto(origin, { waitUntil: 'networkidle' });
     await page.waitForSelector('.rc-composer-input');
 
-    // The window opens on a tour from the assistant's side.
+    // The window opens on a tour: Markdown and code from the assistant,
+    // then the math from the user.
     const welcome = await page.$('.rc-message[data-kind="Assistant"]');
     check(welcome !== null, 'the welcome bubble is there on startup');
-    check((await page.$$('.rc-message')).length === 1, 'and it is the only message');
+    check((await page.$$('.rc-message')).length === 2, 'and the math bubble after it');
+    check(await page.$eval('.rc-message:last-child', (el) => el.dataset.kind) === 'User', 'from the user');
     const welcomeBox = await page.$eval('.rc-message[data-kind="Assistant"] .rc-bubble', (el) => el.getBoundingClientRect());
     const paneBox = await page.$eval('.rc-messages', (el) => el.getBoundingClientRect());
     check(welcomeBox.left - paneBox.left < paneBox.right - welcomeBox.right, 'the welcome bubble sits on the left');
-    check((await page.$$('.rc-message[data-kind="Assistant"] .rc-codeblock')).length === 2, 'the welcome has two code blocks');
-    check((await page.$$('.rc-message[data-kind="Assistant"] pre.rc-code span')).length > 40, 'both are highlighted');
-    check((await page.$$('.rc-message[data-kind="Assistant"] math[display=block]')).length >= 3, 'the welcome has display math');
-    check(await page.$('.rc-message[data-kind="Assistant"] merror') === null, 'every welcome equation parsed');
+    const mathBox = await page.$eval('.rc-message[data-kind="User"] .rc-bubble', (el) => el.getBoundingClientRect());
+    check(mathBox.left - paneBox.left > paneBox.right - mathBox.right, 'the math bubble sits on the right');
+    check((await page.$$('.rc-message[data-kind="Assistant"] .rc-codeblock')).length === 1, 'the welcome has one code block');
+    check((await page.$$('.rc-message[data-kind="Assistant"] pre.rc-code span')).length > 20, 'which is highlighted');
+    check(await page.$('.rc-message[data-kind="Assistant"] math') === null, 'and no math');
+    check((await page.$$('.rc-message[data-kind="User"] math[display=block]')).length >= 3, 'the math bubble has display math');
+    check(await page.$('.rc-message[data-kind="User"] merror') === null, 'every welcome equation parsed');
     check(await page.$('.rc-message[data-kind="Assistant"] table') !== null, 'the welcome has a table');
     await page.screenshot({ path: `${shots}/${colorScheme}-0-welcome.png` });
 
@@ -137,12 +142,15 @@ try {
     const previewHtml = await page.$eval('.rc-composer-preview .rc-rich', (el) => el.innerHTML);
     await page.screenshot({ path: `${shots}/${colorScheme}-2-preview.png` });
     await page.press('.rc-composer-input', 'Enter');
-    await page.waitForSelector('.rc-message[data-kind="User"]');
+    // The sent message: the third, after the two of the tour.
+    const sent = '.rc-message[data-message-id="m2"]';
+    await page.waitForSelector(sent);
     await page.waitForTimeout(300);
+    check(await page.$eval(sent, (el) => el.dataset.kind) === 'User', 'the sent message is from the selected user');
     // Captured before the screenshot: Playwright hides the caret for a
     // screenshot by touching inline styles on form controls, which leaves
     // an empty style attribute on the task-list checkboxes.
-    const bubbleHtml = await page.$eval('.rc-message[data-kind="User"] .rc-rich', (el) => el.innerHTML);
+    const bubbleHtml = await page.$eval(`${sent} .rc-rich`, (el) => el.innerHTML);
     await page.screenshot({ path: `${shots}/${colorScheme}-3-sent.png` });
 
     // Leptos leaves comment markers around keyed blocks whose placement
@@ -158,13 +166,13 @@ try {
     check(markup(previewHtml) === markup(bubbleHtml), 'the bubble renders exactly what the preview showed');
     check((await page.$eval('.rc-composer-input', (el) => el.value)) === '', 'Enter clears the box');
     check(await page.$('.rc-composer-preview') === null, 'the preview goes away when the box is empty');
-    check((await page.$$('.rc-message[data-kind="User"] math')).length === 3, 'three equations in the bubble');
-    check((await page.$$('.rc-message[data-kind="User"] pre.rc-code span')).length > 20, 'the Rust block is highlighted');
-    check(await page.$('.rc-message[data-kind="User"] table') !== null, 'the table rendered');
-    check(await page.$('.rc-message[data-kind="User"] input[type=checkbox]') !== null, 'task list boxes rendered');
-    check(await page.$('.rc-message[data-kind="User"] blockquote.markdown-alert-tip') !== null, 'the alert rendered');
-    check(await page.$('.rc-message[data-kind="User"] .rc-footnotes') !== null, 'footnotes collected at the end');
-    check((await page.$$('.rc-message[data-kind="User"] a[href="https://leptos.dev"]')).length === 1, 'bare URL autolinked');
+    check((await page.$$(`${sent} math`)).length === 3, 'three equations in the bubble');
+    check((await page.$$(`${sent} pre.rc-code span`)).length > 20, 'the Rust block is highlighted');
+    check(await page.$(`${sent} table`) !== null, 'the table rendered');
+    check(await page.$(`${sent} input[type=checkbox]`) !== null, 'task list boxes rendered');
+    check(await page.$(`${sent} blockquote.markdown-alert-tip`) !== null, 'the alert rendered');
+    check(await page.$(`${sent} .rc-footnotes`) !== null, 'footnotes collected at the end');
+    check((await page.$$(`${sent} a[href="https://leptos.dev"]`)).length === 1, 'bare URL autolinked');
 
     const fonts = await page.evaluate(async () => {
       await document.fonts.ready;
@@ -180,7 +188,7 @@ try {
     await type(page, 'Shift+Enter keeps typing\nline two');
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
-    check((await page.$$('.rc-message')).length === 3, 'a second sent message appends');
+    check((await page.$$('.rc-message')).length === 4, 'a second sent message appends');
 
     const background = await page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
     check(colorScheme === 'dark' ? background !== 'rgb(255, 255, 255)' : background === 'rgb(255, 255, 255)', `${colorScheme} palette applied`);
@@ -394,7 +402,7 @@ try {
       await page.press('.rc-composer-input', 'Enter');
     }
     await page.waitForTimeout(300);
-    check((await page.$$('.rc-message')).length === 6, 'a burst of five messages all arrive');
+    check((await page.$$('.rc-message')).length === 7, 'a burst of five messages all arrive');
     check((await gap()) === 0, 'and the transcript is at the end after them');
 
     // The composer growing over the transcript, by a draft or by a drag.

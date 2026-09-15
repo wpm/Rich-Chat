@@ -21,7 +21,7 @@ use leptos_rich_chat::{Chat, Message, RichChatStyle};
 use wasm_bindgen::JsCast;
 
 use crate::controls::Controls;
-use crate::settings::{ASSISTANT, Settings, Theme};
+use crate::settings::{ASSISTANT, Settings, Theme, USER};
 
 /// How far below the composer's top edge a press still grabs it, in CSS
 /// pixels. The same as the hit zone the stylesheet draws.
@@ -39,10 +39,11 @@ struct Drag {
     height: f64,
 }
 
-/// The first bubble, from the assistant's side: Markdown, code in two
-/// languages, and some display math, so the window shows what it can do
-/// before anything is typed.
+/// The first bubble, from the assistant: Markdown and code, so the
+/// window shows what it can do before anything is typed.
 const WELCOME: &str = include_str!("../welcome.md");
+/// The second, from the user: the math.
+const WELCOME_MATH: &str = include_str!("../welcome-math.md");
 
 #[component]
 fn App() -> impl IntoView {
@@ -68,7 +69,10 @@ fn App() -> impl IntoView {
     });
 
     // Every message sent is from the selected user.
-    let messages = RwSignal::new(vec![Message::new("welcome", ASSISTANT, WELCOME)]);
+    let messages = RwSignal::new(vec![
+        Message::new("welcome", ASSISTANT, WELCOME),
+        Message::new("welcome-math", USER, WELCOME_MATH),
+    ]);
     let sender = Signal::derive(move || settings.read().selected.clone().unwrap_or_default());
     let send = move |text: String| {
         let from = sender.get_untracked();
@@ -169,7 +173,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::WELCOME;
+    use super::{WELCOME, WELCOME_MATH};
     use leptos_rich_chat::render::{RenderOptions, render_html};
 
     /// The tour has to show off everything it claims to, and nothing in it
@@ -177,21 +181,30 @@ mod tests {
     #[test]
     fn the_welcome_renders_everything_it_shows_off() {
         let html = render_html(WELCOME, &RenderOptions::default());
-        assert!(
-            !html.contains("<merror"),
-            "an equation failed to parse: {html}"
-        );
         assert!(html.contains("<table"), "{html}");
         assert!(html.contains("class=\"markdown-alert-tip\""), "{html}");
         assert!(html.contains("class=\"rc-footnotes\""), "{html}");
         assert!(html.contains("<input"), "no task list: {html}");
         assert_eq!(
             html.matches("<pre class=\"rc-code\"").count(),
-            2,
-            "two code blocks: {html}"
+            1,
+            "one code block: {html}"
         );
-        assert!(html.contains("data-language=\"Rust\""), "{html}");
         assert!(html.contains("data-language=\"Python\""), "{html}");
+        assert!(
+            !html.contains("<math display=\"block\""),
+            "the math is the user's: {html}"
+        );
+    }
+
+    #[test]
+    fn the_math_welcome_renders_every_equation() {
+        let html = render_html(WELCOME_MATH, &RenderOptions::default());
+        assert!(
+            !html.contains("<merror"),
+            "an equation failed to parse: {html}"
+        );
+        assert!(html.contains("<math display=\"inline\""), "{html}");
         assert!(
             html.matches("<math display=\"block\"").count() >= 3,
             "three display equations: {html}"
@@ -200,5 +213,6 @@ mod tests {
             html.contains("<mtable"),
             "no aligned or cases environment: {html}"
         );
+        assert!(!html.contains("<pre"), "no code in the math: {html}");
     }
 }

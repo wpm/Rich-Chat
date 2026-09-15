@@ -18,9 +18,11 @@ Three crates:
 - [`leptos-rich-chat`](leptos-rich-chat/) — the Leptos components, published to
   crates.io. See its [README](leptos-rich-chat/README.md) for the API.
 - [`app`](app/) — a browser app for trying them: a chat window with a
-  text box at the bottom. It opens on a tour of what renders (the
-  Markdown in [`app/welcome.md`](app/welcome.md)), and what you send
-  appears as a bubble from the selected user. A bar above the chat
+  text box at the bottom. It opens on a tour of what renders, in two
+  bubbles: the Markdown and code in [`app/welcome.md`](app/welcome.md)
+  from the Assistant, then the math in
+  [`app/welcome-math.md`](app/welcome-math.md) from the User. What you
+  send appears as a bubble from the selected user. A bar above the chat
   lists the users, an Assistant and a User to begin with, and lets you
   add and delete them; puts the selected user's bubbles on the left, in
   the centre, or on the right, and sets their colour, for every bubble
