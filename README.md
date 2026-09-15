@@ -11,7 +11,9 @@ Two crates:
 - [`leptos-rich-chat`](leptos-rich-chat/) — the Leptos components, published to
   crates.io. See its [README](leptos-rich-chat/README.md) for the API.
 - [`app`](app/) — a Tauri desktop app for trying them: a chat window with
-  a text box at the bottom. What you send appears as a bubble.
+  a text box at the bottom. It opens on a tour of what renders (the
+  Markdown in [`app/welcome.md`](app/welcome.md)), and what you send
+  appears as a bubble.
 
 ## Running the app
 
