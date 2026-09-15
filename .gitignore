@@ -23,3 +23,5 @@ target
 # Trunk output and Tauri's generated schemas
 /app/dist
 /app/src-tauri/gen/schemas
+/app/e2e/node_modules
+/app/e2e/screenshots

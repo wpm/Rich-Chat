@@ -28,9 +28,10 @@ In the browser instead of a window: `cd app && trunk serve` and open
 ## Development
 
 ```sh
-cargo test -p leptos-rich-chat            # the rendering core, natively
+cargo test -p leptos-rich-chat     # the library, natively
 cargo clippy --workspace --all-targets
-cd app && trunk build              # the frontend, to app/dist
+cd app && trunk build --release    # the frontend, to app/dist
+cd app/e2e && npm install && npm test   # the built app in headless Chromium
 cargo run -p leptos-rich-chat --example theme_css -- OneHalfDark dark
 ```
 
