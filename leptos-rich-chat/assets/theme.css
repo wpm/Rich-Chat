@@ -30,14 +30,12 @@
   --rc-border: #d1d9e0;
   --rc-accent: #0969da;
   --rc-accent-fg: #ffffff;
-  --rc-link: #0969da;
   --rc-bubble-bg: #f6f8fa;
   --rc-bubble-fg: #1f2328;
   --rc-tint-bg: #ddf4ff;
   --rc-tint-fg: #1f2328;
   --rc-code-bg: #ffffff;
   --rc-inline-code-bg: rgba(175, 184, 193, 0.3);
-  --rc-quote-border: #d1d9e0;
   --rc-selection: rgba(9, 105, 218, 0.25);
   --rc-alert-note: #0969da;
   --rc-alert-tip: #1a7f37;
@@ -58,14 +56,12 @@
     --rc-border: #3d444d;
     --rc-accent: #4493f8;
     --rc-accent-fg: #ffffff;
-    --rc-link: #4493f8;
     --rc-bubble-bg: #161b22;
     --rc-bubble-fg: #e6edf3;
     --rc-tint-bg: #172b45;
     --rc-tint-fg: #e6edf3;
     --rc-code-bg: #0d1117;
     --rc-inline-code-bg: rgba(110, 118, 129, 0.4);
-    --rc-quote-border: #3d444d;
     --rc-selection: rgba(68, 147, 248, 0.35);
     --rc-alert-note: #4493f8;
     --rc-alert-tip: #3fb950;
@@ -86,14 +82,12 @@
   --rc-border: #3d444d;
   --rc-accent: #4493f8;
   --rc-accent-fg: #ffffff;
-  --rc-link: #4493f8;
   --rc-bubble-bg: #161b22;
   --rc-bubble-fg: #e6edf3;
   --rc-tint-bg: #172b45;
   --rc-tint-fg: #e6edf3;
   --rc-code-bg: #0d1117;
   --rc-inline-code-bg: rgba(110, 118, 129, 0.4);
-  --rc-quote-border: #3d444d;
   --rc-selection: rgba(68, 147, 248, 0.35);
   --rc-alert-note: #4493f8;
   --rc-alert-tip: #3fb950;
@@ -195,10 +189,12 @@
   margin-bottom: 0;
 }
 
+/* Links take the text's colour, whatever bubble they are in, and the
+ * underline says what they are. */
 .rc-rich a {
-  color: var(--rc-link);
+  color: inherit;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--rc-link) 45%, transparent);
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   text-underline-offset: 2px;
 }
 
@@ -249,15 +245,18 @@
   border-radius: 6px;
 }
 
+/* Inside a bubble the text may be any colour, and the bubble any
+ * background, so what is muted or ruled there is a share of the text's
+ * own colour rather than the palette's greys. */
 .rc-image-alt {
   font-style: italic;
-  color: var(--rc-muted);
+  color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
 .rc-rich blockquote {
   padding: 0.05em 0 0.05em 1em;
-  border-left: 3px solid var(--rc-quote-border);
-  color: var(--rc-muted);
+  border-left: 3px solid color-mix(in srgb, currentColor 30%, transparent);
+  color: color-mix(in srgb, currentColor 75%, transparent);
 }
 
 .rc-rich blockquote > :first-child { margin-top: 0; }
@@ -394,12 +393,14 @@ pre.rc-code code {
   padding: 0 0.15em;
 }
 
+/* Footnotes are set apart by their size and the rule above, not by a
+ * fainter colour: at their size, and with the back-reference a bare
+ * glyph, a fainter colour is hard to read on a strong bubble. */
 .rc-footnotes {
   margin-top: 1.2em;
   padding-top: 0.6em;
-  border-top: 1px solid var(--rc-border);
+  border-top: 1px solid color-mix(in srgb, currentColor 30%, transparent);
   font-size: 0.85em;
-  color: var(--rc-muted);
 }
 
 .rc-footnotes ol {
@@ -480,7 +481,7 @@ pre.rc-code code {
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--rc-muted);
+  color: color-mix(in srgb, currentColor 70%, transparent);
   user-select: none;
 }
 
@@ -500,7 +501,7 @@ pre.rc-code code {
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: var(--rc-muted);
+  color: color-mix(in srgb, currentColor 70%, transparent);
   cursor: pointer;
 }
 

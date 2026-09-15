@@ -3540,6 +3540,8 @@ dependencies = [
  "js-sys",
  "leptos",
  "leptos-rich-chat",
+ "serde",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
