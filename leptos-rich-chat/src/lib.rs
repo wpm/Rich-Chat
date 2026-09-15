@@ -29,7 +29,7 @@
 //!   in Latin Modern Math. No JavaScript.
 //! - **Code**: fenced blocks in some two hundred languages, highlighted
 //!   by [syntect](https://crates.io/crates/syntect) with class-based
-//!   colours the stylesheet themes for light and dark. A grammar is
+//!   colors the stylesheet themes for light and dark. A grammar is
 //!   compiled the first time its language appears; [`Chat`] compiles the
 //!   common ones in idle time after mounting, and [`warm_up`] does the
 //!   same for a host that uses the pieces on their own.
@@ -53,7 +53,7 @@
 //!
 //! A [`Message`] carries a `kind`, a name the host chooses, and the crate
 //! attaches no meaning to it. The host's [`Kinds`] table says where each
-//! kind sits and what colours it has; [`RichChatStyle`] turns that into
+//! kind sits and what colors it has; [`RichChatStyle`] turns that into
 //! CSS. The default table is `user` on the right and `assistant` on the
 //! left. A group chat, or a transcript with notices down the middle, is
 //! a different table, with a [`Look`] at a [`Position`] per kind.
@@ -66,7 +66,7 @@
 //! rules win over it whatever their specificity. It comes in two tiers:
 //! [`style::STRUCTURE`], the rules the components need to work, and
 //! [`style::THEME`] with [`style::HIGHLIGHT`], the default look, which a
-//! host can override property by property (every colour is a `--rc-*`
+//! host can override property by property (every color is a `--rc-*`
 //! custom property) or switch off and replace. Dark mode in the theme
 //! follows the system or a `data-theme` attribute on the root element.
 //! See [`style`].

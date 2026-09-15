@@ -1,8 +1,8 @@
 /* leptos-rich-chat: the default theme.
  *
- * Colours, fonts, spacing, and radii: everything about how the
+ * Colors, fonts, spacing, and radii: everything about how the
  * components look, as opposed to how they work, which structure.css
- * holds. Every colour is a custom property, so a host can override any
+ * holds. Every color is a custom property, so a host can override any
  * of them. Dark mode follows prefers-color-scheme unless the document
  * forces a theme with data-theme="light" or "dark" on its root.
  *
@@ -124,7 +124,7 @@
   max-width: 40ch;
 }
 
-/* The plain bubble. Where a bubble sits and any other colours it has
+/* The plain bubble. Where a bubble sits and any other colors it has
  * come from the host's kinds, as rules keyed on the message's data-kind
  * attribute that RichChatStyle generates; the tail they give a bubble on
  * its side is --rc-tail. A kind the host has not declared gets this and
@@ -189,7 +189,7 @@
   margin-bottom: 0;
 }
 
-/* Links take the text's colour, whatever bubble they are in, and the
+/* Links take the text's color, whatever bubble they are in, and the
  * underline says what they are. */
 .rc-rich a {
   color: inherit;
@@ -245,9 +245,9 @@
   border-radius: 6px;
 }
 
-/* Inside a bubble the text may be any colour, and the bubble any
+/* Inside a bubble the text may be any color, and the bubble any
  * background, so what is muted or ruled there is a share of the text's
- * own colour rather than the palette's greys. */
+ * own color rather than the palette's grays. */
 .rc-image-alt {
   font-style: italic;
   color: color-mix(in srgb, currentColor 70%, transparent);
@@ -394,8 +394,8 @@ pre.rc-code code {
 }
 
 /* Footnotes are set apart by their size and the rule above, not by a
- * fainter colour: at their size, and with the back-reference a bare
- * glyph, a fainter colour is hard to read on a strong bubble. */
+ * fainter color: at their size, and with the back-reference a bare
+ * glyph, a fainter color is hard to read on a strong bubble. */
 .rc-footnotes {
   margin-top: 1.2em;
   padding-top: 0.6em;

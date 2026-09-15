@@ -74,17 +74,17 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
         }
     };
 
-    let colour = move || {
+    let color = move || {
         selected
             .read()
             .as_ref()
-            .map_or_else(|| "#000000".to_string(), |user| user.colour.clone())
+            .map_or_else(|| "#000000".to_string(), |user| user.color.clone())
     };
-    let recolour = move |event: ev::Event| {
+    let recolor = move |event: ev::Event| {
         let value = event_target_value(&event);
         settings.update(|settings| {
             if let Some(user) = settings.selected_user_mut() {
-                user.colour = value;
+                user.color = value;
             }
         });
     };
@@ -144,15 +144,15 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
                 </span>
             </div>
             <div class="control-group">
-                <label class="control-label" for="bubble-colour">"Colour"</label>
+                <label class="control-label" for="bubble-color">"Color"</label>
                 <input
-                    id="bubble-colour"
+                    id="bubble-color"
                     type="color"
-                    class="control-colour"
-                    title="Bubble colour"
+                    class="control-color"
+                    title="Bubble color"
                     disabled=nobody
-                    prop:value=colour
-                    on:input=recolour
+                    prop:value=color
+                    on:input=recolor
                 />
             </div>
             <button

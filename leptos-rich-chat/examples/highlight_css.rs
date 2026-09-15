@@ -1,7 +1,7 @@
-//! The generator behind `assets/highlight.css`, the crate's code colours.
+//! The generator behind `assets/highlight.css`, the crate's code colors.
 //!
 //! Highlighting is class-based (`rc-keyword`, `rc-string`, ...) so the
-//! colours are a stylesheet's business, and that stylesheet is not
+//! colors are a stylesheet's business, and that stylesheet is not
 //! written by hand. This tool takes one of two-face's embedded themes,
 //! has syntect print its rules against the crate's class prefix, and
 //! scopes each rule to one side of the light and dark switch, so that
@@ -19,8 +19,8 @@
 //! dark, or when the document forces light; dark rules, the reverse.
 //! Both sides get the same selector shape so neither wins on
 //! specificity alone. Run it for any other theme to change the code
-//! colours: turn `RichChatStyle`'s `highlight` off and serve the output
-//! instead. See "Code colours" in the README.
+//! colors: turn `RichChatStyle`'s `highlight` off and serve the output
+//! instead. See "Code colors" in the README.
 
 use syntect::html::{ClassStyle, css_for_theme_with_class_style};
 use two_face::theme::{EmbeddedLazyThemeSet, EmbeddedThemeName};

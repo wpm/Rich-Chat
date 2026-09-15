@@ -24,7 +24,7 @@ use crate::render::{self, Block, BlockKind, RenderOptions};
 /// [`style::STRUCTURE`](crate::style::STRUCTURE) always goes in; it is
 /// what the components need to work and has no opinion on looks. The
 /// rest is switchable, for a host that writes its own theme, its own code
-/// colours, or serves the fonts itself. Everything is in cascade layers,
+/// colors, or serves the fonts itself. Everything is in cascade layers,
 /// so a host's own unlayered rules win over it regardless of specificity;
 /// see [`style`](crate::style).
 ///
@@ -36,14 +36,14 @@ pub fn RichChatStyle(
     /// The default look, [`style::THEME`](crate::style::THEME).
     #[prop(default = true)]
     theme: bool,
-    /// The code colours, [`style::HIGHLIGHT`](crate::style::HIGHLIGHT).
+    /// The code colors, [`style::HIGHLIGHT`](crate::style::HIGHLIGHT).
     #[prop(default = true)]
     highlight: bool,
     /// The `@font-face` rules for the bundled math fonts,
     /// [`style::font_faces`](crate::style::font_faces).
     #[prop(default = true)]
     fonts: bool,
-    /// Where each kind of message sits and its colours. The default is
+    /// Where each kind of message sits and its colors. The default is
     /// [`Kinds::default`]; [`Kinds::none`] leaves every bubble plain.
     #[prop(default = Signal::stored(Kinds::default()), into)]
     kinds: Signal<Kinds>,
@@ -242,7 +242,7 @@ fn copy_to_clipboard(text: &str) {
 
 /// One message in the transcript. The outer `div.rc-message` carries the
 /// message's kind as `data-kind`, which the host's [`Kinds`] rules place
-/// and colour.
+/// and color.
 #[component]
 pub fn MessageBubble(
     /// The message.
@@ -315,8 +315,8 @@ pub fn Composer(
     #[prop(default = "Preview".to_string(), into)]
     preview_label: String,
     /// The kind of message the preview shows, so that it takes that
-    /// kind's colours from the [`Kinds`] rules. Empty, the default,
-    /// leaves it in the theme's tint colours. May be a signal, for a
+    /// kind's colors from the [`Kinds`] rules. Empty, the default,
+    /// leaves it in the theme's tint colors. May be a signal, for a
     /// host whose sender changes.
     #[prop(optional, into)]
     preview_kind: Signal<String>,
@@ -490,7 +490,7 @@ pub fn Chat(
     /// The heading over the preview.
     #[prop(default = "Preview".to_string(), into)]
     preview_label: String,
-    /// The kind of message the preview shows, for its colours. See
+    /// The kind of message the preview shows, for its colors. See
     /// [`Composer`].
     #[prop(optional, into)]
     preview_kind: Signal<String>,

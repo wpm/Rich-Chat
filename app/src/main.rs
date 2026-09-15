@@ -4,11 +4,11 @@
 //! rendering.
 //!
 //! Above the chat is a bar of controls: the users, who can be added and
-//! removed; where the selected user's bubbles land and their colour,
+//! removed; where the selected user's bubbles land and their color,
 //! which changes every bubble of theirs; light or dark. The composer's
 //! top edge can be dragged to make the text box taller. All of that is
 //! this app's: the library gets a table of kinds saying where its
-//! bubbles go and in what colours, and the stylesheet gets a custom
+//! bubbles go and in what colors, and the stylesheet gets a custom
 //! property for the text box.
 
 mod controls;
@@ -83,7 +83,7 @@ fn App() -> impl IntoView {
         messages.update(|all| all.push(Message::new(id, from, text)));
     };
 
-    // Where each user's bubbles go and their colours, for the library's
+    // Where each user's bubbles go and their colors, for the library's
     // stylesheet.
     let kinds = Signal::derive(move || settings.read().kinds());
     // The setting the app's own stylesheet reads as a custom property.

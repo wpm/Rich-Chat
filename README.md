@@ -25,7 +25,7 @@ Three crates:
   send appears as a bubble from the selected user. A bar above the chat
   lists the users, an Assistant and a User to begin with, and lets you
   add and delete them; puts the selected user's bubbles on the left, in
-  the centre, or on the right, and sets their colour, for every bubble
+  the center, or on the right, and sets their color, for every bubble
   of theirs; and switches between light and dark. Drag the top edge of
   the text box to make it taller. The choices are kept between runs.
   This is what the site above serves.

@@ -7,7 +7,7 @@ use leptos::prelude::*;
 /// Its `kind` is a name the host chooses, such as `user` or `alice`. The
 /// crate never reads it: the bubble carries it as `data-kind`, and the
 /// host's [`Kinds`](crate::Kinds) table says where bubbles of that kind
-/// sit and what colours they have.
+/// sit and what colors they have.
 ///
 /// The content is a signal so that a message can grow while its text is
 /// still arriving: hold an `RwSignal<String>`, append to it, and the
