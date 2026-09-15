@@ -239,10 +239,13 @@ pub fn MessageBubble(
     /// Called with a link's destination instead of following it.
     #[prop(into, optional_no_strip)]
     on_link: Option<Callback<String>>,
+    /// A reference to the outer `div.rc-message`.
+    #[prop(optional)]
+    node_ref: NodeRef<html::Div>,
 ) -> impl IntoView {
     let class = format!("rc-message rc-message-{}", message.role.as_str());
     view! {
-        <div class=class data-message-id=message.id.clone()>
+        <div class=class data-message-id=message.id.clone() node_ref=node_ref>
             <div class="rc-bubble">
                 <RichText content=message.content draft=message.live options=options on_link=on_link />
             </div>
@@ -403,9 +406,11 @@ fn warm_from(index: usize) {
 
 /// A chat window: the transcript, then a [`Composer`].
 ///
-/// The transcript follows new messages and growing ones, unless the
-/// reader has scrolled up to look at something, in which case it stays
-/// put until they return to the bottom.
+/// The transcript keeps its end in view: new messages, ones still
+/// growing, images and fonts that arrive late, and a composer or window
+/// that changes size all leave the last bubble showing. It stops
+/// following once the reader scrolls up to look at something, and
+/// resumes when they come back to the end.
 ///
 /// That works by scrolling the transcript, `div.rc-messages`, which the
 /// structure stylesheet makes the scroll container inside a `.rc-chat`
@@ -454,20 +459,8 @@ pub fn Chat(
     warm_up: bool,
 ) -> impl IntoView {
     let pane = NodeRef::<html::Div>::new();
-    let pinned = RwSignal::new(true);
-
-    Effect::new(move |_| {
-        for message in messages.read().iter() {
-            message.content.track();
-        }
-        if pinned.get_untracked() {
-            request_animation_frame(move || {
-                if let Some(pane) = pane.get_untracked() {
-                    pane.set_scroll_top(pane.scroll_height());
-                }
-            });
-        }
-    });
+    let follow = Follow::new(pane);
+    follow.watch(pane);
 
     // Browser only: the timer does not exist off it, and a server render
     // has no grammars to warm.
@@ -481,16 +474,7 @@ pub fn Chat(
     let bubble_options = options.clone();
     view! {
         <div class="rc-chat">
-            <div
-                class="rc-messages"
-                node_ref=pane
-                on:scroll=move |_| {
-                    if let Some(pane) = pane.get_untracked() {
-                        let gap = pane.scroll_height() - pane.scroll_top() - pane.client_height();
-                        pinned.set(gap <= 48);
-                    }
-                }
-            >
+            <div class="rc-messages" node_ref=pane on:scroll=move |_| follow.scrolled()>
                 <Show when=move || messages.read().is_empty()>
                     <div class="rc-empty">{empty.clone().unwrap_or_default()}</div>
                 </Show>
@@ -498,7 +482,16 @@ pub fn Chat(
                     each=move || messages.get()
                     key=|message| (message.id.clone(), message.live)
                     children=move |message| {
-                        view! { <MessageBubble message=message options=bubble_options.clone() on_link=on_link /> }
+                        let wrapper = NodeRef::<html::Div>::new();
+                        follow.watch(wrapper);
+                        view! {
+                            <MessageBubble
+                                message=message
+                                options=bubble_options.clone()
+                                on_link=on_link
+                                node_ref=wrapper
+                            />
+                        }
                     }
                 />
             </div>
@@ -514,6 +507,123 @@ pub fn Chat(
                 on_link=on_link
             />
         </div>
+    }
+}
+
+/// How far from the end of the transcript, in CSS pixels, still counts
+/// as at it.
+const END_SLACK: i32 = 48;
+
+/// Keeps the transcript's end in view while the reader is at it.
+///
+/// The reader is "at the end" until they scroll up, and again once they
+/// scroll back to within [`END_SLACK`] of it. A scroll event is judged
+/// by its direction, not by where it leaves the transcript: the event
+/// arrives a frame after the scroll it reports, and by then a bubble may
+/// have arrived and pushed the end further away. That is growth, not the
+/// reader leaving, and reading it as leaving is how a transcript loses a
+/// burst of messages.
+///
+/// The scrolling itself is driven by a `ResizeObserver` on the pane and
+/// on every bubble: a bubble arriving, growing (a stream of content, an
+/// image or a font loading late) or going away, or the pane changing
+/// size under a growing composer or a resized window, each scroll the
+/// pane to its end while the reader is there. The observer reports after
+/// layout, so the pane is at its end before the frame paints.
+#[derive(Clone, Copy)]
+struct Follow {
+    pane: NodeRef<html::Div>,
+    /// The reader is at the end.
+    at_end: StoredValue<bool>,
+    /// Where the last scroll event left `scrollTop`.
+    last_top: StoredValue<i32>,
+    /// Made on the first element watched, in the browser only.
+    observer: StoredValue<Option<Observer>, LocalStorage>,
+}
+
+/// A `ResizeObserver` with the closure it calls, which has to outlive
+/// every report.
+struct Observer {
+    inner: web_sys::ResizeObserver,
+    _callback: wasm_bindgen::closure::Closure<dyn FnMut()>,
+}
+
+impl Follow {
+    fn new(pane: NodeRef<html::Div>) -> Self {
+        let follow = Self {
+            pane,
+            at_end: StoredValue::new(true),
+            last_top: StoredValue::new(0),
+            observer: StoredValue::new_local(None),
+        };
+        on_cleanup(move || {
+            follow.observer.update_value(|observer| {
+                if let Some(observer) = observer.take() {
+                    observer.inner.disconnect();
+                }
+            });
+        });
+        follow
+    }
+
+    /// Scrolls to the end on every change of the element's size, for as
+    /// long as the current reactive owner lives.
+    fn watch(self, node: NodeRef<html::Div>) {
+        node.on_load(move |element| {
+            self.observer.update_value(|observer| {
+                let observer = match observer {
+                    Some(observer) => observer,
+                    None => match self.make_observer() {
+                        Some(made) => observer.insert(made),
+                        None => return,
+                    },
+                };
+                observer.inner.observe(&element);
+            });
+        });
+        on_cleanup(move || {
+            if let Some(element) = node.get_untracked() {
+                self.observer.with_value(|observer| {
+                    if let Some(observer) = observer {
+                        observer.inner.unobserve(&element);
+                    }
+                });
+            }
+        });
+    }
+
+    fn make_observer(self) -> Option<Observer> {
+        let callback = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
+            if self.at_end.get_value() {
+                self.to_end();
+            }
+        });
+        let inner = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()).ok()?;
+        Some(Observer {
+            inner,
+            _callback: callback,
+        })
+    }
+
+    /// The pane scrolled: by the reader, or by [`to_end`](Self::to_end).
+    fn scrolled(self) {
+        let Some(pane) = self.pane.get_untracked() else {
+            return;
+        };
+        let top = pane.scroll_top();
+        let gap = pane.scroll_height() - top - pane.client_height();
+        if gap <= END_SLACK {
+            self.at_end.set_value(true);
+        } else if top < self.last_top.get_value() {
+            self.at_end.set_value(false);
+        }
+        self.last_top.set_value(top);
+    }
+
+    fn to_end(self) {
+        if let Some(pane) = self.pane.get_untracked() {
+            pane.set_scroll_top(pane.scroll_height());
+        }
     }
 }
 

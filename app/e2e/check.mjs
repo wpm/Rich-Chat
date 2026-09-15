@@ -6,8 +6,10 @@
 // highlighting, the copy button, progressive rendering of an unfinished
 // equation, and a clean console. Then it works the app's controls: the
 // theme switch, the bubble side and colour, dragging the text box taller,
-// and that all of it survives a reload. Screenshots land in ./screenshots
-// for a human to look at.
+// and that all of it survives a reload. Last, that the transcript keeps
+// its end in view: through a burst of messages, a growing composer, and
+// a shrinking window, but not for a reader who has scrolled up.
+// Screenshots land in ./screenshots for a human to look at.
 //
 //   npm test                 # against ../dist, from this directory
 //   node check.mjs <dist>    # against another build
@@ -269,6 +271,75 @@ try {
     check((await theme()) === 'light', 'the switch turns the theme light again');
     check((await bubbleStyle('backgroundColor')) === 'rgb(221, 244, 255)', 'and the bubble follows the theme');
     await page.screenshot({ path: `${shots}/controls-1-reset.png` });
+
+    check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
+    await page.close();
+  }
+
+  // The transcript keeps its end in view, unless the reader has left it.
+  {
+    const page = await browser.newPage({ colorScheme: 'light', viewport: { width: 900, height: 600 } });
+    const errors = [];
+    page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+    page.on('pageerror', (error) => errors.push(String(error)));
+    console.log('\nfollowing');
+    // How far the transcript is from its end, in CSS pixels.
+    const gap = () => page.$eval('.rc-messages', (el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+    const lastBubbleVisible = () => page.evaluate(() => {
+      const pane = document.querySelector('.rc-messages').getBoundingClientRect();
+      const last = [...document.querySelectorAll('.rc-message')].at(-1).getBoundingClientRect();
+      return last.bottom <= pane.bottom;
+    });
+    const send = async (text) => {
+      await type(page, text);
+      await page.press('.rc-composer-input', 'Enter');
+      await page.waitForTimeout(200);
+    };
+
+    await page.goto(origin, { waitUntil: 'networkidle' });
+    await page.waitForSelector('.rc-composer-input');
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(200);
+    check((await gap()) === 0, 'the window opens at the end of the welcome, its fonts loaded');
+
+    // Messages faster than frames: none may be lost.
+    for (let i = 0; i < 5; i += 1) {
+      await type(page, `burst ${i}`);
+      await page.press('.rc-composer-input', 'Enter');
+    }
+    await page.waitForTimeout(300);
+    check((await page.$$('.rc-message')).length === 6, 'a burst of five messages all arrive');
+    check((await gap()) === 0, 'and the transcript is at the end after them');
+
+    // The composer growing over the transcript, by a draft or by a drag.
+    await type(page, Array.from({ length: 12 }, (_, i) => `line ${i}`).join('\n'));
+    check(await lastBubbleVisible(), 'a long draft growing the composer leaves the last bubble showing');
+    await page.press('.rc-composer-input', 'Enter');
+    await page.waitForTimeout(200);
+    check((await gap()) === 0, 'and sending it lands at the end');
+    const composer = await (await page.$('.rc-composer')).boundingBox();
+    await page.mouse.move(composer.x + composer.width / 2, composer.y + 4);
+    await page.mouse.down();
+    await page.mouse.move(composer.x + composer.width / 2, composer.y + 4 - 200, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    check((await gap()) === 0, 'dragging the text box taller keeps the end in view');
+    check(await lastBubbleVisible(), 'with the last bubble showing');
+    await page.setViewportSize({ width: 900, height: 420 });
+    await page.waitForTimeout(200);
+    check((await gap()) === 0, 'so does a shorter window');
+    await page.screenshot({ path: `${shots}/following-0-composer-tall.png` });
+
+    // A reader who scrolled up is reading; a new message must not pull
+    // them away. Coming back to the end resumes following.
+    await page.evaluate(() => { document.querySelector('.rc-messages').scrollTop = 0; });
+    await page.waitForTimeout(100);
+    await send('while the reader is up top');
+    check((await page.$eval('.rc-messages', (el) => el.scrollTop)) === 0, 'a reader who scrolled up stays where they were');
+    await page.evaluate(() => { const pane = document.querySelector('.rc-messages'); pane.scrollTop = pane.scrollHeight; });
+    await page.waitForTimeout(100);
+    await send('back at the end');
+    check((await gap()) === 0, 'and is followed again once back at the end');
 
     check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
     await page.close();
