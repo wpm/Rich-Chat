@@ -289,7 +289,10 @@ fn hint_text(hint: Option<String>) -> String {
 /// Enter sends and Shift+Enter breaks a line; an IME composition in
 /// progress is never sent. The preview renders the draft as it is typed,
 /// with unfinished constructs closed for display, and disappears when
-/// the box is empty.
+/// the box is empty. A button in its heading collapses it to that
+/// heading, for a draft whose preview (a long run of equations, say)
+/// would crowd the window; it opens expanded, and the choice holds until
+/// the composer is unmounted.
 ///
 /// The text box grows with its draft: on every input its inline height
 /// is set to its scroll height. The structure stylesheet gives it the box
@@ -357,13 +360,35 @@ pub fn Composer(
     let send = send_content(send);
     let hint = hint_text(hint);
     let preview_kind = (!preview_kind.is_empty()).then_some(preview_kind);
+    let expanded = RwSignal::new(true);
+    let options = StoredValue::new(options);
 
     view! {
         <div class="rc-composer">
             <Show when=move || preview && has_draft()>
-                <div class="rc-composer-preview" data-kind=preview_kind.clone() aria-live="polite">
-                    <div class="rc-composer-preview-label">{preview_label.clone()}</div>
-                    <RichText content=draft draft=true options=options.clone() on_link=on_link />
+                <div
+                    class="rc-composer-preview"
+                    class:rc-collapsed=move || !expanded.get()
+                    data-kind=preview_kind.clone()
+                    aria-live="polite"
+                >
+                    <div class="rc-composer-preview-label">
+                        <span>{preview_label.clone()}</span>
+                        <button
+                            type="button"
+                            class="rc-preview-toggle"
+                            aria-expanded=move || expanded.get().to_string()
+                            aria-label=move || {
+                                if expanded.get() { "Collapse preview" } else { "Expand preview" }
+                            }
+                            on:click=move |_| expanded.update(|open| *open = !*open)
+                        >
+                            {move || if expanded.get() { "\u{25BE}" } else { "\u{25B8}" }}
+                        </button>
+                    </div>
+                    <Show when=move || expanded.get()>
+                        <RichText content=draft draft=true options=options.get_value() on_link=on_link />
+                    </Show>
                 </div>
             </Show>
             <div class="rc-composer-row">

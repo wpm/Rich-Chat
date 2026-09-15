@@ -474,6 +474,7 @@ pre.rc-code code {
 }
 
 .rc-composer-preview-label {
+  gap: 8px;
   margin-bottom: 4px;
   font-size: 0.7em;
   font-weight: 650;
@@ -481,6 +482,33 @@ pre.rc-code code {
   text-transform: uppercase;
   color: var(--rc-muted);
   user-select: none;
+}
+
+.rc-composer-preview.rc-collapsed {
+  padding-bottom: 8px;
+}
+
+.rc-composer-preview.rc-collapsed .rc-composer-preview-label {
+  margin-bottom: 0;
+}
+
+.rc-preview-toggle {
+  font: inherit;
+  font-size: 1.3em;
+  line-height: 1;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rc-muted);
+  cursor: pointer;
+}
+
+.rc-preview-toggle:hover,
+.rc-preview-toggle:focus-visible {
+  border-color: var(--rc-border);
+  background: var(--rc-bg);
+  color: var(--rc-fg);
 }
 
 .rc-composer-row {

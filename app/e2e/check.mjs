@@ -4,8 +4,9 @@
 // Markdown, math, and code into the composer, and asserts what appears:
 // the welcome bubble, the live preview, the sent bubble, fonts,
 // highlighting, the copy button, progressive rendering of an unfinished
-// equation, and a clean console. Then it works the app's controls: the
-// theme switch, the bubble side and colour, dragging the text box taller,
+// equation, collapsing the preview, and a clean console. Then it works
+// the app's controls: the theme switch, the bubble side and colour,
+// dragging the text box taller,
 // and that all of it survives a reload. Last, that the transcript keeps
 // its end in view: through a burst of messages, a growing composer, and
 // a shrinking window, but not for a reader who has scrolled up.
@@ -114,6 +115,16 @@ try {
     await type(page, 'Progressive: $$\\sum_{k=1}^n k^2 = \\frac{n(n+1)(2n+');
     check(await page.$('.rc-composer-preview math') !== null, 'unfinished $$ renders as math in the preview');
     await page.screenshot({ path: `${shots}/${colorScheme}-1-draft-math.png` });
+
+    // The preview opens expanded; its button collapses it to the heading and back.
+    check((await page.$eval('.rc-preview-toggle', (el) => el.getAttribute('aria-expanded'))) === 'true', 'the preview starts expanded');
+    await page.click('.rc-preview-toggle');
+    check(await page.$('.rc-composer-preview .rc-rich') === null, 'the collapse button hides the preview body');
+    check(await page.$('.rc-composer-preview.rc-collapsed .rc-composer-preview-label') !== null, 'but keeps its heading');
+    check((await page.$eval('.rc-preview-toggle', (el) => el.getAttribute('aria-expanded'))) === 'false', 'and says so');
+    await page.screenshot({ path: `${shots}/${colorScheme}-1b-preview-collapsed.png` });
+    await page.click('.rc-preview-toggle');
+    check(await page.$('.rc-composer-preview math') !== null, 'and brings it back');
 
     // An open fence is a code block already.
     await type(page, 'Open fence:\n\n```python\nfor i in range(3):\n    print(i');
