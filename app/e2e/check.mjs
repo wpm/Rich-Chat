@@ -6,7 +6,7 @@
 // highlighting, the copy button, progressive rendering of an unfinished
 // equation, collapsing the preview, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
-// bubble side and colour changing every bubble of theirs, adding and
+// bubble side and color changing every bubble of theirs, adding and
 // deleting a user, the theme switch, dragging the text box taller, and
 // that all of it survives a reload. Last, that the transcript keeps
 // its end in view: through a burst of messages, a growing composer, and
@@ -251,7 +251,7 @@ try {
     check(JSON.stringify(await users()) === '["Assistant","User"]', 'the list starts with Assistant and User');
     check((await selected()) === 'User', 'and User is selected');
     check((await pressedSide()) === 'right', 'whose bubbles go on the right');
-    check((await page.$eval('.control-colour', (el) => el.value)) === '#2f855a', 'in green');
+    check((await page.$eval('.control-color', (el) => el.value)) === '#2f855a', 'in green');
     await send('From the user');
     await page.waitForSelector('.rc-message[data-kind="User"]');
     check((await gaps('User')).right < 1, 'a sent message is from User, on the right');
@@ -261,7 +261,7 @@ try {
     await page.selectOption('.control-users', 'Assistant');
     await page.waitForTimeout(100);
     check((await pressedSide()) === 'left', 'selecting Assistant shows the assistant\'s side');
-    check((await page.$eval('.control-colour', (el) => el.value)) === '#2a64c8', 'and colour');
+    check((await page.$eval('.control-color', (el) => el.value)) === '#2a64c8', 'and color');
     await send('From the assistant');
     check((await gaps('Assistant')).count === 2, 'and sends as the assistant');
 
@@ -283,21 +283,21 @@ try {
     check((await gaps('User')).right < 1, 'the user\'s bubble stays where it was');
     await page.click('.control-side[value="center"]');
     await page.waitForTimeout(100);
-    const centred = await gaps('Assistant');
-    check(centred.left > 1 && Math.abs(centred.left - centred.right) < 2, 'the Center button puts them in the middle');
+    const centered = await gaps('Assistant');
+    check(centered.left > 1 && Math.abs(centered.left - centered.right) < 2, 'the Center button puts them in the middle');
     check((await bubbleStyle('Assistant', 'borderBottomLeftRadius')) === '16px', 'with no tail');
 
-    // Colour: the selected user's, every bubble of theirs.
-    await page.fill('.control-colour', '#ff8800');
+    // Color: the selected user's, every bubble of theirs.
+    await page.fill('.control-color', '#ff8800');
     await page.waitForTimeout(100);
-    check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(255, 136, 0)', 'both of the assistant\'s bubbles take the chosen colour');
+    check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(255, 136, 0)', 'both of the assistant\'s bubbles take the chosen color');
     check((await bubbleStyle('Assistant', 'color')) === 'rgb(31, 35, 40)', 'and dark text, since orange is light');
     check((await bubbleStyle('User', 'backgroundColor')) === 'rgb(47, 133, 90)', 'the user\'s bubble keeps its green');
-    await type(page, 'Preview in colour');
+    await type(page, 'Preview in color');
     check((await page.$eval('.rc-composer-preview', (el) => getComputedStyle(el).backgroundColor)) === 'rgb(255, 136, 0)', 'the preview takes it too');
-    await page.fill('.control-colour', '#123456');
+    await page.fill('.control-color', '#123456');
     await page.waitForTimeout(100);
-    check((await bubbleStyle('Assistant', 'color')) === 'rgb(230, 237, 243)', 'a dark colour gets light text');
+    check((await bubbleStyle('Assistant', 'color')) === 'rgb(230, 237, 243)', 'a dark color gets light text');
     await type(page, '');
 
     // Adding a user.
@@ -312,10 +312,10 @@ try {
     check((await selected()) === 'Alice', 'and selects her');
     check((await page.$eval('.control-new-user', (el) => el.value)) === '', 'and clears the name');
     check((await pressedSide()) === 'left', 'a new user starts on the left');
-    check((await page.$eval('.control-colour', (el) => el.value)) === '#0e7490', 'in the next colour of the palette');
+    check((await page.$eval('.control-color', (el) => el.value)) === '#0e7490', 'in the next color of the palette');
     await send('From Alice');
     check((await gaps('Alice')).count === 1 && (await gaps('Alice')).left < 1, 'and sends as Alice, on the left');
-    check((await bubbleStyle('Alice', 'backgroundColor')) === 'rgb(14, 116, 144)', 'in her colour');
+    check((await bubbleStyle('Alice', 'backgroundColor')) === 'rgb(14, 116, 144)', 'in her color');
     await page.screenshot({ path: `${shots}/controls-0-three-users.png` });
 
     // Deleting one.
@@ -325,9 +325,9 @@ try {
     check((await selected()) === '', 'and leaves nobody selected');
     check(await page.$eval('.control-delete', (el) => el.disabled), 'so there is nobody to delete');
     check(await page.$$eval('.control-side', (els) => els.every((el) => el.disabled)), 'the side buttons are disabled');
-    check(await page.$eval('.control-colour', (el) => el.disabled), 'so is the colour');
+    check(await page.$eval('.control-color', (el) => el.disabled), 'so is the color');
     check(await page.$eval('.rc-composer-input', (el) => el.disabled), 'and the composer, with nobody to send as');
-    check((await bubbleStyle('Alice', 'backgroundColor')) === 'rgb(14, 116, 144)', 'Alice\'s bubble keeps its colour');
+    check((await bubbleStyle('Alice', 'backgroundColor')) === 'rgb(14, 116, 144)', 'Alice\'s bubble keeps its color');
     check((await gaps('Alice')).left < 1, 'and its side');
     await page.selectOption('.control-users', 'User');
     await page.waitForTimeout(100);
@@ -358,13 +358,13 @@ try {
     check(JSON.stringify(await users()) === '["Assistant","User"]', 'so does the list');
     check((await selected()) === 'Assistant', 'and the selection');
     check((await pressedSide()) === 'center', 'and the assistant\'s side');
-    check((await page.$eval('.control-colour', (el) => el.value)) === '#123456', 'and colour');
+    check((await page.$eval('.control-color', (el) => el.value)) === '#123456', 'and color');
     check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'which the welcome wears');
     check((await boxHeight()) === after, 'and the text box height');
     await page.click('.control-theme');
     await page.waitForTimeout(100);
     check((await theme()) === 'light', 'the switch turns the theme light again');
-    check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'and the bubble keeps its own colour');
+    check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'and the bubble keeps its own color');
 
     check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
     await page.close();

@@ -2,8 +2,8 @@
 //!
 //! Highlighting is class-based: every token becomes a `<span>` whose
 //! classes name its TextMate scope (`rc-keyword rc-control`), and the
-//! crate's stylesheet maps those classes to colours for the light and dark
-//! themes. Colours therefore live in CSS, where a consumer can override
+//! crate's stylesheet maps those classes to colors for the light and dark
+//! themes. Colors therefore live in CSS, where a consumer can override
 //! them, not in the markup.
 //!
 //! The grammar set is two-face's superset of Sublime Text's defaults:

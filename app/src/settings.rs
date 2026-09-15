@@ -76,29 +76,29 @@ impl Side {
 }
 
 /// Someone in the chat. The name is the kind of their messages, and the
-/// side and colour are how their bubbles look.
+/// side and color are how their bubbles look.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
     pub name: String,
     pub side: Side,
     /// The bubble background as `#rrggbb`.
-    pub colour: String,
+    pub color: String,
 }
 
 impl User {
-    fn new(name: &str, side: Side, colour: &str) -> Self {
+    fn new(name: &str, side: Side, color: &str) -> Self {
         Self {
             name: name.to_string(),
             side,
-            colour: colour.to_string(),
+            color: color.to_string(),
         }
     }
 
-    /// How this user's bubbles look: on their side, in their colour, with
-    /// the text colour that reads best on it.
+    /// How this user's bubbles look: on their side, in their color, with
+    /// the text color that reads best on it.
     pub fn look(&self) -> Look {
-        let look = Look::at(self.side.position()).background(self.colour.clone());
-        match text_on(&self.colour) {
+        let look = Look::at(self.side.position()).background(self.color.clone());
+        match text_on(&self.color) {
             Some(text) => look.foreground(text),
             None => look,
         }
@@ -110,7 +110,7 @@ pub const ASSISTANT: &str = "Assistant";
 /// The other user there at the start, and the one selected.
 pub const USER: &str = "User";
 
-/// The colours new users get, in turn.
+/// The colors new users get, in turn.
 const PALETTE: [&str; 6] = [
     "#7c3aed", "#c2410c", "#0e7490", "#be185d", "#4d7c0f", "#6b7280",
 ];
@@ -184,7 +184,7 @@ impl Settings {
     }
 
     /// Adds and selects a user called `name`, on the left in the next
-    /// colour of the palette. Nothing happens for a name that cannot be
+    /// color of the palette. Nothing happens for a name that cannot be
     /// added; a deleted user of that name is forgotten.
     pub fn add_user(&mut self, name: &str) -> bool {
         if !self.can_add(name) {
@@ -192,8 +192,8 @@ impl Settings {
         }
         let name = name.trim();
         self.retired.retain(|user| user.name != name);
-        let colour = PALETTE[(self.users.len() + self.retired.len()) % PALETTE.len()];
-        self.users.push(User::new(name, Side::Left, colour));
+        let color = PALETTE[(self.users.len() + self.retired.len()) % PALETTE.len()];
+        self.users.push(User::new(name, Side::Left, color));
         self.selected = Some(name.to_string());
         true
     }
@@ -281,7 +281,7 @@ fn storage() -> Option<web_sys::Storage> {
     web_sys::window()?.local_storage().ok().flatten()
 }
 
-/// Whether the system prefers a dark colour scheme right now.
+/// Whether the system prefers a dark color scheme right now.
 pub fn system_prefers_dark() -> bool {
     web_sys::window()
         .and_then(|window| {
@@ -293,18 +293,18 @@ pub fn system_prefers_dark() -> bool {
         .is_some_and(|query| query.matches())
 }
 
-/// The library's text colour on light backgrounds (`--rc-fg` in the light
+/// The library's text color on light backgrounds (`--rc-fg` in the light
 /// theme) and on dark ones (the same in the dark theme).
 const DARK_TEXT: &str = "#1f2328";
 const LIGHT_TEXT: &str = "#e6edf3";
 
-/// The text colour that reads best on `background`: the library's own
+/// The text color that reads best on `background`: the library's own
 /// ink for light backgrounds or its ink for dark ones, whichever has the
 /// higher WCAG contrast. `None` when `background` is not `#rrggbb`.
 pub fn text_on(background: &str) -> Option<&'static str> {
     let bg = luminance(background)?;
     let contrast = |ink: &str| {
-        let ink = luminance(ink).expect("the inks are valid colours");
+        let ink = luminance(ink).expect("the inks are valid colors");
         (bg.max(ink) + 0.05) / (bg.min(ink) + 0.05)
     };
     Some(if contrast(DARK_TEXT) >= contrast(LIGHT_TEXT) {
@@ -328,7 +328,7 @@ fn luminance(color: &str) -> Option<f64> {
     Some(0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b))
 }
 
-/// `#rrggbb`, which is what a colour input produces, to its channels.
+/// `#rrggbb`, which is what a color input produces, to its channels.
 fn parse_hex(color: &str) -> Option<(u8, u8, u8)> {
     let digits = color.strip_prefix('#')?;
     if digits.len() != 6 || !digits.is_ascii() {
@@ -343,7 +343,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hex_colours_parse_and_nothing_else_does() {
+    fn hex_colors_parse_and_nothing_else_does() {
         assert_eq!(parse_hex("#ff8800"), Some((255, 136, 0)));
         assert_eq!(parse_hex("#FF8800"), Some((255, 136, 0)));
         for bad in ["ff8800", "#ff880", "#ff88000", "#gg8800", "#ffé80", ""] {
@@ -365,7 +365,7 @@ mod tests {
             Some(LIGHT_TEXT),
             "the accent blue in light text"
         );
-        assert_eq!(text_on("not a colour"), None);
+        assert_eq!(text_on("not a color"), None);
     }
 
     #[test]
@@ -407,7 +407,11 @@ mod tests {
             kinds.get(USER).unwrap().foreground.as_deref(),
             Some(LIGHT_TEXT)
         );
-        assert_eq!(kinds.get("user"), None, "the names are the kinds, as spelt");
+        assert_eq!(
+            kinds.get("user"),
+            None,
+            "the names are the kinds, as spelled"
+        );
     }
 
     #[test]
@@ -422,12 +426,12 @@ mod tests {
         assert_eq!(alice.name, "Alice");
         assert_eq!(alice.side, Side::Left);
         assert_eq!(
-            alice.colour, PALETTE[2],
-            "the third user gets the third colour"
+            alice.color, PALETTE[2],
+            "the third user gets the third color"
         );
 
         settings.selected_user_mut().unwrap().side = Side::Center;
-        settings.selected_user_mut().unwrap().colour = "#ff8800".to_string();
+        settings.selected_user_mut().unwrap().color = "#ff8800".to_string();
         let look = settings.kinds().get("Alice").cloned().unwrap();
         assert_eq!(look.position, Position::Center);
         assert_eq!(look.background.as_deref(), Some("#ff8800"));
@@ -450,7 +454,7 @@ mod tests {
 
         // Back with a new look, the old one is forgotten.
         settings.add_user("Alice");
-        settings.selected_user_mut().unwrap().colour = "#000000".to_string();
+        settings.selected_user_mut().unwrap().color = "#000000".to_string();
         assert_eq!(settings.retired.len(), 0);
         assert_eq!(
             settings.kinds().get("Alice").unwrap().background.as_deref(),

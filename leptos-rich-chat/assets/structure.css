@@ -3,7 +3,7 @@
  * What the components need in order to work: the containers that scroll
  * and grow, the wrappers that must not become boxes, the rules that keep
  * long content from overflowing, and the alignment of MathML
- * environments. No colours, fonts, spacing, or radii; those are the
+ * environments. No colors, fonts, spacing, or radii; those are the
  * theme's, and a host that replaces the theme keeps this.
  */
 

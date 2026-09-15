@@ -3,14 +3,14 @@
 //! The crate has no idea who says what. A [`Message`](crate::Message)
 //! carries a `kind`, a name the host chooses, and the bubble carries it
 //! as a `data-kind` attribute. What a kind looks like is the host's too,
-//! declared in a [`Kinds`] table: where the bubble sits and what colours
+//! declared in a [`Kinds`] table: where the bubble sits and what colors
 //! it has. [`RichChatStyle`](crate::RichChatStyle) turns the table into
 //! one rule per kind, in the `rich-chat.theme` cascade layer, so a host's
 //! own stylesheet still wins over it. A kind with no entry gets the plain
-//! bubble: on the left, in the theme's `--rc-bubble-*` colours.
+//! bubble: on the left, in the theme's `--rc-bubble-*` colors.
 //!
 //! The default table has two kinds, `user` on the right in the theme's
-//! tint colours and `assistant` on the left, which suits a chat with a
+//! tint colors and `assistant` on the left, which suits a chat with a
 //! model. Anything else, a group chat or a transcript with notices in
 //! the middle, is a different table:
 //!
@@ -23,7 +23,7 @@
 //!     .kind("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
 //! ```
 //!
-//! Position and the two colours are the only properties here, because
+//! Position and the two colors are the only properties here, because
 //! they are what a stylesheet cannot express without knowing the kind's
 //! name. Everything else about a kind (its font size, a border, an
 //! avatar) is ordinary CSS against `.rc-message[data-kind="…"]`.
@@ -56,21 +56,21 @@ impl Position {
 
 /// How the bubbles of one kind look.
 ///
-/// The colours are CSS values, inserted into the generated stylesheet as
-/// they are: a colour, a `var(--…)`, a `light-dark(…, …)`. A colour
-/// left out is the theme's plain bubble colour.
+/// The colors are CSS values, inserted into the generated stylesheet as
+/// they are: a color, a `var(--…)`, a `light-dark(…, …)`. A color
+/// left out is the theme's plain bubble color.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Look {
     /// Where the bubble sits.
     pub position: Position,
     /// The bubble's background, or the theme's if `None`.
     pub background: Option<String>,
-    /// The bubble's text colour, or the theme's if `None`.
+    /// The bubble's text color, or the theme's if `None`.
     pub foreground: Option<String>,
 }
 
 impl Look {
-    /// A look at `position` in the theme's colours.
+    /// A look at `position` in the theme's colors.
     pub fn at(position: Position) -> Self {
         Self {
             position,
@@ -84,7 +84,7 @@ impl Look {
         self
     }
 
-    /// The same look with this text colour.
+    /// The same look with this text color.
     pub fn foreground(mut self, css: impl Into<String>) -> Self {
         self.foreground = Some(css.into());
         self
@@ -99,7 +99,7 @@ pub struct Kinds {
 }
 
 impl Default for Kinds {
-    /// `user` on the right in the theme's tint colours (`--rc-tint-bg`
+    /// `user` on the right in the theme's tint colors (`--rc-tint-bg`
     /// and `--rc-tint-fg`), `assistant` on the left in its plain ones.
     fn default() -> Self {
         Self::none()
@@ -153,8 +153,8 @@ impl Kinds {
 
     /// The stylesheet for the table, in the layer `rich-chat.theme`, the
     /// same form as the constants in [`style`](crate::style). One rule
-    /// per kind places its bubbles; a second gives them their colours,
-    /// and the same colours to a composer preview of that kind. The tail
+    /// per kind places its bubbles; a second gives them their colors,
+    /// and the same colors to a composer preview of that kind. The tail
     /// radius is the theme's `--rc-tail`.
     pub fn css(&self) -> String {
         let mut css = String::from(
@@ -173,17 +173,17 @@ impl Kinds {
                 }
             };
             let _ = writeln!(css, "{bubble} {{ {placement} }}");
-            let mut colours = String::new();
+            let mut colors = String::new();
             if let Some(background) = &look.background {
-                let _ = write!(colours, " background: {background};");
+                let _ = write!(colors, " background: {background};");
             }
             if let Some(foreground) = &look.foreground {
-                let _ = write!(colours, " color: {foreground};");
+                let _ = write!(colors, " color: {foreground};");
             }
-            if !colours.is_empty() {
+            if !colors.is_empty() {
                 let _ = writeln!(
                     css,
-                    ":is({bubble}, .rc-composer-preview[data-kind=\"{name}\"]) {{{colours} }}"
+                    ":is({bubble}, .rc-composer-preview[data-kind=\"{name}\"]) {{{colors} }}"
                 );
             }
         }
@@ -237,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn each_position_places_the_bubble_and_only_colours_given_are_set() {
+    fn each_position_places_the_bubble_and_only_colors_given_are_set() {
         let css = Kinds::none()
             .kind("l", Look::at(Position::Left))
             .kind("c", Look::at(Position::Center).background("teal"))
@@ -263,7 +263,7 @@ mod tests {
         ), "{css}");
         assert!(
             !css.contains("data-kind=\"l\"]) {"),
-            "l has no colour rule: {css}"
+            "l has no color rule: {css}"
         );
         assert!(css.contains(
             ":is(.rc-message[data-kind=\"c\"] > .rc-bubble, .rc-composer-preview[data-kind=\"c\"]) { background: teal; }\n"

@@ -1,7 +1,7 @@
 /* The window is the chat, under a bar of controls.
  *
  * The library paints the chat itself, and where each user's bubbles go
- * and what colour they are reaches it as its table of kinds, not as CSS. These
+ * and what color they are reaches it as its table of kinds, not as CSS. These
  * rules paint the page around it and turn the one setting that is a
  * length, the text box's height, into an override of the library's
  * composer. The library's own CSS is in cascade layers, so these plain
@@ -129,14 +129,14 @@ body {
 .control-segment:focus-visible,
 .control-users:focus-visible,
 .control-new-user:focus-visible,
-.control-colour:focus-visible {
+.control-color:focus-visible {
   outline: 2px solid var(--app-accent);
   outline-offset: 1px;
 }
 
 .control-button:disabled,
 .control-segment:disabled,
-.control-colour:disabled {
+.control-color:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -180,7 +180,7 @@ body {
   color: var(--app-accent-fg);
 }
 
-.control-colour {
+.control-color {
   box-sizing: border-box;
   width: 40px;
   height: 28px;
@@ -191,7 +191,7 @@ body {
   cursor: pointer;
 }
 
-.control-colour:hover:not(:disabled) {
+.control-color:hover:not(:disabled) {
   border-color: var(--app-accent);
 }
 

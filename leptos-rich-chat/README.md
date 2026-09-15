@@ -15,7 +15,7 @@ arrives.
 - **Code**: fenced blocks in some two hundred languages, highlighted by
   [syntect](https://crates.io/crates/syntect) with
   [two-face](https://crates.io/crates/two-face)'s grammar set, in
-  class-based colours the stylesheet themes for light and dark. Each
+  class-based colors the stylesheet themes for light and dark. Each
   block has a language label and a copy button. Grammars compile on
   first use; `Chat` compiles the common ones in idle time after it
   mounts, and `warm_up()` does the same for a host that uses the pieces
@@ -79,8 +79,8 @@ before its closing `$$` has arrived.
 
 A message's `kind` is a name you choose. The crate attaches no meaning
 to it: the bubble carries it as `data-kind`, and a `Kinds` table you
-give `RichChatStyle` says where each kind sits and what colours it has.
-The default table is `user` on the right in the theme's tint colours
+give `RichChatStyle` says where each kind sits and what colors it has.
+The default table is `user` on the right in the theme's tint colors
 and `assistant` on the left, which is a chat with a model. Any other
 shape is another table:
 
@@ -96,16 +96,16 @@ let kinds = Kinds::none()
 view! { <RichChatStyle kinds=kinds /> }
 ```
 
-The colours are CSS values, so `var(--…)` and `light-dark(…, …)` keep
-light and dark mode in your stylesheet. A colour left out is the theme's
-plain bubble colour, and a kind with no entry gets the plain bubble on
+The colors are CSS values, so `var(--…)` and `light-dark(…, …)` keep
+light and dark mode in your stylesheet. A color left out is the theme's
+plain bubble color, and a kind with no entry gets the plain bubble on
 the left. `kinds` can be a signal, and only its rules are rewritten when
-it changes. Position and the two colours are all a `Look` holds, because
+it changes. Position and the two colors are all a `Look` holds, because
 they are what a stylesheet cannot say without knowing the kind's name;
 anything else about a kind is a rule of yours against
 `.rc-message[data-kind="…"]`.
 
-The composer's preview takes the theme's tint colours, or those of the
+The composer's preview takes the theme's tint colors, or those of the
 kind named in `preview_kind`, so it can look like the bubble about to be
 sent.
 
@@ -129,7 +129,7 @@ Tauri's opener plugin.
 | Component       | Renders                                              |
 |-----------------|------------------------------------------------------|
 | `Composer`      | the text box, its collapsible preview, and send button |
-| `MessageBubble` | one message, placed and coloured by its kind         |
+| `MessageBubble` | one message, placed and colored by its kind         |
 | `RichText`      | any Markdown, from a `Signal<String>`                |
 | `CodeBlock`     | one highlighted block with label and copy button     |
 
@@ -154,13 +154,13 @@ selectors:
 - `style::STRUCTURE`, layer `rich-chat.structure`: what the components
   need to work. The transcript that scrolls, the text box that grows,
   the block wrappers that must not become boxes, and the alignment of
-  MathML environments. No colours, fonts, spacing, or radii. Keep it.
+  MathML environments. No colors, fonts, spacing, or radii. Keep it.
 - `style::THEME` and `style::HIGHLIGHT`, layer `rich-chat.theme`: the
-  default look and the code colours. Neither names a kind of message;
+  default look and the code colors. Neither names a kind of message;
   the rules for those are `Kinds::css()`, in the same layer.
 
 To adjust the theme, override its custom properties on the component's
-root. Every colour is a `--rc-*` property, and so are the fonts
+root. Every color is a `--rc-*` property, and so are the fonts
 (`--rc-font`, `--rc-mono`, `--rc-math`), the size, and the bubble
 radius:
 
@@ -185,10 +185,10 @@ out and write your own against the classes:
 <RichChatStyle theme=false highlight=false />
 ```
 
-#### Code colours
+#### Code colors
 
 Highlighting is class-based: a fenced block comes out as `<span>`s with
-`rc-keyword`, `rc-string`, `rc-comment`, and so on, and the colours come
+`rc-keyword`, `rc-string`, `rc-comment`, and so on, and the colors come
 from `style::HIGHLIGHT`, which is `assets/highlight.css`. That file is
 not written by hand. It is the output of `examples/highlight_css`, a
 small tool that takes one of [two-face](https://crates.io/crates/two-face)'s
@@ -203,7 +203,7 @@ cargo run -p leptos-rich-chat --example highlight_css -- OneHalfDark dark
 ```
 
 Run it with no arguments to list the themes. Use it to change the code
-colours without touching anything else: turn the shipped rules off with
+colors without touching anything else: turn the shipped rules off with
 `<RichChatStyle highlight=false />`, then serve the tool's output for
 the theme you want (one run per side, or one run for a single theme on
 both sides) alongside your own CSS. The tool ships in the crate's
