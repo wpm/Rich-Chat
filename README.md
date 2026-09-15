@@ -6,17 +6,19 @@ syntax-highlighted code in every language, rendered as you type.
 **Try it with nothing installed:** <https://wpm.github.io/Rich-Chat/>.
 Every push to `main` redeploys it from the [Pages workflow](.github/workflows/pages.yml).
 
-Two crates:
+Three crates:
 
 - [`leptos-rich-chat`](leptos-rich-chat/) — the Leptos components, published to
   crates.io. See its [README](leptos-rich-chat/README.md) for the API.
-- [`app`](app/) — a Tauri desktop app for trying them: a chat window with
-  a text box at the bottom. It opens on a tour of what renders (the
+- [`app`](app/) — a browser app for trying them: a chat window with a
+  text box at the bottom. It opens on a tour of what renders (the
   Markdown in [`app/welcome.md`](app/welcome.md)), and what you send
   appears as a bubble. A bar above the chat switches between light and
   dark, puts the bubbles on the left or the right, and sets their colour;
   drag the top edge of the text box to make it taller. The choices are
-  kept between runs.
+  kept between runs. This is what the site above serves.
+- [`app/src-tauri`](app/src-tauri/) — the Tauri shell that puts the same
+  app in a desktop window.
 
 ## Running the app
 
