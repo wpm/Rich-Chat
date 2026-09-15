@@ -3,6 +3,9 @@
 A chat interface with rich formatting: Markdown, LaTeX math, and
 syntax-highlighted code in every language, rendered as you type.
 
+**Try it with nothing installed:** <https://wpm.github.io/Rich-Chat/>.
+Every push to `main` redeploys it from the [Pages workflow](.github/workflows/pages.yml).
+
 Two crates:
 
 - [`leptos-rich-chat`](leptos-rich-chat/) — the Leptos components, published to
@@ -23,7 +26,8 @@ cd app && cargo tauri dev
 ```
 
 In the browser instead of a window: `cd app && trunk serve` and open
-<http://localhost:1420>.
+<http://localhost:1420>. The hosted copy above is the same build, made
+with `trunk build --release --public-url /Rich-Chat/`.
 
 ## Development
 
