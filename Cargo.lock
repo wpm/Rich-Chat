@@ -2305,6 +2305,7 @@ dependencies = [
 name = "leptos-rich-chat"
 version = "0.1.0"
 dependencies = [
+ "any_spawner",
  "leptos",
  "pulldown-cmark",
  "pulldown-cmark-escape",
