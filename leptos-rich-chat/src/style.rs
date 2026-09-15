@@ -1,15 +1,30 @@
-//! The stylesheet and fonts.
+//! The stylesheets and fonts.
 //!
-//! Everything the components need is in [`STYLESHEET`]: layout, the light
-//! and dark palettes, code highlighting colours, and MathML spacing. The
-//! [`RichChatStyle`](crate::RichChatStyle) component injects it, or a
-//! consumer can serve it as a file. Colours are CSS custom properties
-//! prefixed `--rc-`, set on `.rc-chat`, `.rc-rich`, and `.rc-composer`,
-//! so a host can override any of them.
+//! The CSS comes in three parts, each a constant here, each wrapped in a
+//! [cascade layer](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer)
+//! so that any unlayered rule in the host wins over it, whatever its
+//! specificity:
 //!
-//! Dark mode follows `prefers-color-scheme` unless the document sets
-//! `data-theme="light"` or `data-theme="dark"` on its root element, in
-//! which case that wins.
+//! - [`STRUCTURE`], in the layer `rich-chat.structure`: what the
+//!   components need to work. The containers that scroll and grow, the
+//!   block wrappers that must not become boxes, and the alignment of
+//!   MathML environments. No colours, fonts, spacing, or radii. Keep it.
+//! - [`THEME`], in `rich-chat.theme`: the default look. Every colour is
+//!   a `--rc-*` custom property set on the outermost component root
+//!   (`.rc-chat`, or a `.rc-rich` or `.rc-composer` used alone), so a
+//!   host can override any of them there from its own stylesheet; or
+//!   leave the whole theme out and write one against the `rc-*` classes.
+//! - [`HIGHLIGHT`], also in `rich-chat.theme`: the code colours, from
+//!   two-face's OneHalfLight and OneHalfDark. `examples/theme_css.rs`
+//!   prints the same rules for any other theme.
+//!
+//! [`STYLESHEET`] is all three. The [`RichChatStyle`](crate::RichChatStyle)
+//! component injects them, each part switchable, or a consumer can serve
+//! them as files.
+//!
+//! Dark mode in the theme follows `prefers-color-scheme` unless the
+//! document sets `data-theme="light"` or `data-theme="dark"` on its root
+//! element, in which case that wins.
 //!
 //! Equations are set in Latin Modern Math, the TeX font, so they look the
 //! same everywhere. With the `bundled-fonts` feature (the default) the
@@ -18,13 +33,43 @@
 //! same rules for fonts served from a directory, and [`FONT_FILES`] has
 //! the bytes to serve.
 
-/// The layout, palette, highlighting, and math styles, without fonts.
+/// The rules the components need to work, in the layer
+/// `rich-chat.structure`. See the [module docs](self).
+pub const STRUCTURE: &str = concat!(
+    "@layer rich-chat.structure, rich-chat.theme;\n",
+    "@layer rich-chat.structure {\n",
+    include_str!("../assets/structure.css"),
+    "}\n",
+);
+
+/// The default look, in the layer `rich-chat.theme`: palette, fonts,
+/// spacing, radii, and the light and dark switch.
+pub const THEME: &str = concat!(
+    "@layer rich-chat.structure, rich-chat.theme;\n",
+    "@layer rich-chat.theme {\n",
+    include_str!("../assets/theme.css"),
+    "}\n",
+);
+
+/// The code highlighting colours, in the layer `rich-chat.theme`.
+pub const HIGHLIGHT: &str = concat!(
+    "@layer rich-chat.structure, rich-chat.theme;\n",
+    "@layer rich-chat.theme {\n",
+    include_str!("../assets/highlight.css"),
+    "}\n",
+);
+
+/// All three parts: [`STRUCTURE`], [`THEME`], and [`HIGHLIGHT`].
 pub const STYLESHEET: &str = concat!(
-    include_str!("../assets/rich-chat.css"),
-    "\n",
-    include_str!("../assets/math.css"),
+    "@layer rich-chat.structure, rich-chat.theme;\n",
+    "@layer rich-chat.structure {\n",
+    include_str!("../assets/structure.css"),
+    "}\n",
+    "@layer rich-chat.theme {\n",
+    include_str!("../assets/theme.css"),
     "\n",
     include_str!("../assets/highlight.css"),
+    "}\n",
 );
 
 /// The math fonts by file name, for a consumer that serves them itself.
@@ -175,5 +220,43 @@ mod tests {
         assert!(STYLESHEET.contains(".rc-chat"));
         assert!(STYLESHEET.contains(".rc-rich math"));
         assert!(STYLESHEET.contains(".rc-keyword"));
+        assert_eq!(
+            STYLESHEET.matches("@layer rich-chat.structure {").count(),
+            1
+        );
+        assert_eq!(STYLESHEET.matches("@layer rich-chat.theme {").count(), 1);
+    }
+
+    #[test]
+    fn each_part_declares_the_layer_order_and_its_own_layer() {
+        for (part, layer) in [
+            (STRUCTURE, "structure"),
+            (THEME, "theme"),
+            (HIGHLIGHT, "theme"),
+        ] {
+            assert!(
+                part.starts_with("@layer rich-chat.structure, rich-chat.theme;\n"),
+                "{layer} part does not declare the layer order"
+            );
+            assert!(
+                part.contains(&format!("@layer rich-chat.{layer} {{")),
+                "{layer} part is not in its layer"
+            );
+            assert!(part.trim_end().ends_with('}'), "{layer} part is not closed");
+        }
+    }
+
+    #[test]
+    fn the_structure_has_no_colours_and_the_theme_has_the_palette() {
+        for line in STRUCTURE.lines() {
+            assert!(
+                !line.contains("var(--rc-"),
+                "structure uses a theme variable: {line}"
+            );
+            assert!(!line.contains('#'), "structure has a colour: {line}");
+        }
+        assert!(THEME.contains("--rc-accent:"));
+        assert!(STRUCTURE.contains(".rc-block {"));
+        assert!(STRUCTURE.contains("mtable.menv-alignlike"));
     }
 }

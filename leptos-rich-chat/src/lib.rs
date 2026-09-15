@@ -51,9 +51,20 @@
 //!
 //! # Styling
 //!
-//! [`RichChatStyle`] injects [`style::STYLESHEET`] and the fonts. Every
-//! colour is a `--rc-*` custom property; dark mode follows the system
-//! or a `data-theme` attribute on the root element. See [`style`].
+//! The components carry `rc-*` classes and no inline styles; the look
+//! is all CSS, and all of it is the host's to decide. [`RichChatStyle`]
+//! injects the crate's CSS in cascade layers, so a host's own unlayered
+//! rules win over it whatever their specificity. It comes in two tiers:
+//! [`style::STRUCTURE`], the rules the components need to work, and
+//! [`style::THEME`] with [`style::HIGHLIGHT`], the default look, which a
+//! host can override property by property (every colour is a `--rc-*`
+//! custom property) or switch off and replace. Dark mode in the theme
+//! follows the system or a `data-theme` attribute on the root element.
+//! See [`style`].
+//!
+//! The words in the interface are props too: the composer's
+//! `placeholder`, `hint`, `preview_label`, and `send` content, the
+//! transcript's `empty` text, and the copy button's [`CodeLabels`].
 //!
 //! # Features
 //!
@@ -70,6 +81,8 @@ mod message;
 pub mod render;
 pub mod style;
 
-pub use components::{Chat, CodeBlock, Composer, MessageBubble, RichChatStyle, RichText, warm_up};
+pub use components::{
+    Chat, CodeBlock, CodeLabels, Composer, MessageBubble, RichChatStyle, RichText, warm_up,
+};
 pub use message::{Message, Role};
 pub use render::RenderOptions;

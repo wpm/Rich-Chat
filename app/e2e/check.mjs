@@ -156,6 +156,12 @@ try {
     const background = await page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
     check(colorScheme === 'dark' ? background !== 'rgb(255, 255, 255)' : background === 'rgb(255, 255, 255)', `${colorScheme} palette applied`);
 
+    // A host's plain rule beats the crate's layered ones, in both modes,
+    // however specific the crate's dark-mode selectors are.
+    await page.addStyleTag({ content: '.rc-chat { --rc-accent: rgb(1, 2, 3); }' });
+    const accent = await page.$eval('.rc-send', (el) => getComputedStyle(el).backgroundColor);
+    check(accent === 'rgb(1, 2, 3)', `a host override of --rc-accent wins in ${colorScheme} mode`);
+
     check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
     await page.close();
   }

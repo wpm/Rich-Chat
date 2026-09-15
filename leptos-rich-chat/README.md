@@ -54,7 +54,7 @@ fn App() -> impl IntoView {
 ```
 
 `Chat` fills its container: give the parent a height. `RichChatStyle`
-injects the stylesheet and fonts once; place it anywhere.
+injects the stylesheets and fonts once; place it anywhere.
 
 ### Streaming a reply
 
@@ -110,22 +110,54 @@ punctuation, and marks text as a draft.
 
 ### Styling
 
-Every colour is a `--rc-*` custom property set on `.rc-chat`, `.rc-rich`,
-and `.rc-composer`. Override them on an ancestor:
+The components carry `rc-*` classes and no inline styles, so the look is
+entirely CSS, and the CSS is yours to decide. What the crate ships comes
+in two tiers, each in a [cascade layer](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer),
+so any rule in your own stylesheet wins over it regardless of
+specificity, with no `!important` and no matching of the crate's
+selectors:
+
+- `style::STRUCTURE`, layer `rich-chat.structure`: what the components
+  need to work. The transcript that scrolls, the text box that grows,
+  the block wrappers that must not become boxes, and the alignment of
+  MathML environments. No colours, fonts, spacing, or radii. Keep it.
+- `style::THEME` and `style::HIGHLIGHT`, layer `rich-chat.theme`: the
+  default look and the code colours.
+
+To adjust the theme, override its custom properties on the component's
+root. Every colour is a `--rc-*` property, and so are the fonts
+(`--rc-font`, `--rc-mono`, `--rc-math`), the size, and the bubble
+radius:
 
 ```css
-.my-app .rc-chat { --rc-accent: #7c3aed; --rc-user-bg: #ede9fe; }
+.rc-chat { --rc-accent: #7c3aed; --rc-user-bg: #ede9fe; }
 ```
 
-Dark mode follows `prefers-color-scheme` unless the document sets
-`data-theme="light"` or `"dark"` on its root element, which wins. Code
-colours are two-face's OneHalfLight and OneHalfDark;
+The theme sets them on the outermost root only (`.rc-chat`, or a
+`.rc-rich` or `.rc-composer` used on its own), so an override there
+reaches everything inside. It holds in dark mode too, which follows
+`prefers-color-scheme` unless the document sets `data-theme="light"` or
+`"dark"` on its root element.
+To go further, restyle any `rc-*` class the same way; or leave the theme
+out and write your own against the classes:
+
+```rust
+<RichChatStyle theme=false highlight=false />
+```
+
+Code colours are two-face's OneHalfLight and OneHalfDark;
 `examples/theme_css.rs` prints the rules for any of its themes if you
 want another:
 
 ```sh
 cargo run -p leptos-rich-chat --example theme_css -- Dracula dark
 ```
+
+The words in the interface are props: `Chat` and `Composer` take
+`placeholder`, `hint` (empty leaves the line out), `preview_label`, and
+`send`, the button's content, so it can be an icon; `Chat` takes `empty`
+for the bare transcript; and the copy button's labels are a `CodeLabels`
+provided as context, or a prop on `CodeBlock`.
 
 ## Features
 
