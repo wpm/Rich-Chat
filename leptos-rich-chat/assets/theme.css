@@ -393,12 +393,14 @@ pre.rc-code code {
   padding: 0 0.15em;
 }
 
+/* Footnotes are set apart by their size and the rule above, not by a
+ * fainter colour: at their size, and with the back-reference a bare
+ * glyph, a fainter colour is hard to read on a strong bubble. */
 .rc-footnotes {
   margin-top: 1.2em;
   padding-top: 0.6em;
   border-top: 1px solid color-mix(in srgb, currentColor 30%, transparent);
   font-size: 0.85em;
-  color: color-mix(in srgb, currentColor 75%, transparent);
 }
 
 .rc-footnotes ol {
