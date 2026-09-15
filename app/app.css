@@ -2,7 +2,9 @@
  *
  * The library paints the chat itself; these rules paint the page around
  * it and turn the app's settings (attributes and --app-* properties on
- * the root element) into overrides of the library's --rc-* palette.
+ * the app's root element) into overrides of the library's --rc-* palette.
+ * The library's own CSS is in cascade layers, so these plain rules win
+ * over it without matching its specificity.
  */
 
 :root {
@@ -181,14 +183,11 @@ body {
 
 /* ---- The bubble colour ------------------------------------------------ */
 
-/* The library declares its palette on .rc-chat, .rc-rich and .rc-composer
- * themselves, so a value inherited from an ancestor would lose to it;
- * this rule has to beat the library's most specific one (three classes
- * deep, for dark mode), which the id does. The preview in the composer
- * uses the same properties, so it takes the colour too. */
-#app.app-bubble .rc-chat,
-#app.app-bubble .rc-rich,
-#app.app-bubble .rc-composer {
+/* The library's theme declares its palette on the outermost component
+ * root, and in a cascade layer, so an unlayered rule on that root wins.
+ * The composer's preview uses the same properties, so it takes the
+ * colour too. */
+.app.app-bubble .rc-chat {
   --rc-user-bg: var(--app-bubble-bg);
   --rc-user-fg: var(--app-bubble-fg);
 }
