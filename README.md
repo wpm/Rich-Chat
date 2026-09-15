@@ -13,7 +13,10 @@ Two crates:
 - [`app`](app/) — a Tauri desktop app for trying them: a chat window with
   a text box at the bottom. It opens on a tour of what renders (the
   Markdown in [`app/welcome.md`](app/welcome.md)), and what you send
-  appears as a bubble.
+  appears as a bubble. A bar above the chat switches between light and
+  dark, puts the bubbles on the left or the right, and sets their colour;
+  drag the top edge of the text box to make it taller. The choices are
+  kept between runs.
 
 ## Running the app
 
