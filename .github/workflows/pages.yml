@@ -1,0 +1,52 @@
+name: Pages
+
+# Publishes the chat as a website, so it can be used with nothing
+# installed: https://wpm.github.io/Rich-Chat/
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push supersedes a running one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/trunk-action@v0.5.0
+      # Enables Pages for the repository on first run and reports the
+      # path the site is served under, which Trunk needs for asset URLs.
+      - id: pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - run: trunk build --release --public-url "${{ steps.pages.outputs.base_path }}/"
+        working-directory: app
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
