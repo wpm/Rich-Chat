@@ -2,8 +2,9 @@
 //
 // Serves a Trunk `dist` directory, opens it in light and dark mode, types
 // Markdown, math, and code into the composer, and asserts what appears:
-// the live preview, the sent bubble, fonts, highlighting, the copy button,
-// progressive rendering of an unfinished equation, and a clean console.
+// the welcome bubble, the live preview, the sent bubble, fonts,
+// highlighting, the copy button, progressive rendering of an unfinished
+// equation, and a clean console.
 // Screenshots land in ./screenshots for a human to look at.
 //
 //   npm test                 # against ../dist, from this directory
@@ -90,8 +91,20 @@ try {
 
     await page.goto(origin, { waitUntil: 'networkidle' });
     await page.waitForSelector('.rc-composer-input');
-    check(await page.$('.rc-empty') !== null, 'empty transcript shows its hint');
-    await page.screenshot({ path: `${shots}/${colorScheme}-0-empty.png` });
+
+    // The window opens on a tour from the assistant's side.
+    const welcome = await page.$('.rc-message-assistant');
+    check(welcome !== null, 'the welcome bubble is there on startup');
+    check((await page.$$('.rc-message')).length === 1, 'and it is the only message');
+    const welcomeBox = await page.$eval('.rc-message-assistant .rc-bubble', (el) => el.getBoundingClientRect());
+    const paneBox = await page.$eval('.rc-messages', (el) => el.getBoundingClientRect());
+    check(welcomeBox.left - paneBox.left < paneBox.right - welcomeBox.right, 'the welcome bubble sits on the left');
+    check((await page.$$('.rc-message-assistant .rc-codeblock')).length === 2, 'the welcome has two code blocks');
+    check((await page.$$('.rc-message-assistant pre.rc-code span')).length > 40, 'both are highlighted');
+    check((await page.$$('.rc-message-assistant math[display=block]')).length >= 3, 'the welcome has display math');
+    check(await page.$('.rc-message-assistant merror') === null, 'every welcome equation parsed');
+    check(await page.$('.rc-message-assistant table') !== null, 'the welcome has a table');
+    await page.screenshot({ path: `${shots}/${colorScheme}-0-welcome.png` });
 
     // Progressive rendering: an unfinished equation with unbalanced braces.
     await type(page, 'Progressive: $$\\sum_{k=1}^n k^2 = \\frac{n(n+1)(2n+');
@@ -151,7 +164,7 @@ try {
     await type(page, 'Shift+Enter keeps typing\nline two');
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
-    check((await page.$$('.rc-message')).length === 2, 'a second message appends');
+    check((await page.$$('.rc-message')).length === 3, 'a second sent message appends');
 
     const background = await page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
     check(colorScheme === 'dark' ? background !== 'rgb(255, 255, 255)' : background === 'rgb(255, 255, 255)', `${colorScheme} palette applied`);
