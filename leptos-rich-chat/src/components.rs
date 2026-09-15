@@ -316,9 +316,10 @@ pub fn Composer(
     preview_label: String,
     /// The kind of message the preview shows, so that it takes that
     /// kind's colours from the [`Kinds`] rules. Empty, the default,
-    /// leaves it in the theme's tint colours.
+    /// leaves it in the theme's tint colours. May be a signal, for a
+    /// host whose sender changes.
     #[prop(optional, into)]
-    preview_kind: String,
+    preview_kind: Signal<String>,
     /// The send button's content, in place of the word "Send": an icon,
     /// say. Pass a view function: `send=|| view! { <SendIcon /> }`.
     #[prop(optional, into)]
@@ -359,7 +360,10 @@ pub fn Composer(
     let has_draft = move || !draft.read().trim().is_empty();
     let send = send_content(send);
     let hint = hint_text(hint);
-    let preview_kind = (!preview_kind.is_empty()).then_some(preview_kind);
+    let preview_kind = move || {
+        let kind = preview_kind.get();
+        (!kind.is_empty()).then_some(kind)
+    };
     let expanded = RwSignal::new(true);
     let options = StoredValue::new(options);
 
@@ -369,7 +373,7 @@ pub fn Composer(
                 <div
                     class="rc-composer-preview"
                     class:rc-collapsed=move || !expanded.get()
-                    data-kind=preview_kind.clone()
+                    data-kind=preview_kind
                     aria-live="polite"
                 >
                     <div class="rc-composer-preview-label">
@@ -489,7 +493,7 @@ pub fn Chat(
     /// The kind of message the preview shows, for its colours. See
     /// [`Composer`].
     #[prop(optional, into)]
-    preview_kind: String,
+    preview_kind: Signal<String>,
     /// The send button's content, in place of the word "Send". See
     /// [`Composer`].
     #[prop(optional, into)]
@@ -877,6 +881,19 @@ mod tests {
         );
         let out = html(|| view! { <RichChatStyle kinds=Kinds::none() /> });
         assert!(!out.contains("[data-kind="), "no kinds, no rules");
+    }
+
+    #[test]
+    fn the_preview_kind_takes_a_literal_or_a_signal() {
+        let none = Vec::<Message>::new();
+        let literal =
+            html(|| view! { <Chat messages=none on_send=|_: String| {} preview_kind="me" /> });
+        let none = Vec::<Message>::new();
+        let sender = RwSignal::new(String::from("me"));
+        let signal =
+            html(|| view! { <Chat messages=none on_send=|_: String| {} preview_kind=sender /> });
+        assert!(literal.contains("rc-composer"), "{literal}");
+        assert!(signal.contains("rc-composer"), "{signal}");
     }
 
     #[test]
