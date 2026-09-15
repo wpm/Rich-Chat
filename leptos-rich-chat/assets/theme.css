@@ -30,7 +30,6 @@
   --rc-border: #d1d9e0;
   --rc-accent: #0969da;
   --rc-accent-fg: #ffffff;
-  --rc-link: #0969da;
   --rc-bubble-bg: #f6f8fa;
   --rc-bubble-fg: #1f2328;
   --rc-tint-bg: #ddf4ff;
@@ -57,7 +56,6 @@
     --rc-border: #3d444d;
     --rc-accent: #4493f8;
     --rc-accent-fg: #ffffff;
-    --rc-link: #4493f8;
     --rc-bubble-bg: #161b22;
     --rc-bubble-fg: #e6edf3;
     --rc-tint-bg: #172b45;
@@ -84,7 +82,6 @@
   --rc-border: #3d444d;
   --rc-accent: #4493f8;
   --rc-accent-fg: #ffffff;
-  --rc-link: #4493f8;
   --rc-bubble-bg: #161b22;
   --rc-bubble-fg: #e6edf3;
   --rc-tint-bg: #172b45;
@@ -192,10 +189,12 @@
   margin-bottom: 0;
 }
 
+/* Links take the text's colour, whatever bubble they are in, and the
+ * underline says what they are. */
 .rc-rich a {
-  color: var(--rc-link);
+  color: inherit;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--rc-link) 45%, transparent);
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   text-underline-offset: 2px;
 }
 
