@@ -1,16 +1,26 @@
-//! Prints the highlighting rules for one of two-face's embedded themes,
-//! in the form `assets/highlight.css` uses.
+//! The generator behind `assets/highlight.css`, the crate's code colours.
+//!
+//! Highlighting is class-based (`rc-keyword`, `rc-string`, ...) so the
+//! colours are a stylesheet's business, and that stylesheet is not
+//! written by hand. This tool takes one of two-face's embedded themes,
+//! has syntect print its rules against the crate's class prefix, and
+//! scopes each rule to one side of the light and dark switch, so that
+//! two themes can share one file. The shipped file is two runs of it
+//! under a short header:
 //!
 //! ```sh
-//! cargo run -p leptos-rich-chat --example theme_css -- OneHalfLight light
-//! cargo run -p leptos-rich-chat --example theme_css -- OneHalfDark dark
+//! cargo run -p leptos-rich-chat --example highlight_css -- OneHalfLight light
+//! cargo run -p leptos-rich-chat --example highlight_css -- OneHalfDark dark
 //! ```
 //!
-//! The first argument is the theme, the second which side of the light
-//! and dark split the rules go on. Light rules apply when the system
-//! prefers light and the document does not force dark, or when the
-//! document forces light; dark rules, the reverse. Both sides get the
-//! same selector shape so neither wins on specificity alone.
+//! The first argument is the theme (no arguments lists them), the second
+//! which side of the light and dark split the rules go on. Light rules
+//! apply when the system prefers light and the document does not force
+//! dark, or when the document forces light; dark rules, the reverse.
+//! Both sides get the same selector shape so neither wins on
+//! specificity alone. Run it for any other theme to change the code
+//! colours: turn `RichChatStyle`'s `highlight` off and serve the output
+//! instead. See "Code colours" in the README.
 
 use syntect::html::{ClassStyle, css_for_theme_with_class_style};
 use two_face::theme::{EmbeddedLazyThemeSet, EmbeddedThemeName};
@@ -18,7 +28,7 @@ use two_face::theme::{EmbeddedLazyThemeSet, EmbeddedThemeName};
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(name) = args.first() else {
-        eprintln!("usage: theme_css <ThemeName> <light|dark>");
+        eprintln!("usage: highlight_css <ThemeName> <light|dark>");
         list();
         std::process::exit(2);
     };
@@ -90,7 +100,7 @@ fn scoped(css: &str, theme: &str, dark: bool) -> String {
         )
     };
     let mut out = format!(
-        "/* {} of two-face's \"{theme}\", via examples/theme_css.rs */\n",
+        "/* {} of two-face's \"{theme}\", via examples/highlight_css.rs */\n",
         if dark { "dark side" } else { "light side" }
     );
     out.push_str(&block(&rules, forced, ""));

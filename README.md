@@ -43,7 +43,7 @@ cargo test -p leptos-rich-chat     # the library, natively
 cargo clippy --workspace --all-targets
 cd app && trunk build --release    # the frontend, to app/dist
 cd app/e2e && npm install && npm test   # the built app in headless Chromium
-cargo run -p leptos-rich-chat --example theme_css -- OneHalfDark dark
+cargo run -p leptos-rich-chat --example highlight_css -- OneHalfDark dark   # regenerate assets/highlight.css, see the library README
 ```
 
 ## License
