@@ -94,7 +94,7 @@ Tauri's opener plugin.
 
 | Component       | Renders                                              |
 |-----------------|------------------------------------------------------|
-| `Composer`      | the text box with its live preview and send button   |
+| `Composer`      | the text box, its collapsible preview, and send button |
 | `MessageBubble` | one message on its role's side                       |
 | `RichText`      | any Markdown, from a `Signal<String>`                |
 | `CodeBlock`     | one highlighted block with label and copy button     |

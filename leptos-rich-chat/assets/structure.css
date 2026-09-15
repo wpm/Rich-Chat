@@ -92,6 +92,14 @@ pre.rc-code code {
   overflow-wrap: anywhere;
 }
 
+/* The heading is a bar: the label on the left, the collapse button on
+ * the right. */
+.rc-composer-preview-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .rc-composer-row {
   display: flex;
   align-items: flex-end;
