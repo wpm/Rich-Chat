@@ -16,7 +16,10 @@ arrives.
   [syntect](https://crates.io/crates/syntect) with
   [two-face](https://crates.io/crates/two-face)'s grammar set, in
   class-based colours the stylesheet themes for light and dark. Each
-  block has a language label and a copy button.
+  block has a language label and a copy button. Grammars compile on
+  first use; `Chat` compiles the common ones in idle time after it
+  mounts, and `warm_up()` does the same for a host that uses the pieces
+  on their own.
 - **Progressive**: text renders block by block with stable keys, so as a
   draft is typed or a streamed message grows only the block being changed
   is touched. Constructs left open at the end of a draft (a `$$` with no

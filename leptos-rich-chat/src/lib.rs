@@ -29,7 +29,10 @@
 //!   in Latin Modern Math. No JavaScript.
 //! - **Code**: fenced blocks in some two hundred languages, highlighted
 //!   by [syntect](https://crates.io/crates/syntect) with class-based
-//!   colours the stylesheet themes for light and dark.
+//!   colours the stylesheet themes for light and dark. A grammar is
+//!   compiled the first time its language appears; [`Chat`] compiles the
+//!   common ones in idle time after mounting, and [`warm_up`] does the
+//!   same for a host that uses the pieces on their own.
 //!
 //! # Progressive rendering
 //!
@@ -67,6 +70,6 @@ mod message;
 pub mod render;
 pub mod style;
 
-pub use components::{Chat, CodeBlock, Composer, MessageBubble, RichChatStyle, RichText};
+pub use components::{Chat, CodeBlock, Composer, MessageBubble, RichChatStyle, RichText, warm_up};
 pub use message::{Message, Role};
 pub use render::RenderOptions;
