@@ -936,6 +936,312 @@ mod tests {
     }
 
     #[test]
+    fn block_to_html_forms() {
+        let code = blocks("```rust\nlet a = 1;\n```\n").remove(0);
+        let html = code.to_html();
+        assert!(html.starts_with("<pre class=\"rc-code\""), "{html}");
+        if cfg!(feature = "highlight") {
+            assert!(html.contains("data-language=\"Rust\""), "{html}");
+        }
+        assert!(html.ends_with("</code></pre>\n"), "{html}");
+
+        let math = blocks("$$x$$").remove(0);
+        assert!(matches!(math.kind, BlockKind::Math { .. }));
+        let html = math.to_html();
+        assert!(
+            html.starts_with("<div class=\"rc-math-block\"><math"),
+            "{html}"
+        );
+
+        let text = blocks("hi").remove(0);
+        assert_eq!(text.to_html(), "<p>hi</p>\n");
+    }
+
+    #[test]
+    fn render_html_is_the_blocks_joined() {
+        let source = "# T\n\n```\nx\n```\n\n$$y$$\n";
+        let joined: String = blocks(source).iter().map(Block::to_html).collect();
+        assert_eq!(html(source), joined);
+    }
+
+    #[test]
+    fn fence_tokens_in_other_notations() {
+        for info in ["{.rust}", "{rust}", ".rust", "rust {linenos}"] {
+            let out = blocks(&format!("```{info}\nlet a = 1;\n```\n"));
+            match &out[0].kind {
+                BlockKind::Code { language, .. } if cfg!(feature = "highlight") => {
+                    assert_eq!(language.as_deref(), Some("Rust"), "{info}");
+                }
+                BlockKind::Code { .. } => {}
+                other => panic!("{info}: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn indented_code_is_a_code_block_without_a_language() {
+        let out = blocks("    indented\n    code\n");
+        assert!(
+            matches!(&out[0].kind, BlockKind::Code { language: None, source, .. } if source == "indented\ncode"),
+            "{out:?}"
+        );
+    }
+
+    #[test]
+    fn code_block_keys_depend_on_language_and_source() {
+        let a = blocks("```rust\nx\n```\n").remove(0).key;
+        let b = blocks("```python\nx\n```\n").remove(0).key;
+        let c = blocks("```rust\ny\n```\n").remove(0).key;
+        let a2 = blocks("```rust\nx\n```\n").remove(0).key;
+        assert_eq!(a, a2);
+        assert_ne!(a, c);
+        if cfg!(feature = "highlight") {
+            assert_ne!(a, b);
+        }
+    }
+
+    #[test]
+    fn display_math_with_prose_around_it_stays_in_the_paragraph() {
+        let out = blocks("Note $$x$$ here.");
+        assert_eq!(out.len(), 1);
+        assert!(
+            matches!(&out[0].kind, BlockKind::Html(h) if h.starts_with("<p>Note <span class=\"rc-math-display\">"))
+        );
+        let two = blocks("$$x$$ $$y$$");
+        assert_eq!(two.len(), 1);
+        assert!(matches!(&two[0].kind, BlockKind::Html(_)));
+    }
+
+    #[test]
+    fn math_inside_inline_markup() {
+        let out = html("**bold $x^2$** and [link $y$](https://a.b) and # not heading");
+        assert!(out.contains("<strong>bold <math"), "{out}");
+        assert!(
+            out.contains("rel=\"noopener noreferrer\">link <math"),
+            "{out}"
+        );
+        let heading = html("## Title $z$");
+        assert!(heading.contains("<h2>Title <math"), "{heading}");
+    }
+
+    #[test]
+    fn math_inside_code_is_text() {
+        assert_eq!(html("`$x$`"), "<p><code>$x$</code></p>\n");
+        let block = blocks("```\n$$x$$\n```\n").remove(0);
+        assert!(matches!(&block.kind, BlockKind::Code { source, .. } if source == "$$x$$"));
+    }
+
+    #[test]
+    fn link_titles_and_images_are_escaped() {
+        let out = html("[a](https://x.y \"t\\\"><script>\")");
+        assert!(!out.contains("<script>"), "{out}");
+        assert!(out.contains("title=\"t&quot;&gt;&lt;script&gt;\""), "{out}");
+        let img = html("![a\"b](https://x.y/i.png \"c<d\")");
+        assert!(img.contains("alt=\"a&quot;b\""), "{img}");
+        assert!(img.contains("title=\"c&lt;d\""), "{img}");
+    }
+
+    #[test]
+    fn link_with_scheme_in_odd_case_and_spaces() {
+        let ok = html("[a](HTTPS://x.y)");
+        assert!(ok.contains("href=\"HTTPS://x.y\""), "{ok}");
+        let js = html("[a](JavaScript:alert(1))");
+        assert_eq!(js, "<p>a</p>\n");
+        let data = html("[a](data:text/html,x)");
+        assert_eq!(data, "<p>a</p>\n");
+        let spaced = html("[a](<https://x.y/a b>)");
+        assert!(spaced.contains("href=\"https://x.y/a%20b\""), "{spaced}");
+    }
+
+    #[test]
+    fn nested_structures() {
+        let out = html(
+            "> quote\n>\n> - item with `code`\n> - [ ] task\n>\n> ```js\n> let a = 1;\n> ```\n",
+        );
+        assert!(out.starts_with("<blockquote>"), "{out}");
+        assert!(out.contains("<ul>"), "{out}");
+        assert!(out.contains("type=\"checkbox\""), "{out}");
+        assert!(out.contains("<pre class=\"rc-code\""), "{out}");
+        let nested = html("1. one\n   - a\n   - b\n2. two\n");
+        assert_eq!(nested.matches("<ul>").count(), 1, "{nested}");
+        assert_eq!(nested.matches("<ol>").count(), 1, "{nested}");
+    }
+
+    #[test]
+    fn breaks_and_rules() {
+        assert_eq!(html("a  \nb"), "<p>a<br />\nb</p>\n");
+        assert_eq!(html("a\\\nb"), "<p>a<br />\nb</p>\n");
+        assert_eq!(html("a\nb"), "<p>a\nb</p>\n");
+        assert_eq!(html("***"), "<hr />\n");
+    }
+
+    #[test]
+    fn all_heading_levels() {
+        for level in 1..=6 {
+            let out = html(&format!("{} H", "#".repeat(level)));
+            assert_eq!(out, format!("<h{level}>H</h{level}>\n"));
+        }
+        assert_eq!(html("####### seven"), "<p>####### seven</p>\n");
+    }
+
+    #[test]
+    fn footnote_edge_cases() {
+        // A definition nobody references still appears, numbered last.
+        let out = blocks("A[^b].\n\n[^a]: unused\n\n[^b]: used\n");
+        let BlockKind::Html(list) = &out.last().unwrap().kind else {
+            panic!()
+        };
+        let used = list.find("used").unwrap();
+        let unused = list.find("unused").unwrap();
+        assert!(used < unused, "{list}");
+        assert_eq!(list.matches("<li ").count(), 2, "{list}");
+        // Ids are distinct per message, so two messages on a page do not collide.
+        let one = html("x[^n].\n\n[^n]: one\n");
+        let two = html("y[^n].\n\n[^n]: two\n");
+        let id = |s: &str| {
+            s.split("id=\"")
+                .nth(1)
+                .unwrap()
+                .split('"')
+                .next()
+                .unwrap()
+                .to_string()
+        };
+        assert_ne!(id(&one), id(&two));
+        // A multi-paragraph definition keeps its backref on the last paragraph.
+        let multi = html("x[^m].\n\n[^m]: first\n\n    second\n");
+        let backref = multi.find("rc-footnote-backref").unwrap();
+        assert!(backref > multi.find("second").unwrap(), "{multi}");
+    }
+
+    #[test]
+    fn autolinks_stop_at_angle_brackets_and_quotes() {
+        let out = html("see <https://a.b> and \"https://c.d\" or 'https://e.f'.");
+        assert_eq!(out.matches("<a ").count(), 3, "{out}");
+        assert!(out.contains(">https://c.d</a>\""), "{out}");
+        assert!(out.contains(">https://e.f</a>'."), "{out}");
+    }
+
+    #[test]
+    fn raw_html_turned_text_is_shown_verbatim_without_autolinks() {
+        let out = html("<p>see https://a.b</p>\n");
+        assert_eq!(out, "<p>&lt;p&gt;see https://a.b&lt;/p&gt;\n</p>\n");
+    }
+
+    #[test]
+    fn unicode_and_emoji_survive() {
+        let out = html("héllo wörld 🎉 — $α+β$ `日本語`");
+        assert!(out.contains("héllo wörld 🎉 — <math"), "{out}");
+        assert!(out.contains("<code>日本語</code>"), "{out}");
+    }
+
+    #[test]
+    fn windows_line_endings_render_like_unix() {
+        assert_eq!(html("# T\r\n\r\ntext\r\n"), html("# T\n\ntext\n"));
+        // Line endings inside code are normalized, so copying gives clean text.
+        let code = blocks("```\r\na\r\nb\r\n```\r\n").remove(0);
+        assert!(
+            matches!(&code.kind, BlockKind::Code { source, .. } if source == "a\nb"),
+            "{code:?}"
+        );
+    }
+
+    #[test]
+    fn highlighting_can_be_switched_off() {
+        let out = render_blocks(
+            "```rust\nfn main() {}\n```\n",
+            &RenderOptions {
+                highlight: false,
+                ..RenderOptions::default()
+            },
+        );
+        assert!(
+            matches!(&out[0].kind, BlockKind::Code { language: None, html, .. } if html == "fn main() {}"),
+            "{out:?}"
+        );
+    }
+
+    #[test]
+    fn hostile_input_never_yields_active_markup() {
+        let hostile = [
+            "<script>alert(1)</script>",
+            "<img src=x onerror=alert(1)>",
+            "<a href=\"javascript:alert(1)\">x</a>",
+            "[x](javascript:alert(1))",
+            "[x](vbscript:msgbox(1))",
+            "[x](data:text/html;base64,PHNjcmlwdD4=)",
+            "![x](javascript:alert(1))",
+            "<iframe src=\"https://evil\"></iframe>",
+            "<svg onload=alert(1)>",
+            "$\\text{</math><img src=x onerror=alert(1)>}$",
+            "$$\\text{</annotation></math><script>x</script>}$$",
+            "```html\n<script>alert(1)</script>\n```",
+            "`<script>`",
+            "[x](https://a.b \"\\\"><script>\")",
+            "<div onclick=\"x()\">\n\nclick\n\n</div>",
+            "&lt;script&gt;",
+            "[x]: javascript:alert(1)\n\n[x]",
+            "<https://a.b/\"><script>x</script>>",
+            "* [ ] <input onfocus=alert(1) autofocus>",
+            "| <script>x</script> |\n|---|\n| <b onclick=x>y</b> |",
+        ];
+        for input in hostile {
+            for options in [RenderOptions::default(), RenderOptions::draft()] {
+                let out = render_html(input, &options);
+                for tag in tags(&out) {
+                    let name = tag
+                        .trim_start_matches(['<', '/'])
+                        .split(|c: char| c.is_whitespace() || c == '>' || c == '/')
+                        .next()
+                        .unwrap_or_default()
+                        .to_ascii_lowercase();
+                    assert!(
+                        !matches!(
+                            name.as_str(),
+                            "script" | "iframe" | "svg" | "object" | "embed" | "style" | "form"
+                        ),
+                        "{input:?} produced {tag}:\n{out}"
+                    );
+                    let lower = tag.to_ascii_lowercase();
+                    for attr in lower.split_whitespace() {
+                        assert!(
+                            !(attr.starts_with("on") && attr.contains('=')),
+                            "{input:?} produced a handler in {tag}:\n{out}"
+                        );
+                        if let Some(value) = attr
+                            .strip_prefix("href=\"")
+                            .or_else(|| attr.strip_prefix("src=\""))
+                        {
+                            assert!(
+                                value.starts_with("https://")
+                                    || value.starts_with("http://")
+                                    || value.starts_with('#'),
+                                "{input:?} produced {tag}:\n{out}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Every tag in rendered output. Text never contains a literal `<`,
+    /// because every path that writes text escapes it, so each `<` opens
+    /// a tag.
+    fn tags(html: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut rest = html;
+        while let Some(start) = rest.find('<') {
+            let end = rest[start..]
+                .find('>')
+                .map_or(rest.len(), |e| start + e + 1);
+            out.push(rest[start..end].to_string());
+            rest = &rest[end..];
+        }
+        out
+    }
+
+    #[test]
     fn scheme_parsing() {
         assert_eq!(scheme("https://x"), Some("https"));
         assert_eq!(scheme("HTTPS://x"), Some("HTTPS"));

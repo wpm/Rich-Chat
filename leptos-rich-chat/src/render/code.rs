@@ -312,6 +312,81 @@ mod tests {
     }
 
     #[test]
+    fn tokens_are_matched_loosely() {
+        let exact = highlight(Some("rust"), "let x = 1;\n");
+        for token in ["Rust", "RUST", " rust ", "rs"] {
+            assert_eq!(highlight(Some(token), "let x = 1;\n"), exact, "{token:?}");
+        }
+    }
+
+    #[cfg(feature = "highlight")]
+    #[test]
+    fn plain_text_tokens_are_plain() {
+        for token in ["text", "plain", "txt", "plaintext"] {
+            let out = highlight(Some(token), "a < b\n");
+            assert_eq!(out.language, None, "{token}");
+            assert_eq!(out.html, "a &lt; b\n");
+        }
+    }
+
+    #[cfg(feature = "highlight")]
+    #[test]
+    fn past_the_cap_the_rest_is_escaped_plain_text() {
+        let line = "let s = \"<tag>\"; // x\n";
+        let count = super::HIGHLIGHT_CAP / line.len() + 10;
+        let code = line.repeat(count);
+        let out = highlight(Some("rust"), &code);
+        assert_eq!(out.language.as_deref(), Some("Rust"));
+        assert!(
+            !out.html.contains("<tag>"),
+            "raw markup leaked past the cap"
+        );
+        assert_eq!(
+            out.html.matches("&lt;tag&gt;").count(),
+            count,
+            "every line's text is present exactly once"
+        );
+        let highlighted = out.html.matches("<span").count();
+        let plain_tail = out.html.trim_end().ends_with("// x");
+        assert!(
+            highlighted > 0 && plain_tail,
+            "{}…",
+            &out.html[out.html.len() - 80..]
+        );
+    }
+
+    #[cfg(feature = "highlight")]
+    #[test]
+    fn highlighting_preserves_the_text() {
+        let code = "fn a() -> &'static str { \"x < y && z\" }\n";
+        let out = highlight(Some("rust"), code);
+        // Every literal `<` in the output is a tag, since text is escaped.
+        let mut without_tags = String::new();
+        let mut in_tag = false;
+        for c in out.html.chars() {
+            match c {
+                '<' => in_tag = true,
+                '>' if in_tag => in_tag = false,
+                c if !in_tag => without_tags.push(c),
+                _ => {}
+            }
+        }
+        let text = without_tags
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&amp;", "&");
+        assert_eq!(text, code);
+    }
+
+    #[test]
+    fn empty_code_is_empty() {
+        assert_eq!(highlight(Some("rust"), "").html, "");
+        assert_eq!(highlight(None, "").html, "");
+    }
+
+    #[test]
     fn warming_is_harmless_and_changes_nothing() {
         let cold = highlight(Some("rust"), "fn main() {}\n");
         super::warm("rust");

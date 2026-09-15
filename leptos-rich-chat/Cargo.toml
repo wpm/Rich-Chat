@@ -42,6 +42,11 @@ web-sys = { workspace = true, features = [
     "Window",
 ] }
 
+[dev-dependencies]
+# Tests render the components to HTML strings natively; the ssr feature is
+# what makes `to_html` available and is unified into test builds only.
+leptos = { workspace = true, features = ["ssr"] }
+
 [lints.rust]
 unused_qualifications = "warn"
 missing_docs = "warn"
