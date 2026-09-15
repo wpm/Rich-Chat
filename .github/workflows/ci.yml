@@ -61,7 +61,7 @@ jobs:
           path: app/e2e/screenshots
 
   # One leg per desktop platform, since the shell has code only one of them
-  # compiles: the macOS menu and debug Info.plist, and the Windows
+  # compiles: the macOS dev app bundle, and the Windows
   # subsystem attribute.
   desktop:
     name: Desktop shell (${{ matrix.name }})
