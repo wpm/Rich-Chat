@@ -136,7 +136,6 @@ fn App() -> impl IntoView {
     view! {
         <RichChatStyle />
         <main
-            id="app"
             class="app"
             class:app-bubble=move || settings.read().bubble.is_some()
             class:app-resizing=move || drag.read().is_some()
