@@ -4,7 +4,14 @@ A chat interface with rich formatting: Markdown, LaTeX math, and
 syntax-highlighted code in every language, rendered as you type.
 
 **Try it with nothing installed:** <https://wpm.github.io/Rich-Chat/>.
-Every push to `main` redeploys it from the [Pages workflow](.github/workflows/pages.yml).
+Every push to `main` redeploys it from the [Pages workflow](.github/workflows/pages.yml),
+and every pull request gets its own copy at `https://wpm.github.io/Rich-Chat/pr/<number>/`
+from the [Preview workflow](.github/workflows/preview.yml): it is the
+deployment linked from the pull request, follows each push, and goes away
+when the pull request closes. The site is the `gh-pages` branch, which
+those workflows write with [`publish-site.sh`](.github/scripts/publish-site.sh)
+and which Pages must be set to serve (Settings > Pages > Source: Deploy
+from a branch); the workflows check that and say so when it is not.
 
 Three crates:
 
