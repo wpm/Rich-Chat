@@ -39,10 +39,12 @@ struct Drag {
     height: f64,
 }
 
-/// The first bubble, from the assistant: Markdown and code, so the
-/// window shows what it can do before anything is typed.
+/// The first bubble, from the assistant: the Markdown, so the window
+/// shows what it can do before anything is typed.
 const WELCOME: &str = include_str!("../welcome.md");
-/// The second, from the user: the math.
+/// The second, from the user: the code.
+const WELCOME_CODE: &str = include_str!("../welcome-code.md");
+/// The third, from the assistant again: the math.
 const WELCOME_MATH: &str = include_str!("../welcome-math.md");
 
 #[component]
@@ -71,7 +73,8 @@ fn App() -> impl IntoView {
     // Every message sent is from the selected user.
     let messages = RwSignal::new(vec![
         Message::new("welcome", ASSISTANT, WELCOME),
-        Message::new("welcome-math", USER, WELCOME_MATH),
+        Message::new("welcome-code", USER, WELCOME_CODE),
+        Message::new("welcome-math", ASSISTANT, WELCOME_MATH),
     ]);
     let sender = Signal::derive(move || settings.read().selected.clone().unwrap_or_default());
     let send = move |text: String| {
@@ -173,7 +176,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{WELCOME, WELCOME_MATH};
+    use super::{WELCOME, WELCOME_CODE, WELCOME_MATH};
     use leptos_rich_chat::render::{RenderOptions, render_html};
 
     /// The tour has to show off everything it claims to, and nothing in it
@@ -185,16 +188,23 @@ mod tests {
         assert!(html.contains("class=\"markdown-alert-tip\""), "{html}");
         assert!(html.contains("class=\"rc-footnotes\""), "{html}");
         assert!(html.contains("<input"), "no task list: {html}");
+        assert!(!html.contains("<pre"), "the code is the user's: {html}");
+        assert!(
+            !html.contains("<math display=\"block\""),
+            "the math is the third bubble's: {html}"
+        );
+    }
+
+    #[test]
+    fn the_code_welcome_is_one_highlighted_block() {
+        let html = render_html(WELCOME_CODE, &RenderOptions::default());
         assert_eq!(
             html.matches("<pre class=\"rc-code\"").count(),
             1,
             "one code block: {html}"
         );
         assert!(html.contains("data-language=\"Python\""), "{html}");
-        assert!(
-            !html.contains("<math display=\"block\""),
-            "the math is the user's: {html}"
-        );
+        assert!(!html.contains("<math"), "no math in the code: {html}");
     }
 
     #[test]
