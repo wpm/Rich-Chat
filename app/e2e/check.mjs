@@ -2,7 +2,7 @@
 //
 // Serves a Trunk `dist` directory, opens it in light and dark mode, types
 // Markdown, math, and code into the composer, and asserts what appears:
-// the welcome bubble, the live preview, the sent bubble, fonts,
+// the three bubbles of the tour, the live preview, the sent bubble, fonts,
 // highlighting, the copy button, progressive rendering of an unfinished
 // equation, collapsing the preview, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
@@ -98,23 +98,30 @@ try {
     await page.goto(origin, { waitUntil: 'networkidle' });
     await page.waitForSelector('.rc-composer-input');
 
-    // The window opens on a tour: Markdown and code from the assistant,
-    // then the math from the user.
-    const welcome = await page.$('.rc-message[data-kind="Assistant"]');
-    check(welcome !== null, 'the welcome bubble is there on startup');
-    check((await page.$$('.rc-message')).length === 2, 'and the math bubble after it');
-    check(await page.$eval('.rc-message:last-child', (el) => el.dataset.kind) === 'User', 'from the user');
-    const welcomeBox = await page.$eval('.rc-message[data-kind="Assistant"] .rc-bubble', (el) => el.getBoundingClientRect());
+    // The window opens on a tour: Markdown from the assistant, code from
+    // the user, then math from the assistant.
+    const welcome = '.rc-message[data-message-id="welcome"]';
+    const code = '.rc-message[data-message-id="welcome-code"]';
+    const math = '.rc-message[data-message-id="welcome-math"]';
+    check(await page.$(welcome) !== null, 'the welcome bubble is there on startup');
+    check((await page.$$('.rc-message')).length === 3, 'with the code and math bubbles after it');
+    check(await page.$eval(welcome, (el) => el.dataset.kind) === 'Assistant', 'the welcome is from the assistant');
+    check(await page.$eval(code, (el) => el.dataset.kind) === 'User', 'the code from the user');
+    check(await page.$eval(math, (el) => el.dataset.kind) === 'Assistant', 'and the math from the assistant');
+    const welcomeBox = await page.$eval(`${welcome} .rc-bubble`, (el) => el.getBoundingClientRect());
     const paneBox = await page.$eval('.rc-messages', (el) => el.getBoundingClientRect());
     check(welcomeBox.left - paneBox.left < paneBox.right - welcomeBox.right, 'the welcome bubble sits on the left');
-    const mathBox = await page.$eval('.rc-message[data-kind="User"] .rc-bubble', (el) => el.getBoundingClientRect());
-    check(mathBox.left - paneBox.left > paneBox.right - mathBox.right, 'the math bubble sits on the right');
-    check((await page.$$('.rc-message[data-kind="Assistant"] .rc-codeblock')).length === 1, 'the welcome has one code block');
-    check((await page.$$('.rc-message[data-kind="Assistant"] pre.rc-code span')).length > 20, 'which is highlighted');
-    check(await page.$('.rc-message[data-kind="Assistant"] math') === null, 'and no math');
-    check((await page.$$('.rc-message[data-kind="User"] math[display=block]')).length >= 3, 'the math bubble has display math');
-    check(await page.$('.rc-message[data-kind="User"] merror') === null, 'every welcome equation parsed');
-    check(await page.$('.rc-message[data-kind="Assistant"] table') !== null, 'the welcome has a table');
+    const codeBox = await page.$eval(`${code} .rc-bubble`, (el) => el.getBoundingClientRect());
+    check(codeBox.left - paneBox.left > paneBox.right - codeBox.right, 'the code bubble sits on the right');
+    check(await page.$(`${welcome} table`) !== null, 'the welcome has a table');
+    check(await page.$(`${welcome} .rc-codeblock`) === null, 'and no code block');
+    check(await page.$(`${welcome} math`) === null, 'and no math');
+    check((await page.$$(`${code} .rc-codeblock`)).length === 1, 'the code bubble has one code block');
+    check((await page.$$(`${code} pre.rc-code span`)).length > 20, 'which is highlighted');
+    check(await page.$(`${code} math`) === null, 'and no math');
+    check((await page.$$(`${math} math[display=block]`)).length >= 3, 'the math bubble has display math');
+    check(await page.$(`${math} merror`) === null, 'every welcome equation parsed');
+    check(await page.$(`${math} .rc-codeblock`) === null, 'and no code block');
     await page.screenshot({ path: `${shots}/${colorScheme}-0-welcome.png` });
 
     // Progressive rendering: an unfinished equation with unbalanced braces.
@@ -142,8 +149,8 @@ try {
     const previewHtml = await page.$eval('.rc-composer-preview .rc-rich', (el) => el.innerHTML);
     await page.screenshot({ path: `${shots}/${colorScheme}-2-preview.png` });
     await page.press('.rc-composer-input', 'Enter');
-    // The sent message: the third, after the two of the tour.
-    const sent = '.rc-message[data-message-id="m2"]';
+    // The sent message: the fourth, after the three of the tour.
+    const sent = '.rc-message[data-message-id="m3"]';
     await page.waitForSelector(sent);
     await page.waitForTimeout(300);
     check(await page.$eval(sent, (el) => el.dataset.kind) === 'User', 'the sent message is from the selected user');
@@ -179,16 +186,16 @@ try {
       return [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family);
     });
     check(fonts.includes('Latin Modern Math'), 'the math font loaded');
-    const mathFont = await page.$eval('.rc-message[data-kind="User"] math', (el) => getComputedStyle(el).fontFamily);
+    const mathFont = await page.$eval(`${math} math`, (el) => getComputedStyle(el).fontFamily);
     check(mathFont.startsWith('"Latin Modern Math"'), 'equations are set in Latin Modern Math');
 
-    await page.click('.rc-message[data-kind="User"] .rc-copy');
-    check((await page.$eval('.rc-message[data-kind="User"] .rc-copy', (el) => el.textContent)) === 'Copied', 'copy button acknowledges');
+    await page.click(`${code} .rc-copy`);
+    check((await page.$eval(`${code} .rc-copy`, (el) => el.textContent)) === 'Copied', 'copy button acknowledges');
 
     await type(page, 'Shift+Enter keeps typing\nline two');
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
-    check((await page.$$('.rc-message')).length === 4, 'a second sent message appends');
+    check((await page.$$('.rc-message')).length === 5, 'a second sent message appends');
 
     const background = await page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
     check(colorScheme === 'dark' ? background !== 'rgb(255, 255, 255)' : background === 'rgb(255, 255, 255)', `${colorScheme} palette applied`);
@@ -256,14 +263,14 @@ try {
     await page.waitForSelector('.rc-message[data-kind="User"]');
     check((await gaps('User')).right < 1, 'a sent message is from User, on the right');
     check((await bubbleStyle('User', 'backgroundColor')) === 'rgb(47, 133, 90)', 'in green');
-    check((await gaps('Assistant')).left < 1, 'the welcome is from Assistant, on the left');
+    check((await gaps('Assistant')).left < 1, 'the welcome and the math are from Assistant, on the left');
     check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(42, 100, 200)', 'in blue');
     await page.selectOption('.control-users', 'Assistant');
     await page.waitForTimeout(100);
     check((await pressedSide()) === 'left', 'selecting Assistant shows the assistant\'s side');
     check((await page.$eval('.control-color', (el) => el.value)) === '#2a64c8', 'and color');
     await send('From the assistant');
-    check((await gaps('Assistant')).count === 2, 'and sends as the assistant');
+    check((await gaps('Assistant')).count === 3, 'and sends as the assistant');
 
     // Theme.
     check((await theme()) === 'light', 'the theme starts as the system\'s');
@@ -277,10 +284,10 @@ try {
     check((await bubbleStyle('Assistant', 'borderBottomLeftRadius')) === '5px', 'the tail is at bottom left');
     await page.click('.control-side[value="right"]');
     await page.waitForTimeout(100);
-    check((await gaps('Assistant')).right < 1, 'the Right button moves both of the assistant\'s bubbles to the right');
+    check((await gaps('Assistant')).right < 1, 'the Right button moves all three of the assistant\'s bubbles to the right');
     check((await bubbleStyle('Assistant', 'borderBottomRightRadius')) === '5px', 'the tail moves with them');
     check((await bubbleStyle('Assistant', 'borderBottomLeftRadius')) === '16px', 'and leaves the left corner');
-    check((await gaps('User')).right < 1, 'the user\'s bubble stays where it was');
+    check((await gaps('User')).right < 1, 'the user\'s bubbles stay where they were');
     await page.click('.control-side[value="center"]');
     await page.waitForTimeout(100);
     const centered = await gaps('Assistant');
@@ -290,9 +297,9 @@ try {
     // Color: the selected user's, every bubble of theirs.
     await page.fill('.control-color', '#ff8800');
     await page.waitForTimeout(100);
-    check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(255, 136, 0)', 'both of the assistant\'s bubbles take the chosen color');
+    check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(255, 136, 0)', 'all of the assistant\'s bubbles take the chosen color');
     check((await bubbleStyle('Assistant', 'color')) === 'rgb(31, 35, 40)', 'and dark text, since orange is light');
-    check((await bubbleStyle('User', 'backgroundColor')) === 'rgb(47, 133, 90)', 'the user\'s bubble keeps its green');
+    check((await bubbleStyle('User', 'backgroundColor')) === 'rgb(47, 133, 90)', 'the user\'s bubbles keep their green');
     await type(page, 'Preview in color');
     check((await page.$eval('.rc-composer-preview', (el) => getComputedStyle(el).backgroundColor)) === 'rgb(255, 136, 0)', 'the preview takes it too');
     await page.fill('.control-color', '#123456');
@@ -402,7 +409,7 @@ try {
       await page.press('.rc-composer-input', 'Enter');
     }
     await page.waitForTimeout(300);
-    check((await page.$$('.rc-message')).length === 7, 'a burst of five messages all arrive');
+    check((await page.$$('.rc-message')).length === 8, 'a burst of five messages all arrive');
     check((await gap()) === 0, 'and the transcript is at the end after them');
 
     // The composer growing over the transcript, by a draft or by a drag.
