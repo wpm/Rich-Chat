@@ -25,3 +25,6 @@ target
 /app/src-tauri/gen/schemas
 /app/e2e/node_modules
 /app/e2e/screenshots
+
+# cargo llvm-cov output, see the coverage job in .github/workflows/ci.yml
+lcov.info

@@ -1,5 +1,8 @@
 # Rich-Chat
 
+[![CI](https://github.com/wpm/Rich-Chat/actions/workflows/ci.yml/badge.svg)](https://github.com/wpm/Rich-Chat/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/wpm/Rich-Chat/graph/badge.svg)](https://codecov.io/gh/wpm/Rich-Chat)
+
 A chat interface with rich formatting: Markdown, LaTeX math, and
 syntax-highlighted code in every language, rendered as you type.
 
@@ -57,7 +60,16 @@ cargo clippy --workspace --all-targets
 cd app && trunk build --release    # the frontend, to app/dist
 cd app/e2e && npm install && npm test   # the built app in headless Chromium
 cargo run -p leptos-rich-chat --example highlight_css -- OneHalfDark dark   # regenerate assets/highlight.css, see the library README
+cargo llvm-cov -p leptos-rich-chat --open   # test coverage, as a report in the browser; needs cargo-llvm-cov
 ```
+
+The [CI workflow](.github/workflows/ci.yml) runs the library's tests
+natively, builds the frontend and drives it in headless Chromium, checks
+the desktop shell on every platform, and measures the library's test
+coverage, which goes to [Codecov](https://codecov.io/gh/wpm/Rich-Chat)
+and is the badge above. The upload needs the repository secret
+`CODECOV_TOKEN`, the upload token from the repository's settings page on
+Codecov; [`codecov.yml`](codecov.yml) says how coverage is judged.
 
 ## Releasing
 
