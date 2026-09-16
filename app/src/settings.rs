@@ -125,8 +125,9 @@ pub struct Settings {
     /// Users deleted from the list. Their bubbles keep the look they
     /// had, so the look is kept.
     pub retired: Vec<User>,
-    /// The user the controls edit and messages are sent as.
-    pub selected: Option<String>,
+    /// The user the controls edit and messages are sent as. Always one
+    /// in the list, which is never empty.
+    pub selected: String,
     /// The text box's height in CSS pixels, once it has been dragged.
     pub input_height: Option<f64>,
 }
@@ -140,7 +141,7 @@ impl Default for Settings {
                 User::new(USER, Side::Right, "#2f855a"),
             ],
             retired: Vec::new(),
-            selected: Some(USER.to_string()),
+            selected: USER.to_string(),
             input_height: None,
         }
     }
@@ -151,29 +152,32 @@ impl Default for Settings {
 struct StoredUsers {
     users: Vec<User>,
     retired: Vec<User>,
+    /// Older builds stored no selection for nobody.
     selected: Option<String>,
 }
 
 impl Settings {
-    /// The selected user, if the selection names one in the list.
-    pub fn selected_user(&self) -> Option<&User> {
-        let name = self.selected.as_deref()?;
-        self.users.iter().find(|user| user.name == name)
+    /// The selected user.
+    pub fn selected_user(&self) -> &User {
+        self.users
+            .iter()
+            .find(|user| user.name == self.selected)
+            .expect("the selection names a user in the list")
     }
 
     /// The selected user, to change.
-    pub fn selected_user_mut(&mut self) -> Option<&mut User> {
-        let name = self.selected.clone()?;
-        self.users.iter_mut().find(|user| user.name == name)
+    pub fn selected_user_mut(&mut self) -> &mut User {
+        self.users
+            .iter_mut()
+            .find(|user| user.name == self.selected)
+            .expect("the selection names a user in the list")
     }
 
-    /// Selects `name`, or nobody for a name not in the list.
+    /// Selects `name`. A name not in the list changes nothing.
     pub fn select(&mut self, name: &str) {
-        self.selected = self
-            .users
-            .iter()
-            .find(|user| user.name == name)
-            .map(|user| user.name.clone());
+        if let Some(user) = self.users.iter().find(|user| user.name == name) {
+            self.selected = user.name.clone();
+        }
     }
 
     /// Whether `name`, trimmed, could be added: not empty and not already
@@ -194,21 +198,32 @@ impl Settings {
         self.retired.retain(|user| user.name != name);
         let color = PALETTE[(self.users.len() + self.retired.len()) % PALETTE.len()];
         self.users.push(User::new(name, Side::Left, color));
-        self.selected = Some(name.to_string());
+        self.selected = name.to_string();
         true
     }
 
-    /// Removes the selected user from the list, leaving nobody selected.
-    /// The user's bubbles keep their look.
+    /// Whether the selected user could be deleted: only while there is
+    /// someone else to select, since someone is always selected.
+    pub fn can_delete(&self) -> bool {
+        self.users.len() > 1
+    }
+
+    /// Removes the selected user from the list and selects the one
+    /// before them, or the first if they were first. The user's bubbles
+    /// keep their look. Nothing happens to the last user.
     pub fn delete_selected(&mut self) {
-        let Some(name) = self.selected.take() else {
+        if !self.can_delete() {
             return;
-        };
-        if let Some(at) = self.users.iter().position(|user| user.name == name) {
-            let user = self.users.remove(at);
-            self.retired.retain(|retired| retired.name != user.name);
-            self.retired.push(user);
         }
+        let at = self
+            .users
+            .iter()
+            .position(|user| user.name == self.selected)
+            .expect("the selection names a user in the list");
+        let user = self.users.remove(at);
+        self.retired.retain(|retired| retired.name != user.name);
+        self.retired.push(user);
+        self.selected = self.users[at.saturating_sub(1)].name.clone();
     }
 
     /// The library's table of kinds: every user there has been, with the
@@ -222,7 +237,9 @@ impl Settings {
             })
     }
 
-    /// What was stored last time, or the defaults.
+    /// What was stored last time, or the defaults. A stored list with no
+    /// one in it, or a selection naming no one in it, which older builds
+    /// allowed, is corrected: the defaults, or the first user.
     pub fn load() -> Self {
         let Some(storage) = storage() else {
             return Self::default();
@@ -232,21 +249,22 @@ impl Settings {
         let stored =
             read(USERS_KEY).and_then(|json| serde_json::from_str::<StoredUsers>(&json).ok());
         let (users, retired, selected) = match stored {
-            Some(stored) => (stored.users, stored.retired, stored.selected),
-            None => (defaults.users, defaults.retired, defaults.selected),
+            Some(stored) if !stored.users.is_empty() => {
+                (stored.users, stored.retired, stored.selected)
+            }
+            Some(stored) => (defaults.users, stored.retired, None),
+            None => (defaults.users, defaults.retired, None),
         };
         let mut settings = Settings {
             theme: read(THEME_KEY).as_deref().and_then(Theme::parse),
+            selected: users[0].name.clone(),
             users,
             retired,
-            selected: None,
             input_height: read(INPUT_HEIGHT_KEY)
                 .and_then(|value| value.parse().ok())
                 .filter(|height: &f64| height.is_finite() && *height > 0.0),
         };
-        if let Some(name) = selected {
-            settings.select(&name);
-        }
+        settings.select(selected.as_deref().unwrap_or(&defaults.selected));
         settings
     }
 
@@ -267,7 +285,7 @@ impl Settings {
         let users = StoredUsers {
             users: self.users.clone(),
             retired: self.retired.clone(),
-            selected: self.selected.clone(),
+            selected: Some(self.selected.clone()),
         };
         write(USERS_KEY, serde_json::to_string(&users).ok());
         write(
@@ -395,7 +413,7 @@ mod tests {
             .map(|user| user.name.as_str())
             .collect();
         assert_eq!(names, [ASSISTANT, USER]);
-        assert_eq!(settings.selected_user().unwrap().name, USER);
+        assert_eq!(settings.selected_user().name, USER);
         let kinds = settings.kinds();
         assert_eq!(kinds.get(ASSISTANT).unwrap().position, Position::Left);
         assert_eq!(kinds.get(USER).unwrap().position, Position::Right);
@@ -422,7 +440,7 @@ mod tests {
         assert!(settings.can_add("Alice"));
         assert!(settings.add_user(" Alice "));
         assert!(!settings.add_user("Alice"), "no two Alices");
-        let alice = settings.selected_user().unwrap();
+        let alice = settings.selected_user();
         assert_eq!(alice.name, "Alice");
         assert_eq!(alice.side, Side::Left);
         assert_eq!(
@@ -430,8 +448,8 @@ mod tests {
             "the third user gets the third color"
         );
 
-        settings.selected_user_mut().unwrap().side = Side::Center;
-        settings.selected_user_mut().unwrap().color = "#ff8800".to_string();
+        settings.selected_user_mut().side = Side::Center;
+        settings.selected_user_mut().color = "#ff8800".to_string();
         let look = settings.kinds().get("Alice").cloned().unwrap();
         assert_eq!(look.position, Position::Center);
         assert_eq!(look.background.as_deref(), Some("#ff8800"));
@@ -439,22 +457,21 @@ mod tests {
     }
 
     #[test]
-    fn a_deleted_user_keeps_their_look_and_leaves_nobody_selected() {
+    fn a_deleted_user_keeps_their_look_and_hands_over_to_a_neighbor() {
         let mut settings = Settings::default();
         settings.add_user("Alice");
         let before = settings.kinds().get("Alice").cloned().unwrap();
+        assert!(settings.can_delete());
         settings.delete_selected();
-        assert_eq!(settings.selected, None);
-        assert_eq!(settings.selected_user(), None);
+        assert_eq!(settings.selected, USER, "the user before Alice");
+        assert_eq!(settings.selected_user().name, USER);
         assert_eq!(settings.users.len(), 2);
         assert_eq!(settings.kinds().get("Alice"), Some(&before));
         assert!(settings.can_add("Alice"), "and can come back");
-        settings.delete_selected();
-        assert_eq!(settings.users.len(), 2, "deleting nobody does nothing");
 
         // Back with a new look, the old one is forgotten.
         settings.add_user("Alice");
-        settings.selected_user_mut().unwrap().color = "#000000".to_string();
+        settings.selected_user_mut().color = "#000000".to_string();
         assert_eq!(settings.retired.len(), 0);
         assert_eq!(
             settings.kinds().get("Alice").unwrap().background.as_deref(),
@@ -463,12 +480,35 @@ mod tests {
     }
 
     #[test]
-    fn selecting_names_a_user_in_the_list_or_nobody() {
+    fn deleting_the_first_user_selects_the_next_and_the_last_stays() {
         let mut settings = Settings::default();
         settings.select(ASSISTANT);
-        assert_eq!(settings.selected.as_deref(), Some(ASSISTANT));
+        settings.delete_selected();
+        assert_eq!(
+            settings.selected, USER,
+            "the one after, there being none before"
+        );
+        assert_eq!(settings.users.len(), 1);
+        assert!(!settings.can_delete(), "someone has to be left");
+        settings.delete_selected();
+        assert_eq!(
+            settings.users.len(),
+            1,
+            "deleting the last user does nothing"
+        );
+        assert_eq!(settings.selected_user().name, USER);
+    }
+
+    #[test]
+    fn selecting_names_a_user_in_the_list() {
+        let mut settings = Settings::default();
+        settings.select(ASSISTANT);
+        assert_eq!(settings.selected, ASSISTANT);
         settings.select("nobody");
-        assert_eq!(settings.selected, None);
+        assert_eq!(
+            settings.selected, ASSISTANT,
+            "an unknown name changes nothing"
+        );
     }
 
     #[test]
@@ -480,13 +520,18 @@ mod tests {
         let stored = StoredUsers {
             users: settings.users.clone(),
             retired: settings.retired.clone(),
-            selected: settings.selected.clone(),
+            selected: Some(settings.selected.clone()),
         };
         let json = serde_json::to_string(&stored).unwrap();
         assert!(json.contains("\"side\":\"right\""), "{json}");
         let back: StoredUsers = serde_json::from_str(&json).unwrap();
         assert_eq!(back.users, settings.users);
         assert_eq!(back.retired, settings.retired);
-        assert_eq!(back.selected, settings.selected);
+        assert_eq!(back.selected.as_deref(), Some(settings.selected.as_str()));
+
+        // What an older build stored, with nobody selected, still reads.
+        let older: StoredUsers =
+            serde_json::from_str(r#"{"users":[],"retired":[],"selected":null}"#).unwrap();
+        assert_eq!(older.selected, None);
     }
 }

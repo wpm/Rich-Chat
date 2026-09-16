@@ -22,12 +22,12 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
 
     // The users, and the one the other controls edit.
     let users = Signal::derive(move || settings.read().users.clone());
-    let selected = Signal::derive(move || settings.read().selected_user().cloned());
-    let nobody = move || selected.read().is_none();
+    let selected = Signal::derive(move || settings.read().selected_user().clone());
     let choose = move |event: ev::Event| {
         let name = event_target_value(&event);
         settings.update(|settings| settings.select(&name));
     };
+    let can_delete = move || settings.read().can_delete();
     let delete = move |_| settings.update(|settings| settings.delete_selected());
 
     // A new user, typed then added with the button or Enter.
@@ -48,25 +48,15 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
     };
 
     let side_button = move |side: Side, label: &'static str| {
-        let pressed = move || {
-            selected
-                .read()
-                .as_ref()
-                .is_some_and(|user| user.side == side)
-        };
+        let pressed = move || selected.read().side == side;
         view! {
             <button
                 type="button"
                 class="control-segment control-side"
                 value=side.as_str()
                 aria-pressed=move || pressed().to_string()
-                disabled=nobody
                 on:click=move |_| {
-                    settings.update(|settings| {
-                        if let Some(user) = settings.selected_user_mut() {
-                            user.side = side;
-                        }
-                    })
+                    settings.update(|settings| settings.selected_user_mut().side = side)
                 }
             >
                 {label}
@@ -74,34 +64,22 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
         }
     };
 
-    let color = move || {
-        selected
-            .read()
-            .as_ref()
-            .map_or_else(|| "#000000".to_string(), |user| user.color.clone())
-    };
+    let color = move || selected.read().color.clone();
     let recolor = move |event: ev::Event| {
         let value = event_target_value(&event);
-        settings.update(|settings| {
-            if let Some(user) = settings.selected_user_mut() {
-                user.color = value;
-            }
-        });
+        settings.update(|settings| settings.selected_user_mut().color = value);
     };
 
     view! {
         <header class="controls" aria-label="Appearance">
             <div class="control-group" role="group" aria-label="Users">
                 <select class="control-users" aria-label="User" on:change=choose>
-                    <option value="" prop:selected=nobody>
-                        "Nobody"
-                    </option>
                     <For each=move || users.get() key=|user: &User| user.name.clone() let(user)>
                         <option
                             value=user.name.clone()
                             prop:selected={
                                 let name = user.name.clone();
-                                move || selected.read().as_ref().is_some_and(|user| user.name == name)
+                                move || selected.read().name == name
                             }
                         >
                             {user.name.clone()}
@@ -112,7 +90,7 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
                     type="button"
                     class="control-button control-delete"
                     title="Remove the selected user; their bubbles stay as they are"
-                    disabled=nobody
+                    disabled=move || !can_delete()
                     on:click=delete
                 >
                     "Delete"
@@ -150,7 +128,6 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
                     type="color"
                     class="control-color"
                     title="Bubble color"
-                    disabled=nobody
                     prop:value=color
                     on:input=recolor
                 />

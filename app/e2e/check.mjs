@@ -234,7 +234,7 @@ try {
       }));
       return { left: Math.max(...all.map((g) => g.left)), right: Math.max(...all.map((g) => g.right)), count: all.length };
     };
-    const users = () => page.$$eval('.control-users option', (els) => els.map((el) => el.value).filter(Boolean));
+    const users = () => page.$$eval('.control-users option', (els) => els.map((el) => el.value));
     const selected = () => page.$eval('.control-users', (el) => el.value);
     const pressedSide = () => page.$$eval('.control-side[aria-pressed="true"]', (els) => els.map((el) => el.value).join());
     const boxHeight = () => page.$eval('.rc-composer-input', (el) => el.getBoundingClientRect().height);
@@ -329,16 +329,27 @@ try {
     await page.click('.control-delete');
     await page.waitForTimeout(100);
     check(JSON.stringify(await users()) === '["Assistant","User"]', 'Delete removes Alice from the list');
-    check((await selected()) === '', 'and leaves nobody selected');
-    check(await page.$eval('.control-delete', (el) => el.disabled), 'so there is nobody to delete');
-    check(await page.$$eval('.control-side', (els) => els.every((el) => el.disabled)), 'the side buttons are disabled');
-    check(await page.$eval('.control-color', (el) => el.disabled), 'so is the color');
-    check(await page.$eval('.rc-composer-input', (el) => el.disabled), 'and the composer, with nobody to send as');
+    check((await selected()) === 'User', 'and selects the user before her');
+    check((await page.$('.control-users option[value=""]')) === null, 'there is no Nobody to select');
+    check((await pressedSide()) === 'right', 'whose side the buttons show');
+    check((await page.$eval('.control-color', (el) => el.value)) === '#2f855a', 'and color');
+    check(!(await page.$eval('.rc-composer-input', (el) => el.disabled)), 'and the composer stays enabled, with someone to send as');
     check((await bubbleStyle('Alice', 'backgroundColor')) === 'rgb(14, 116, 144)', 'Alice\'s bubble keeps its color');
     check((await gaps('Alice')).left < 1, 'and its side');
-    await page.selectOption('.control-users', 'User');
+    await page.click('.control-delete');
     await page.waitForTimeout(100);
-    check(!(await page.$eval('.rc-composer-input', (el) => el.disabled)), 'selecting a user enables the composer again');
+    check(JSON.stringify(await users()) === '["Assistant"]', 'deleting User leaves the Assistant');
+    check((await selected()) === 'Assistant', 'selected, there being no one before');
+    check(await page.$eval('.control-delete', (el) => el.disabled), 'and the last user cannot be deleted');
+    await page.fill('.control-new-user', 'User');
+    await page.press('.control-new-user', 'Enter');
+    await page.waitForTimeout(100);
+    check(JSON.stringify(await users()) === '["Assistant","User"]', 'User is added back');
+    check((await pressedSide()) === 'left', 'on the left, as a new user');
+    await page.click('.control-side[value="right"]');
+    await page.fill('.control-color', '#2f855a');
+    await page.waitForTimeout(100);
+    check(!(await page.$eval('.control-delete', (el) => el.disabled)), 'and Delete works again');
 
     // The text box.
     const before = await boxHeight();
