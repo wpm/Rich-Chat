@@ -33,6 +33,21 @@
 //! component injects them, each part switchable, or a consumer can serve
 //! them as files.
 //!
+//! The layering cuts both ways. Every unlayered rule in the host wins,
+//! including the ones it did not aim at the chat: a global reset that
+//! flattens headings or strips button backgrounds (Tailwind 3's
+//! preflight is one) applies inside the bubbles too, and the host
+//! restores what it wants by rule against the `rc-*` classes. A host
+//! whose own rules are in layers is subject to the order the layers are
+//! first declared in, and [`RichChatStyle`](crate::RichChatStyle)
+//! declares the crate's when it mounts, after a stylesheet in the
+//! document's head: declare the order yourself, first, to put yours
+//! after them:
+//!
+//! ```css
+//! @layer rich-chat.structure, rich-chat.theme, base, components, utilities;
+//! ```
+//!
 //! Dark mode in the theme follows `prefers-color-scheme` unless the
 //! document sets `data-theme="light"` or `data-theme="dark"` on its root
 //! element, in which case that wins.
