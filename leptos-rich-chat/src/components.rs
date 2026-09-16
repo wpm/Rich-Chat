@@ -284,6 +284,18 @@ fn hint_text(hint: Option<String>) -> String {
     hint.unwrap_or_else(|| DEFAULT_HINT.to_string())
 }
 
+/// The message a draft makes when sent: none while sending is disabled
+/// or the draft is blank.
+fn outgoing(disabled: bool, draft: String) -> Option<String> {
+    (!disabled && !draft.trim().is_empty()).then_some(draft)
+}
+
+/// Whether a key press in the text box sends: Enter on its own, not
+/// Shift+Enter, and never in the middle of an IME composition.
+fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
+    key == "Enter" && !shift && !composing
+}
+
 /// The input: a growing text box with a live preview above it.
 ///
 /// Enter sends and Shift+Enter breaks a line; an IME composition in
@@ -346,16 +358,11 @@ pub fn Composer(
         }
     };
     let submit = move || {
-        if disabled.get_untracked() {
-            return;
+        if let Some(text) = outgoing(disabled.get_untracked(), draft.get_untracked()) {
+            on_send.run(text);
+            draft.set(String::new());
+            request_animation_frame(fit);
         }
-        let text = draft.get_untracked();
-        if text.trim().is_empty() {
-            return;
-        }
-        on_send.run(text);
-        draft.set(String::new());
-        request_animation_frame(fit);
     };
     let has_draft = move || !draft.read().trim().is_empty();
     let send = send_content(send);
@@ -409,7 +416,7 @@ pub fn Composer(
                         fit();
                     }
                     on:keydown=move |event: ev::KeyboardEvent| {
-                        if event.key() == "Enter" && !event.shift_key() && !event.is_composing() {
+                        if enter_sends(&event.key(), event.shift_key(), event.is_composing()) {
                             event.prevent_default();
                             submit();
                         }
@@ -940,5 +947,39 @@ mod tests {
     #[test]
     fn warm_up_is_a_no_op_off_the_browser() {
         warm_up();
+    }
+
+    #[test]
+    fn a_draft_is_sent_unless_blank_or_disabled() {
+        assert_eq!(outgoing(false, "hi".into()), Some("hi".to_string()));
+        assert_eq!(
+            outgoing(false, "  hi \n".into()),
+            Some("  hi \n".to_string()),
+            "sent as written"
+        );
+        assert_eq!(outgoing(false, "".into()), None);
+        assert_eq!(outgoing(false, " \n\t".into()), None);
+        assert_eq!(outgoing(true, "hi".into()), None);
+    }
+
+    #[test]
+    fn enter_sends_but_not_with_shift_or_mid_composition() {
+        assert!(enter_sends("Enter", false, false));
+        assert!(!enter_sends("Enter", true, false));
+        assert!(!enter_sends("Enter", false, true));
+        assert!(!enter_sends("a", false, false));
+        assert!(!enter_sends("NumpadEnter", false, false));
+    }
+
+    #[test]
+    fn follow_does_nothing_without_a_pane() {
+        let _ = any_spawner::Executor::init_futures_executor();
+        Owner::new().with(|| {
+            let follow = Follow::new(NodeRef::new());
+            follow.scrolled();
+            follow.to_end();
+            assert!(follow.at_end.get_value());
+            assert_eq!(follow.last_top.get_value(), 0);
+        });
     }
 }

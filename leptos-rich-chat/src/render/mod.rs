@@ -1010,6 +1010,11 @@ mod tests {
         let two = blocks("$$x$$ $$y$$");
         assert_eq!(two.len(), 1);
         assert!(matches!(&two[0].kind, BlockKind::Html(_)));
+        for text in ["$$x$$\n$$y$$", "$$x$$\\\n$$y$$"] {
+            let lines = blocks(text);
+            assert_eq!(lines.len(), 1, "{text:?}");
+            assert!(matches!(&lines[0].kind, BlockKind::Html(_)), "{text:?}");
+        }
     }
 
     #[test]
@@ -1112,6 +1117,13 @@ mod tests {
         let multi = html("x[^m].\n\n[^m]: first\n\n    second\n");
         let backref = multi.find("rc-footnote-backref").unwrap();
         assert!(backref > multi.find("second").unwrap(), "{multi}");
+        // A definition ending in something other than a paragraph gets
+        // the backref after it.
+        let list = html("x[^m].\n\n[^m]: note\n\n    - item\n");
+        assert!(
+            list.contains("</ul><a href=\"#rc-") && list.contains("</a>\n</li>"),
+            "{list}"
+        );
     }
 
     #[test]

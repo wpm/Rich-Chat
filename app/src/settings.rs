@@ -241,10 +241,15 @@ impl Settings {
     /// one in it, or a selection naming no one in it, which older builds
     /// allowed, is corrected: the defaults, or the first user.
     pub fn load() -> Self {
-        let Some(storage) = storage() else {
-            return Self::default();
-        };
-        let read = |key: &str| storage.get_item(key).ok().flatten();
+        match storage() {
+            Some(storage) => Self::from_stored(|key| storage.get_item(key).ok().flatten()),
+            None => Self::default(),
+        }
+    }
+
+    /// The settings `read` finds under the keys, with the defaults for
+    /// what it does not find or what does not parse. See [`load`](Self::load).
+    fn from_stored(read: impl Fn(&str) -> Option<String>) -> Self {
         let defaults = Self::default();
         let stored =
             read(USERS_KEY).and_then(|json| serde_json::from_str::<StoredUsers>(&json).ok());
@@ -272,12 +277,17 @@ impl Settings {
     /// that it follows the system again.
     pub fn store(&self) {
         let Some(storage) = storage() else { return };
-        let write = |key: &str, value: Option<String>| {
+        self.store_with(|key, value| {
             let _ = match value {
                 Some(value) => storage.set_item(key, &value),
                 None => storage.remove_item(key),
             };
-        };
+        });
+    }
+
+    /// Hands `write` each key with its value, or `None` for a setting
+    /// that is unset. See [`store`](Self::store).
+    fn store_with(&self, mut write: impl FnMut(&str, Option<String>)) {
         write(
             THEME_KEY,
             self.theme.map(|theme| theme.as_str().to_string()),
@@ -533,5 +543,149 @@ mod tests {
         let older: StoredUsers =
             serde_json::from_str(r#"{"users":[],"retired":[],"selected":null}"#).unwrap();
         assert_eq!(older.selected, None);
+    }
+
+    #[test]
+    fn sides_are_named_and_placed() {
+        for (side, name, position) in [
+            (Side::Left, "left", Position::Left),
+            (Side::Center, "center", Position::Center),
+            (Side::Right, "right", Position::Right),
+        ] {
+            assert_eq!(side.as_str(), name);
+            assert_eq!(side.position(), position);
+        }
+    }
+
+    #[test]
+    fn a_color_that_is_not_hex_gets_no_text_color() {
+        let user = User::new("Alice", Side::Left, "var(--alice)");
+        let look = user.look();
+        assert_eq!(look.background.as_deref(), Some("var(--alice)"));
+        assert_eq!(look.foreground, None);
+    }
+
+    /// `from_stored` over a fixed set of keys.
+    fn stored(entries: &[(&str, &str)]) -> Settings {
+        Settings::from_stored(|key| {
+            entries
+                .iter()
+                .find(|(stored, _)| *stored == key)
+                .map(|(_, value)| value.to_string())
+        })
+    }
+
+    #[test]
+    fn nothing_stored_is_the_defaults() {
+        assert_eq!(stored(&[]), Settings::default());
+    }
+
+    #[test]
+    fn the_theme_is_read_when_it_parses() {
+        assert_eq!(stored(&[(THEME_KEY, "dark")]).theme, Some(Theme::Dark));
+        assert_eq!(stored(&[(THEME_KEY, "light")]).theme, Some(Theme::Light));
+        assert_eq!(stored(&[(THEME_KEY, "blue")]).theme, None);
+    }
+
+    #[test]
+    fn the_input_height_is_read_when_it_is_a_positive_number() {
+        assert_eq!(
+            stored(&[(INPUT_HEIGHT_KEY, "120.5")]).input_height,
+            Some(120.5)
+        );
+        for bad in ["0", "-3", "NaN", "inf", "tall", ""] {
+            assert_eq!(
+                stored(&[(INPUT_HEIGHT_KEY, bad)]).input_height,
+                None,
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_stored_users_and_selection_are_read() {
+        let json = r##"{"users":[{"name":"Alice","side":"center","color":"#ff8800"},{"name":"Bob","side":"right","color":"#000000"}],"retired":[{"name":"Carol","side":"left","color":"#123456"}],"selected":"Bob"}"##;
+        let settings = stored(&[(USERS_KEY, json)]);
+        let names: Vec<_> = settings.users.iter().map(|u| u.name.as_str()).collect();
+        assert_eq!(names, ["Alice", "Bob"]);
+        assert_eq!(settings.selected, "Bob");
+        assert_eq!(settings.users[0].side, Side::Center);
+        assert_eq!(
+            settings.retired,
+            [User::new("Carol", Side::Left, "#123456")]
+        );
+    }
+
+    #[test]
+    fn a_selection_naming_nobody_or_nobody_at_all_selects_the_first() {
+        let json = r##"{"users":[{"name":"Alice","side":"left","color":"#ff8800"},{"name":"Bob","side":"right","color":"#000000"}],"retired":[],"selected":"Zed"}"##;
+        assert_eq!(stored(&[(USERS_KEY, json)]).selected, "Alice");
+        let older = r##"{"users":[{"name":"Alice","side":"left","color":"#ff8800"},{"name":"Bob","side":"right","color":"#000000"}],"retired":[]}"##;
+        assert_eq!(stored(&[(USERS_KEY, older)]).selected, "Alice");
+        // Unless the default selection is in the list, which older builds
+        // that stored no selection always had.
+        let with_user = r##"{"users":[{"name":"Alice","side":"left","color":"#ff8800"},{"name":"User","side":"right","color":"#000000"}],"retired":[],"selected":null}"##;
+        assert_eq!(stored(&[(USERS_KEY, with_user)]).selected, USER);
+    }
+
+    #[test]
+    fn an_empty_or_unreadable_list_is_the_default_list() {
+        let empty = r##"{"users":[],"retired":[{"name":"Carol","side":"left","color":"#123456"}],"selected":"Carol"}"##;
+        let settings = stored(&[(USERS_KEY, empty)]);
+        assert_eq!(settings.users, Settings::default().users);
+        assert_eq!(settings.selected, USER);
+        assert_eq!(settings.retired.len(), 1, "the retired are kept");
+        let unreadable = stored(&[(USERS_KEY, "not json")]);
+        assert_eq!(unreadable, Settings::default());
+    }
+
+    #[test]
+    fn storing_writes_every_key_and_removes_what_is_unset() {
+        let mut written = Vec::new();
+        Settings::default().store_with(|key, value| written.push((key.to_string(), value)));
+        let keys: Vec<_> = written.iter().map(|(key, _)| key.as_str()).collect();
+        assert_eq!(keys, [THEME_KEY, USERS_KEY, INPUT_HEIGHT_KEY]);
+        assert_eq!(written[0].1, None, "no theme chosen");
+        assert!(
+            written[1]
+                .1
+                .as_deref()
+                .unwrap()
+                .contains(r#""selected":"User""#),
+            "{:?}",
+            written[1]
+        );
+        assert_eq!(written[2].1, None, "no height dragged");
+
+        let mut written = Vec::new();
+        let settings = Settings {
+            theme: Some(Theme::Dark),
+            input_height: Some(120.0),
+            ..Settings::default()
+        };
+        settings.store_with(|key, value| written.push((key.to_string(), value)));
+        assert_eq!(written[0].1.as_deref(), Some("dark"));
+        assert_eq!(written[2].1.as_deref(), Some("120"));
+    }
+
+    #[test]
+    fn settings_survive_a_round_trip_through_storage() {
+        let mut settings = Settings {
+            theme: Some(Theme::Light),
+            input_height: Some(96.5),
+            ..Settings::default()
+        };
+        settings.add_user("Alice");
+        settings.selected_user_mut().side = Side::Center;
+        settings.add_user("Bob");
+        settings.delete_selected();
+        settings.select(ASSISTANT);
+
+        let mut storage = std::collections::HashMap::new();
+        settings.store_with(|key, value| {
+            storage.insert(key.to_string(), value.expect("everything is set"));
+        });
+        let back = Settings::from_stored(|key| storage.get(key).cloned());
+        assert_eq!(back, settings);
     }
 }

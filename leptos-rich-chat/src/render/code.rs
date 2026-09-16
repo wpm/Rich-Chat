@@ -387,6 +387,13 @@ mod tests {
     }
 
     #[test]
+    fn preloading_is_harmless_and_changes_nothing() {
+        let cold = highlight(Some("python"), "print(1)\n");
+        super::preload();
+        assert_eq!(highlight(Some("python"), "print(1)\n"), cold);
+    }
+
+    #[test]
     fn warming_is_harmless_and_changes_nothing() {
         let cold = highlight(Some("rust"), "fn main() {}\n");
         super::warm("rust");

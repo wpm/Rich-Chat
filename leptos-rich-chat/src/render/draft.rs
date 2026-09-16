@@ -279,6 +279,11 @@ mod tests {
             Cow::Borrowed(_)
         ));
         assert_eq!(complete_draft("```\n$x\n````\n$y"), "```\n$x\n````\n$y$");
+        // A closer indented four spaces is code, not a closer.
+        assert!(matches!(
+            complete_draft("```\n$x\n    ```\n$y"),
+            Cow::Borrowed(_)
+        ));
         assert!(matches!(
             complete_draft("~~~\n`a\n~~~~\n"),
             Cow::Borrowed(_)
