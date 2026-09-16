@@ -309,11 +309,20 @@ fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
 /// The text box grows with its draft: on every input its inline height
 /// is set to its scroll height. The structure stylesheet gives it the box
 /// model and the cap that make that measurement right.
+///
+/// The draft is the composer's own unless the host gives one as `draft`,
+/// a signal it holds: to prefill the box (a quoted reply), to read what
+/// is being typed, or to keep a draft across the composer's unmounting.
+/// Sending clears it either way.
 #[component]
 pub fn Composer(
     /// Receives the text of each message sent.
     #[prop(into)]
     on_send: Callback<String>,
+    /// The text in the box, held by the host. The default is a signal of
+    /// the composer's own, starting empty.
+    #[prop(optional)]
+    draft: Option<RwSignal<String>>,
     /// The text box's placeholder.
     #[prop(default = "Write a message…".to_string(), into)]
     placeholder: String,
@@ -347,7 +356,7 @@ pub fn Composer(
     #[prop(into, optional_no_strip)]
     on_link: Option<Callback<String>>,
 ) -> impl IntoView {
-    let draft = RwSignal::new(String::new());
+    let draft = draft.unwrap_or_else(|| RwSignal::new(String::new()));
     let input = NodeRef::<html::Textarea>::new();
 
     let fit = move || {
@@ -485,6 +494,9 @@ pub fn Chat(
     /// Receives the text of each message sent.
     #[prop(into)]
     on_send: Callback<String>,
+    /// The text in the box, held by the host. See [`Composer`].
+    #[prop(optional)]
+    draft: Option<RwSignal<String>>,
     /// The text box's placeholder.
     #[prop(default = "Write a message…".to_string(), into)]
     placeholder: String,
@@ -561,6 +573,7 @@ pub fn Chat(
             </div>
             <Composer
                 on_send=on_send
+                draft=draft.unwrap_or_else(|| RwSignal::new(String::new()))
                 placeholder=placeholder
                 disabled=disabled
                 preview=preview
@@ -799,6 +812,66 @@ mod tests {
         assert!(out.contains("rc-composer-hint"), "{out}");
         assert!(out.contains("Enter to send"), "{out}");
         assert!(!out.contains("rc-composer-preview"), "{out}");
+    }
+
+    #[test]
+    fn composer_previews_the_hosts_draft_with_the_preview_kind() {
+        let draft = RwSignal::new(String::from("so $x^2"));
+        let out = html(|| {
+            view! {
+                <Composer on_send=|_text: String| {} draft=draft preview_kind="me" preview_label="Draft" />
+            }
+        });
+        assert!(
+            out.contains(
+                "<div data-kind=\"me\" aria-live=\"polite\" class=\"rc-composer-preview\">"
+            ),
+            "{out}"
+        );
+        assert!(out.contains("<span>Draft</span>"), "{out}");
+        assert!(
+            out.contains(
+                "<button type=\"button\" aria-expanded=\"true\" aria-label=\"Collapse preview\" \
+                 class=\"rc-preview-toggle\">\u{25BE}</button>"
+            ),
+            "{out}"
+        );
+        assert!(out.contains("<math"), "the draft renders as one: {out}");
+        assert!(!out.contains("rc-collapsed"), "{out}");
+        assert!(
+            out.contains("aria-label=\"Send\" class=\"rc-send\">"),
+            "send is enabled: {out}"
+        );
+
+        // No kind named leaves the attribute out; a blank draft has no
+        // preview and nothing to send.
+        let plain = html(|| view! { <Composer on_send=|_text: String| {} draft=draft /> });
+        assert!(
+            plain.contains("<div aria-live=\"polite\" class=\"rc-composer-preview\">"),
+            "{plain}"
+        );
+        draft.set(String::from("  \n"));
+        let blank = html(|| view! { <Composer on_send=|_text: String| {} draft=draft /> });
+        assert!(!blank.contains("rc-composer-preview"), "{blank}");
+        assert!(
+            blank.contains("aria-label=\"Send\" disabled class=\"rc-send\">"),
+            "{blank}"
+        );
+
+        // Switched off, the preview stays out whatever the draft.
+        draft.set(String::from("text"));
+        let off =
+            html(|| view! { <Composer on_send=|_text: String| {} draft=draft preview=false /> });
+        assert!(!off.contains("rc-composer-preview"), "{off}");
+    }
+
+    #[test]
+    fn chat_hands_its_draft_to_the_composer() {
+        let draft = RwSignal::new(String::from("**bold**"));
+        let none = Vec::<Message>::new();
+        let out = html(|| view! { <Chat messages=none on_send=|_: String| {} draft=draft /> });
+        assert!(out.contains("rc-composer-preview"), "{out}");
+        assert!(out.contains("<strong>bold</strong>"), "{out}");
     }
 
     #[test]

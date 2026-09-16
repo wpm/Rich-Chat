@@ -7,6 +7,12 @@ version is 0, a minor release may change the API.
 
 ## [Unreleased]
 
+### Added
+
+- `Composer` and `Chat` take an optional `draft`, an `RwSignal<String>`
+  the host holds, in place of the composer's own: to prefill the text
+  box, read what is being typed, or keep a draft across unmounting.
+
 ## [0.1.0] - 2026-09-16
 
 The first release: `Chat`, `Message`, `RichChatStyle` and the rendering
