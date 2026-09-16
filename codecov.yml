@@ -1,0 +1,28 @@
+# Codecov's settings: https://codecov.io/gh/wpm/Rich-Chat, fed by the
+# coverage job in .github/workflows/ci.yml. Reference:
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  status:
+    # The whole project may lose up to a point of coverage before the
+    # check fails, so that a refactor which drops a few lines is not
+    # blocked for it; a real loss still is.
+    project:
+      default:
+        threshold: 1%
+    # The changed lines of a pull request, held to the project's coverage.
+    patch:
+      default:
+        target: auto
+
+# One comment per pull request, kept short, and only when the change
+# moves coverage.
+comment:
+  layout: "condensed_header, diff, files"
+  require_changes: true
+
+# Not run under the tests, so not counted: the desktop shell is only
+# checked to compile, and the end-to-end tests drive the built app.
+ignore:
+  - "app/src-tauri/**"
+  - "app/e2e/**"
