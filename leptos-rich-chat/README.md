@@ -221,7 +221,9 @@ The words in the interface are props: `Chat` and `Composer` take
 `placeholder`, `hint` (empty leaves the line out), `preview_label`, and
 `send`, the button's content, so it can be an icon; `Chat` takes `empty`
 for the bare transcript; and the copy button's labels are a `CodeLabels`
-provided as context, or a prop on `CodeBlock`.
+provided as context, or a prop on `CodeBlock`. The text in the box is
+the composer's own unless `draft`, an `RwSignal<String>` the host holds,
+is given: to prefill it, read it, or keep it across unmounting.
 
 ## Features
 

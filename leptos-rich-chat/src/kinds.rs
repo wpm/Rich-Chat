@@ -294,6 +294,14 @@ mod tests {
     }
 
     #[test]
+    fn positions_have_names() {
+        assert_eq!(Position::Left.as_str(), "left");
+        assert_eq!(Position::Center.as_str(), "center");
+        assert_eq!(Position::Right.as_str(), "right");
+        assert_eq!(Position::default(), Position::Left);
+    }
+
+    #[test]
     fn the_default_reads_only_theme_properties() {
         let css = Kinds::default().css();
         assert!(
