@@ -76,12 +76,9 @@ fn App() -> impl IntoView {
         Message::new("welcome-code", USER, WELCOME_CODE),
         Message::new("welcome-math", ASSISTANT, WELCOME_MATH),
     ]);
-    let sender = Signal::derive(move || settings.read().selected.clone().unwrap_or_default());
+    let sender = Signal::derive(move || settings.read().selected.clone());
     let send = move |text: String| {
         let from = sender.get_untracked();
-        if from.is_empty() {
-            return;
-        }
         let id = format!("m{}", messages.read_untracked().len());
         messages.update(|all| all.push(Message::new(id, from, text)));
     };
@@ -163,7 +160,6 @@ fn App() -> impl IntoView {
                 on_send=send
                 on_link=Callback::new(opener::open_url)
                 preview_kind=sender
-                disabled=Signal::derive(move || sender.read().is_empty())
             />
         </main>
     }
