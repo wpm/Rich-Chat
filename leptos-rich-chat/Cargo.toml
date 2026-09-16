@@ -3,13 +3,17 @@ name = "leptos-rich-chat"
 version = "0.1.0"
 description = "Leptos chat components that render Markdown, LaTeX math, and syntax-highlighted code"
 readme = "README.md"
+homepage = "https://wpm.github.io/Rich-Chat/"
 keywords = ["leptos", "chat", "markdown", "latex", "syntax-highlighting"]
 categories = ["gui", "wasm", "text-processing"]
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-include = ["src/**", "assets/**", "examples/**", "README.md", "LICENSE*"]
+include = ["src/**", "assets/**", "examples/**", "README.md", "CHANGELOG.md", "LICENSE*"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 default = ["highlight", "bundled-fonts"]

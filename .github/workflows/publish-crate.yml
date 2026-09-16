@@ -1,0 +1,57 @@
+name: Publish the crate
+
+# Publishes leptos-rich-chat to crates.io. Push a tag
+# leptos-rich-chat-v<version>, where <version> is what
+# leptos-rich-chat/Cargo.toml says, and the crate is tested, its
+# documentation built as docs.rs will build it, and published. Run by
+# hand instead, it does everything but the publishing.
+#
+# The library's releases are separate from the app's: those come from
+# app-v<version> tags, see release-app.yml. The app depends on the
+# library by path, so it is never waiting on a crates.io release.
+#
+# Publishing uses crates.io's trusted publishing, so no token is stored
+# here: the job's OpenID Connect token is exchanged for a short-lived
+# crates.io one. That is set up on the crate's settings page on
+# crates.io (Trusted Publishing: GitHub, owner wpm, repository Rich-Chat,
+# workflow publish-crate.yml), which exists once the first version has
+# been published by hand with `cargo publish -p leptos-rich-chat`.
+on:
+  push:
+    tags: ["leptos-rich-chat-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # the token crates.io exchanges for a publishing one
+
+concurrency:
+  group: publish-crate
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The tag has to say what the manifest says, or nothing is published.
+      - run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then set -- --tag "$GITHUB_REF_NAME"; fi
+          .github/scripts/release-version.sh leptos-rich-chat-v leptos-rich-chat "$@"
+      - run: cargo test -p leptos-rich-chat
+      - run: cargo test -p leptos-rich-chat --no-default-features
+      # As docs.rs builds it, all features on.
+      - run: cargo doc -p leptos-rich-chat --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - if: github.event_name != 'push'
+        run: cargo publish -p leptos-rich-chat --dry-run
+      - id: auth
+        if: github.event_name == 'push'
+        uses: rust-lang/crates-io-auth-action@v1
+      - if: github.event_name == 'push'
+        run: cargo publish -p leptos-rich-chat
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

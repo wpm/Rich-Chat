@@ -58,6 +58,42 @@ cd app/e2e && npm install && npm test   # the built app in headless Chromium
 cargo run -p leptos-rich-chat --example highlight_css -- OneHalfDark dark   # regenerate assets/highlight.css, see the library README
 ```
 
+## Releasing
+
+The library and the app are released separately, each from its own kind
+of tag, and the version of each is what its manifest says: the tag has
+to match it or nothing is built.
+
+- **The library, to crates.io.** Set the version in
+  [`leptos-rich-chat/Cargo.toml`](leptos-rich-chat/Cargo.toml), add the
+  entry to its [changelog](leptos-rich-chat/CHANGELOG.md), and push a tag
+  `leptos-rich-chat-v<version>`. The
+  [Publish the crate workflow](.github/workflows/publish-crate.yml)
+  tests the crate, builds its documentation as docs.rs will, and
+  publishes it. The first version has to be published by hand
+  (`cargo publish -p leptos-rich-chat`), since trusted publishing is
+  set up on a crate that exists: on crates.io, under the crate's
+  Settings > Trusted Publishing, add GitHub, owner `wpm`, repository
+  `Rich-Chat`, workflow `publish-crate.yml`. No token is stored here.
+  Run by hand from the Actions tab, the workflow does everything but
+  the publishing.
+- **The app, as installers.** Set the version in
+  [`app/src-tauri/Cargo.toml`](app/src-tauri/Cargo.toml) and
+  [`app/Cargo.toml`](app/Cargo.toml) (the Tauri config takes it from
+  the former), and push a tag `app-v<version>`. The
+  [Release the app workflow](.github/workflows/release-app.yml) opens a
+  draft release, builds a `.dmg` for macOS (Apple silicon and Intel in
+  one), a setup `.exe` and an `.msi` for Windows, and a `.deb`, an
+  `.rpm` and an `.AppImage` for Linux, and publishes the release once
+  they are all on it. Run by hand, it builds them as workflow
+  artifacts and makes no release. The macOS build is signed and
+  notarized when the repository has the secrets `APPLE_CERTIFICATE`
+  (the Developer ID Application certificate, exported from Keychain
+  Access as a `.p12` and base64-encoded), `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and
+  `APPLE_TEAM_ID`; without them it is unsigned, and the release notes
+  say how to open it.
+
 ## License
 
 MIT. See [LICENSE](LICENSE). The bundled Latin Modern fonts are under
