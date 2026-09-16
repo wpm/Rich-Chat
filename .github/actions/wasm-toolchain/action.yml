@@ -10,6 +10,13 @@
 # everywhere at once.
 name: Wasm toolchain
 description: Rust with the wasm32 target, the shared cargo cache, and Trunk.
+inputs:
+  cache-key:
+    description: >-
+      Which cargo cache to use. The default is the one the CI, Pages and
+      Preview workflows share; the app release names its own, since its
+      builds add every desktop dependency and would crowd out the rest.
+    default: wasm
 runs:
   using: composite
   steps:
@@ -19,7 +26,7 @@ runs:
     # The key is what makes the cache one cache across the three workflows.
     - uses: Swatinem/rust-cache@v2
       with:
-        shared-key: wasm
+        shared-key: ${{ inputs.cache-key }}
     # Pinned: with "latest" the action asks the GitHub API for the newest
     # release unauthenticated, and when that is rate-limited it silently
     # installs v0.19.1, whose wasm-opt lacks bulk memory and which ignores
