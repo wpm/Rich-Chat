@@ -163,8 +163,8 @@ That cuts both ways: a global reset in your stylesheet, such as
 Tailwind 3's preflight, reaches inside the chat too, and you put back
 what you want by rule against the `rc-*` classes. If your own rules are
 in cascade layers, declare the layer order yourself, first, with the
-crate's layers before yours; the crate declares its own when the
-stylesheet mounts, which is after the document's head.
+crate's layers before yours; the crate's CSS is a `<style>` element in
+the body, so its own declaration comes after anything in the head.
 
 To adjust the theme, override its custom properties on the component's
 root. Every color is a `--rc-*` property, and so are the fonts
