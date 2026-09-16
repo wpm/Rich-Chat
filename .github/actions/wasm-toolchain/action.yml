@@ -34,3 +34,23 @@ runs:
     - uses: jetli/trunk-action@v0.5.0
       with:
         version: v0.21.14
+    # The wasm-bindgen and wasm-opt binaries Trunk runs. It fetches them
+    # from GitHub releases the first time it needs them and keeps them
+    # under its cache directory, which is wiped with the runner; so every
+    # run was a download, and a download that failed (a connection reset
+    # from GitHub's release storage, which happens) failed the build.
+    # Cached, they are fetched once per platform and per version: the
+    # wasm-bindgen version is in Cargo.lock, and the wasm-opt one is
+    # Trunk's default for the version pinned above, so the key covers both
+    # files. An older cache seeds a new key, and Trunk downloads only what
+    # is missing. The directory is where the `directories` crate puts
+    # `ProjectDirs::from("dev", "trunkrs", "trunk").cache_dir()` on each
+    # platform.
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/trunk
+          ~/Library/Caches/dev.trunkrs.trunk
+          ~/AppData/Local/trunkrs/trunk/cache
+        key: trunk-tools-${{ runner.os }}-${{ hashFiles('Cargo.lock', '.github/actions/wasm-toolchain/action.yml') }}
+        restore-keys: trunk-tools-${{ runner.os }}-
