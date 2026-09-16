@@ -26,3 +26,16 @@ comment:
 ignore:
   - "app/src-tauri/**"
   - "app/e2e/**"
+  # The app's browser-only modules: the window, the controls bar, and
+  # link opening. They run nowhere but in the browser, where the
+  # end-to-end tests drive them without coverage counters, so on the
+  # graph they would only be lines that no test can reach. The way to
+  # count them is wasm-bindgen tests run under cargo-llvm-cov with
+  # --target wasm32-unknown-unknown, which cargo-llvm-cov supports; but
+  # it needs nightly Rust for -Zno-profiler-runtime and the
+  # wasm_bindgen_unstable_test_coverage cfg. Once those are stable, add
+  # a wasm coverage job to ci.yml, upload its report under a flag, and
+  # take these out of the list.
+  - "app/src/main.rs"
+  - "app/src/controls.rs"
+  - "app/src/opener.rs"
