@@ -37,6 +37,10 @@ version is 0, a minor release may change the API.
   the `.rc-composer` wrapper, so `attr:id`, `attr:maxlength`,
   `attr:data-*` and the rest reach the input. Attributes passed to
   `Chat` land on `.rc-chat`, as before.
+- The composer returns focus to the text box after a send, so the caret
+  is there for the next message whether the send came by Enter or by a
+  click on the button, which had taken the focus with it. Not on
+  mount: where the caret goes when a page opens is the host's call.
 - The theme's custom properties are declared on the document root, in
   place of the outermost of `.rc-chat`, `.rc-rich` and `.rc-composer`,
   so a host can declare them on any ancestor of the components rather

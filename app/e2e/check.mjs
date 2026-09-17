@@ -210,6 +210,14 @@ try {
     await page.waitForTimeout(200);
     check((await page.$$('.rc-message')).length === TOUR + 2, 'a second sent message appends');
 
+    // The button sends too. Clicking it takes the focus out of the box;
+    // the send puts it back, ready for the next message.
+    await type(page, 'By the button');
+    await page.click('.rc-send');
+    await page.waitForTimeout(200);
+    check((await page.$$('.rc-message')).length === TOUR + 3, 'the Send button sends');
+    check(await page.evaluate(() => document.activeElement === document.querySelector('.rc-composer-input')), 'and the caret is back in the box');
+
     const background = await page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
     check(colorScheme === 'dark' ? background !== 'rgb(255, 255, 255)' : background === 'rgb(255, 255, 255)', `${colorScheme} palette applied`);
 

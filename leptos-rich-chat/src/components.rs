@@ -312,15 +312,36 @@ fn hint_text(hint: Option<String>) -> String {
     hint.unwrap_or_else(|| DEFAULT_HINT.to_string())
 }
 
-/// Sends the draft and leaves the box empty; not while sending is
-/// disabled, and never a blank one, which stays as it is.
-fn send_draft(disabled: bool, draft: RwSignal<String>, on_send: Callback<String>) {
+/// Sends the draft and leaves the box empty, with the caret back in it
+/// for the next message; not while sending is disabled, and never a
+/// blank one, which stays as it is.
+fn send_draft(
+    disabled: bool,
+    draft: RwSignal<String>,
+    on_send: Callback<String>,
+    input: NodeRef<html::Textarea>,
+) {
     if disabled || draft.read_untracked().trim().is_empty() {
         return;
     }
     // Taken, not copied: the signal is left empty by the same write.
     on_send.run(std::mem::take(&mut *draft.write()));
+    // The send came from the box, by Enter in it or the button beside
+    // it, and a click on the button took the focus with it.
+    focus(input);
 }
+
+/// Puts the caret in the text box.
+#[cfg(target_arch = "wasm32")]
+fn focus(input: NodeRef<html::Textarea>) {
+    if let Some(element) = input.get_untracked() {
+        let _ = web_sys::HtmlElement::focus(&element);
+    }
+}
+
+/// Off the browser there is no box to put the caret in.
+#[cfg(not(target_arch = "wasm32"))]
+fn focus(_input: NodeRef<html::Textarea>) {}
 
 /// Whether a key press in the text box sends: Enter on its own, not
 /// Shift+Enter, and never in the middle of an IME composition.
@@ -345,7 +366,8 @@ fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
 /// The draft is the composer's own unless the host gives one as `draft`,
 /// a signal it holds: to prefill the box (a quoted reply), to read what
 /// is being typed, or to keep a draft across the composer's unmounting.
-/// Sending clears it either way.
+/// Sending clears it either way, and puts the caret back in the box,
+/// ready for the next message.
 ///
 /// Attributes passed to the component go on the text box, not on the
 /// wrapper: `attr:id` for a label elsewhere on the page to point at,
@@ -405,7 +427,7 @@ pub fn Composer(
             let _ = style.set_property("height", &format!("{}px", element.scroll_height()));
         }
     };
-    let submit = move || send_draft(disabled.get_untracked(), draft, on_send);
+    let submit = move || send_draft(disabled.get_untracked(), draft, on_send, input);
     // The height follows the text however it changes: sent, or put in
     // by the host, at the start or later. Browser only, as the frame is.
     #[cfg(target_arch = "wasm32")]
@@ -1280,18 +1302,19 @@ mod tests {
             let sent = RwSignal::new(Vec::<String>::new());
             let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
             let draft = RwSignal::new(String::from("hi"));
-            send_draft(true, draft, on_send);
+            let input = NodeRef::new();
+            send_draft(true, draft, on_send, input);
             assert!(sent.get_untracked().is_empty(), "nothing while disabled");
             assert_eq!(draft.get_untracked(), "hi", "and the draft is kept");
-            send_draft(false, draft, on_send);
+            send_draft(false, draft, on_send, input);
             assert_eq!(sent.get_untracked(), ["hi"]);
             assert_eq!(draft.get_untracked(), "", "sent, the box is empty");
             draft.set(String::from("  hi \n"));
-            send_draft(false, draft, on_send);
+            send_draft(false, draft, on_send, input);
             assert_eq!(sent.get_untracked()[1], "  hi \n", "sent as written");
             for blank in ["", " \n\t"] {
                 draft.set(blank.to_string());
-                send_draft(false, draft, on_send);
+                send_draft(false, draft, on_send, input);
                 assert_eq!(sent.get_untracked().len(), 2, "a blank draft is not sent");
                 assert_eq!(draft.get_untracked(), blank, "and is left as it is");
             }
