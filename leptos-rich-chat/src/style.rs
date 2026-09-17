@@ -19,7 +19,9 @@
 //!   `examples/highlight_css.rs` prints one theme's rules scoped to one
 //!   side of the light and dark switch, and `assets/highlight.css` is
 //!   two runs of it. Run it for any other two-face theme to swap the
-//!   colors.
+//!   colors. Its classes are the highlighter's `hl-*`, never the
+//!   components' `rc-*`, so a rule against either cannot land on the
+//!   other; a test here holds the two sets apart.
 //!
 //! None of it names anyone. Where each name's bubbles sit and what
 //! colors they have is the host's [`Names`](crate::Names) table, whose
@@ -212,6 +214,8 @@ fn base64(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     #[cfg(feature = "bundled-fonts")]
@@ -248,7 +252,7 @@ mod tests {
     fn the_stylesheet_has_all_three_parts() {
         assert!(STYLESHEET.contains(".rc-chat"));
         assert!(STYLESHEET.contains(".rc-rich math"));
-        assert!(STYLESHEET.contains(".rc-keyword"));
+        assert!(STYLESHEET.contains(".hl-keyword"));
         assert_eq!(
             STYLESHEET.matches("@layer rich-chat.structure {").count(),
             1
@@ -287,6 +291,102 @@ mod tests {
         assert!(THEME.contains("--rc-accent:"));
         assert!(STRUCTURE.contains(".rc-block {"));
         assert!(STRUCTURE.contains("mtable.menv-alignlike"));
+    }
+
+    /// The classes a stylesheet's selectors name: every `.name` outside
+    /// a comment or a `@layer` line (whose dots are in the layer names),
+    /// whether the crate's own or one of pulldown-cmark's and
+    /// pulldown-latex's that the crate styles.
+    fn classes_in(css: &str) -> BTreeSet<String> {
+        let mut rest = css;
+        let mut code = String::new();
+        while let Some(start) = rest.find("/*") {
+            code.push_str(&rest[..start]);
+            let end = rest[start..]
+                .find("*/")
+                .map_or(rest.len(), |end| start + end + 2);
+            rest = &rest[end..];
+        }
+        code.push_str(rest);
+        let code: String = code
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("@layer"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut classes = BTreeSet::new();
+        for candidate in code.split('.').skip(1) {
+            let name: String = candidate
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+                .collect();
+            // A number's decimal point is not a class.
+            if name.starts_with(|c: char| c.is_ascii_alphabetic() || matches!(c, '-' | '_')) {
+                classes.insert(name);
+            }
+        }
+        classes
+    }
+
+    /// Every `rc-` word in the components' source: a superset of the
+    /// classes they set on their elements.
+    fn component_class_words() -> BTreeSet<String> {
+        let source = concat!(
+            include_str!("components.rs"),
+            include_str!("render/mod.rs"),
+            include_str!("names.rs"),
+        );
+        source
+            .match_indices("rc-")
+            .map(|(at, _)| {
+                source[at..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+                    .collect::<String>()
+            })
+            .filter(|word| word.len() > "rc-".len())
+            .collect()
+    }
+
+    /// The highlighter's classes are its own. Every dotted atom of a
+    /// TextMate scope becomes a class, so `meta.block` would be
+    /// `rc-block` under the components' prefix and take the wrapper's
+    /// rules, and `entity.name.function` would be `rc-name`, so a rule
+    /// of the theme's for a class of that name would recolor every
+    /// function name. No class the components, the structure and theme
+    /// stylesheets, or the names' rules use may be a class in the
+    /// highlight stylesheet.
+    #[test]
+    fn the_highlight_classes_are_nobody_elses() {
+        let prefix = crate::render::code::CLASS_PREFIX;
+        let highlight = classes_in(HIGHLIGHT);
+        assert!(highlight.contains("hl-keyword"), "{highlight:?}");
+        assert!(
+            highlight.iter().all(|class| class.starts_with(prefix)),
+            "a highlight class without the {prefix} prefix: {highlight:?}"
+        );
+
+        let mut used = classes_in(STRUCTURE);
+        used.extend(classes_in(THEME));
+        used.extend(classes_in(&crate::Names::default().css()));
+        used.extend(component_class_words());
+        for class in [
+            "rc-block",
+            "rc-sender",
+            "rc-code",
+            "rc-copied",
+            "menv-alignlike",
+        ] {
+            assert!(
+                used.contains(class),
+                "{class} is not among the classes in use"
+            );
+        }
+
+        let collisions: Vec<_> = highlight.intersection(&used).collect();
+        assert!(
+            collisions.is_empty(),
+            "highlight classes that the components or the stylesheets also use: {collisions:?}"
+        );
     }
 
     #[test]

@@ -1,10 +1,19 @@
 //! Syntax highlighting for fenced code blocks.
 //!
 //! Highlighting is class-based: every token becomes a `<span>` whose
-//! classes name its TextMate scope (`rc-keyword rc-control`), and the
+//! classes name its TextMate scope (`hl-keyword hl-control`), and the
 //! crate's stylesheet maps those classes to colors for the light and dark
 //! themes. Colors therefore live in CSS, where a consumer can override
 //! them, not in the markup.
+//!
+//! The classes have a prefix of their own, [`CLASS_PREFIX`], not the
+//! components' `rc-`. Every dotted atom of a scope becomes a class, so a
+//! `meta.block` scope would otherwise come out as `rc-block`, the wrapper
+//! `RichText` puts around each block, and `entity.name.function` as
+//! `rc-name`, and any rule against a component's class would land on
+//! the highlighted spans too. A test in `style` checks that no class
+//! the components or the stylesheets use appears in the highlight
+//! stylesheet, so a collision cannot come back.
 //!
 //! The grammar set is two-face's superset of Sublime Text's defaults:
 //! about two hundred languages, resolved by name, alias, or file
@@ -17,7 +26,8 @@
 use pulldown_cmark_escape::escape_html;
 
 /// Prefix on every highlight class, so the stylesheet can be scoped.
-pub const CLASS_PREFIX: &str = "rc-";
+/// Not the components' `rc-`: see the [module docs](self).
+pub const CLASS_PREFIX: &str = "hl-";
 
 /// How much of a block gets highlighted. Past this many bytes the rest of
 /// the block renders plain rather than stalling the UI.
@@ -293,7 +303,7 @@ mod tests {
     fn rust_gets_highlight_spans() {
         let out = highlight(Some("rust"), "fn main() {}\n");
         assert_eq!(out.language.as_deref(), Some("Rust"));
-        assert!(out.html.contains("class=\"rc-"), "{}", out.html);
+        assert!(out.html.contains("class=\"hl-"), "{}", out.html);
         assert!(out.html.contains("main"), "{}", out.html);
     }
 

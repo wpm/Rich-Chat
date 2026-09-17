@@ -15,6 +15,14 @@ version is 0, a minor release may change the API.
 
 ### Changed
 
+- The highlighter's classes are `hl-keyword`, `hl-string`, and so on,
+  in place of `rc-keyword` and the rest: a prefix of their own, since
+  every dotted atom of a scope became a class under the components'
+  prefix, so `meta.block` was `rc-block`, the wrapper around each
+  Markdown block, and `entity.name.function` was `rc-name`, and a rule
+  against a component's class landed on the code too. A host with rules
+  of its own against the highlight classes renames them; the shipped
+  `assets/highlight.css` and `examples/highlight_css` already have.
 - `Message::kind` is `Message::name`: who the message is from. With it,
   the bubble's `data-kind` attribute is `data-name`, the `Kinds` table
   is `Names` with `Names::name` in place of `Kinds::kind`, and the

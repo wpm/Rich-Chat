@@ -211,14 +211,19 @@ out and write your own against the classes:
 #### Code colors
 
 Highlighting is class-based: a fenced block comes out as `<span>`s with
-`rc-keyword`, `rc-string`, `rc-comment`, and so on, and the colors come
-from `style::HIGHLIGHT`, which is `assets/highlight.css`. That file is
-not written by hand. It is the output of `examples/highlight_css`, a
-small tool that takes one of [two-face](https://crates.io/crates/two-face)'s
-embedded themes, has syntect print its rules against the crate's `rc-`
-classes, and scopes every rule to one side of the light and dark switch
-so both themes can live in one stylesheet. The shipped file is two runs
-of it under a short header:
+`hl-keyword`, `hl-string`, `hl-comment`, and so on, and the colors come
+from `style::HIGHLIGHT`, which is `assets/highlight.css`. The prefix is
+the highlighter's own, not the components' `rc-`, on purpose: every
+dotted atom of a scope becomes a class, so a `meta.block` scope would
+otherwise be `rc-block`, the wrapper around each Markdown block, and
+`entity.name.function` would be `rc-name`, and a rule of yours against
+a component's class would land on the code too. A test keeps the two
+sets of classes apart. The file is not written by hand. It is the output
+of `examples/highlight_css`, a small tool that takes one of
+[two-face](https://crates.io/crates/two-face)'s embedded themes, has
+syntect print its rules against the `hl-` classes, and scopes every rule
+to one side of the light and dark switch so both themes can live in one
+stylesheet. The shipped file is two runs of it under a short header:
 
 ```sh
 cargo run -p leptos-rich-chat --example highlight_css -- OneHalfLight light

@@ -130,7 +130,7 @@ try {
     check(await page.$(`${markdown} .rc-codeblock`) === null, 'and no code block');
     check(await page.$(`${markdown} math`) === null, 'and no math');
     check((await page.$$(`${code} .rc-codeblock`)).length === 1, 'the code bubble has one code block');
-    check((await page.$$(`${code} pre.rc-code span`)).length > 20, 'which is highlighted');
+    check((await page.$$(`${code} pre.rc-code span[class^="hl-"]`)).length > 20, 'which is highlighted');
     check(await page.$(`${code} math`) === null, 'and no math');
     check((await page.$$(`${math} math[display=block]`)).length >= 3, 'the math bubble has display math');
     check(await page.$(`${math} merror`) === null, 'every welcome equation parsed');
@@ -187,7 +187,7 @@ try {
     check((await page.$eval('.rc-composer-input', (el) => el.value)) === '', 'Enter clears the box');
     check(await page.$('.rc-composer-preview') === null, 'the preview goes away when the box is empty');
     check((await page.$$(`${sent} math`)).length === 3, 'three equations in the bubble');
-    check((await page.$$(`${sent} pre.rc-code span`)).length > 20, 'the Rust block is highlighted');
+    check((await page.$$(`${sent} pre.rc-code span[class^="hl-"]`)).length > 20, 'the Rust block is highlighted');
     check(await page.$(`${sent} table`) !== null, 'the table rendered');
     check(await page.$(`${sent} input[type=checkbox]`) !== null, 'task list boxes rendered');
     check(await page.$(`${sent} blockquote.markdown-alert-tip`) !== null, 'the alert rendered');

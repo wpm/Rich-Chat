@@ -1,6 +1,6 @@
 //! The generator behind `assets/highlight.css`, the crate's code colors.
 //!
-//! Highlighting is class-based (`rc-keyword`, `rc-string`, ...) so the
+//! Highlighting is class-based (`hl-keyword`, `hl-string`, ...) so the
 //! colors are a stylesheet's business, and that stylesheet is not
 //! written by hand. This tool takes one of two-face's embedded themes,
 //! has syntect print its rules against the crate's class prefix, and
@@ -22,6 +22,7 @@
 //! colors: turn `RichChatStyle`'s `highlight` off and serve the output
 //! instead. See "Code colors" in the README.
 
+use leptos_rich_chat::render::code::CLASS_PREFIX;
 use syntect::html::{ClassStyle, css_for_theme_with_class_style};
 use two_face::theme::{EmbeddedLazyThemeSet, EmbeddedThemeName};
 
@@ -51,7 +52,7 @@ fn main() {
     let css = css_for_theme_with_class_style(
         theme,
         ClassStyle::SpacedPrefixed {
-            prefix: leptos_rich_chat::render::code::CLASS_PREFIX,
+            prefix: CLASS_PREFIX,
         },
     )
     .expect("theme renders to CSS");
@@ -67,6 +68,9 @@ fn list() {
 
 /// Rewrites syntect's flat rules into the two scoped copies.
 fn scoped(css: &str, theme: &str, dark: bool) -> String {
+    // Syntect's root block, the theme's own foreground and background,
+    // which it puts on a `code` class under the prefix.
+    let root = format!(".{CLASS_PREFIX}code");
     let rules: Vec<(String, String)> = css
         .split("}\n")
         .filter_map(|rule| {
@@ -74,7 +78,7 @@ fn scoped(css: &str, theme: &str, dark: bool) -> String {
             let selectors = selectors.trim();
             // Skip the comment header and the theme's root block, whose
             // background is the stylesheet's business.
-            if selectors.is_empty() || selectors.starts_with("/*") || selectors == ".rc-code" {
+            if selectors.is_empty() || selectors.starts_with("/*") || selectors == root {
                 return None;
             }
             let body: Vec<&str> = body
