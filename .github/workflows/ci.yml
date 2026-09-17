@@ -14,21 +14,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Versions in more than one place: this job, the coverage job and
-      # the desktop job set up the toolchain and cache themselves, and the
-      # frontend jobs get them from .github/actions/wasm-toolchain. Bump
-      # them all together.
+      # Versions in more than one place: this job, the coverage job, the
+      # desktop job and publish-crate.yml set up the toolchain and cache
+      # themselves, and the frontend jobs get them from
+      # .github/actions/wasm-toolchain. Bump them all together.
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy -p leptos-rich-chat -p rich-chat-app --all-targets -- -D warnings
-      - run: cargo test -p leptos-rich-chat
-      - run: cargo test -p leptos-rich-chat --no-default-features
-      # Together with the app, whose csr feature unifies into the library's
-      # test build and turns reactive effects on.
-      - run: cargo test -p leptos-rich-chat -p rich-chat-app
+      # The runs are listed in the script, which the coverage job and
+      # publish-crate.yml run too.
+      - run: .github/scripts/library-tests.sh cargo test
       - run: cargo doc -p leptos-rich-chat --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
@@ -89,11 +87,14 @@ jobs:
   # Codecov: https://codecov.io/gh/wpm/Rich-Chat. A job of its own rather
   # than steps of the library job, since instrumented builds share nothing
   # with plain ones and would double that job. The runs are the library
-  # job's, so what counts as covered is what is tested; the doctests are
-  # run but not counted, which needs a nightly toolchain. The upload
-  # needs the repository secret CODECOV_TOKEN, the upload token from the
-  # repository's page on Codecov, and fails the job without it rather than
-  # letting the coverage quietly stop arriving.
+  # job's, from the same script, so what counts as covered is what is
+  # tested; the doctests are run but not counted, which needs a nightly
+  # toolchain. The upload needs the repository secret CODECOV_TOKEN, the
+  # upload token from the repository's page on Codecov, and fails the job
+  # without it rather than letting the coverage quietly stop arriving;
+  # except for a pull request from a fork, which cannot see the secret
+  # and uploads without it as best it can, so that Codecov's rate limit
+  # on such uploads cannot fail the fork's checks.
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
@@ -104,15 +105,13 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - run: cargo llvm-cov --no-report -p leptos-rich-chat
-      - run: cargo llvm-cov --no-report -p leptos-rich-chat --no-default-features
-      - run: cargo llvm-cov --no-report -p leptos-rich-chat -p rich-chat-app
+      - run: .github/scripts/library-tests.sh cargo llvm-cov --no-report
       - run: cargo llvm-cov report --lcov --output-path lcov.info
       - uses: codecov/codecov-action@v5
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: true
+          fail_ci_if_error: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
   # One check for branch protection to require, so job names can change
   # without touching the ruleset. Green only when every job above is.

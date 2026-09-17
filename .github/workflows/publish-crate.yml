@@ -40,8 +40,8 @@ jobs:
       - run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then set -- --tag "$GITHUB_REF_NAME"; fi
           .github/scripts/release-version.sh leptos-rich-chat-v leptos-rich-chat "$@"
-      - run: cargo test -p leptos-rich-chat
-      - run: cargo test -p leptos-rich-chat --no-default-features
+      # The runs ci.yml makes, from the same script.
+      - run: .github/scripts/library-tests.sh cargo test
       # As docs.rs builds it, all features on.
       - run: cargo doc -p leptos-rich-chat --no-deps --all-features
         env:

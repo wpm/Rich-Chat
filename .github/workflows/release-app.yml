@@ -7,9 +7,10 @@ name: Release the app
 # app/src-tauri/Cargo.toml and app/Cargo.toml say, and the release
 # appears as a draft, fills up as the builds finish, and is published
 # when they all have; a failed build leaves the draft to look at, and
-# rerunning the failed jobs completes it. Run by hand instead, it builds
-# everything as workflow artifacts and makes no release, for trying the
-# pipeline out.
+# rerunning the failed jobs completes it. A tag whose release is already
+# published is refused, so a rerun never touches one. Run by hand
+# instead, it builds everything as workflow artifacts and makes no
+# release, for trying the pipeline out.
 #
 # The app's releases are separate from the library's: those come from
 # leptos-rich-chat-v<version> tags, see publish-crate.yml.
@@ -37,31 +38,51 @@ jobs:
       release: ${{ steps.release.outputs.id }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
       # The tag has to say what the manifests say, or nothing is built.
+      # (The runner's own cargo serves: the script only reads metadata.)
       - id: version
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then set -- --tag "$GITHUB_REF_NAME"; fi
           .github/scripts/release-version.sh app-v rich-chat-desktop rich-chat-app "$@"
+      # Which mode the macOS build will be in, from the script that puts
+      # it there, so that the notes and the build agree.
+      - id: apple
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ secrets.APPLE_API_KEY_PATH }}
+        run: .github/scripts/apple-credentials.sh
       # A draft, so that the release is not seen until every installer is
-      # on it. Rerun for the same tag, the draft is picked up again.
+      # on it. Rerun for the same tag, the draft is picked up again; a
+      # published release is left alone. (`gh release view` finds a draft
+      # by its tag as well.)
       - id: release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-          MACOS_SIGNED: ${{ secrets.APPLE_CERTIFICATE != '' }}
-          MACOS_NOTARIZED: ${{ secrets.APPLE_CERTIFICATE != '' && (secrets.APPLE_TEAM_ID != '' || secrets.APPLE_API_ISSUER != '') }}
+          MACOS_SIGNED: ${{ steps.apple.outputs.signed }}
+          MACOS_NOTARIZED: ${{ steps.apple.outputs.notarized }}
         run: |
-          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
-            --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | .id" | head -n1)
-          if [ -z "$id" ]; then
-            .github/scripts/release-notes.sh "${{ steps.version.outputs.version }}" > notes.md
-            id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
-              -f tag_name="$GITHUB_REF_NAME" -f name="Rich Chat ${{ steps.version.outputs.version }}" \
-              -F draft=true -F generate_release_notes=true -F body=@notes.md --jq .id)
-            echo "Opened draft release $id for $GITHUB_REF_NAME."
+          version=${{ steps.version.outputs.version }}
+          if release=$(gh release view "$GITHUB_REF_NAME" --json databaseId,isDraft 2>/dev/null); then
+            if [ "$(jq -r .isDraft <<< "$release")" != true ]; then
+              echo "::error::$GITHUB_REF_NAME is already released; delete the release to make it again."
+              exit 1
+            fi
+            id=$(jq -r .databaseId <<< "$release")
+            echo "Draft release $id for $GITHUB_REF_NAME exists; its assets will be replaced."
           else
-            echo "Release $id for $GITHUB_REF_NAME exists; its assets will be replaced."
+            .github/scripts/release-notes.sh "$version" > notes.md
+            gh release create "$GITHUB_REF_NAME" --draft --title "Rich Chat $version" \
+              --notes-file notes.md --generate-notes
+            id=$(gh release view "$GITHUB_REF_NAME" --json databaseId --jq .databaseId)
+            echo "Opened draft release $id for $GITHUB_REF_NAME."
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
@@ -132,5 +153,5 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          url=$(gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/${{ needs.open.outputs.release }}" -F draft=false --jq .html_url)
+          url=$(gh release edit "$GITHUB_REF_NAME" --draft=false)
           echo "Released: $url" | tee -a "$GITHUB_STEP_SUMMARY"

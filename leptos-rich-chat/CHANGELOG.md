@@ -7,12 +7,6 @@ version is 0, a minor release may change the API.
 
 ## [Unreleased]
 
-### Added
-
-- `Composer` and `Chat` take an optional `draft`, an `RwSignal<String>`
-  the host holds, in place of the composer's own: to prefill the text
-  box, read what is being typed, or keep a draft across unmounting.
-
 ## [0.1.0] - 2026-09-16
 
 The first release: `Chat`, `Message`, `RichChatStyle` and the rendering
@@ -29,6 +23,9 @@ pieces behind them.
 - Progressive rendering: text renders block by block with stable keys,
   and constructs left open at the end of a draft are closed for display.
 - Styles in cascade layers, so a host can restyle any of it.
+- `Composer` and `Chat` take an optional `draft`, an `RwSignal<String>`
+  the host holds, in place of the composer's own: to prefill the text
+  box, read what is being typed, or keep a draft across unmounting.
 
 [Unreleased]: https://github.com/wpm/Rich-Chat/compare/leptos-rich-chat-v0.1.0...HEAD
 [0.1.0]: https://github.com/wpm/Rich-Chat/releases/tag/leptos-rich-chat-v0.1.0

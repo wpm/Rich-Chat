@@ -76,7 +76,7 @@ fn App() -> impl IntoView {
         Message::new("welcome-code", USER, WELCOME_CODE),
         Message::new("welcome-math", ASSISTANT, WELCOME_MATH),
     ]);
-    let sender = Signal::derive(move || settings.read().selected.clone());
+    let sender = Signal::derive(move || settings.read().selected().to_string());
     let send = move |text: String| {
         let from = sender.get_untracked();
         let id = format!("m{}", messages.read_untracked().len());
