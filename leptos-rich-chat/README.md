@@ -91,7 +91,12 @@ messages.update(|all| {
 ```
 
 The crate still places the message by its name, keys it, scrolls to it
-and follows it as it grows; only what is inside is yours. Your view is
+and follows it as it grows; only what is inside is yours. The closure
+runs once per message, when the transcript builds it, and again only if
+its `id` or `live` changes, so a `clone()` inside it is paid once and
+not on every render; where it captures more than a couple of small
+fields, capture an `Arc` of them, as `Message::view`'s documentation
+shows. Your view is
 rendered *in place of* the bubble, as the child of `div.rc-message`, so
 a body that is deliberately not speech does not start by undoing the
 bubble's width, padding and background. To have the bubble around your
