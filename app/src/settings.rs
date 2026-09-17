@@ -660,7 +660,8 @@ mod tests {
         // for the empty list, and are not counted among the retired too.
         let everyone_deleted = r##"{"users":[],"retired":[{"name":"Assistant","side":"left","color":"#2a64c8"},{"name":"User","side":"right","color":"#2f855a"},{"name":"Carol","side":"left","color":"#123456"}],"selected":null}"##;
         let mut settings = stored(&[(USERS_KEY, everyone_deleted)]);
-        assert_eq!(settings.users, Settings::default().users);
+        assert_eq!(settings.users(), Settings::default().users);
+        assert_eq!(settings.selected(), USER);
         assert_eq!(
             settings.retired,
             [User::new("Carol", Side::Left, "#123456")]
@@ -671,8 +672,11 @@ mod tests {
         // A user with no name could not be sent as.
         let nameless = r##"{"users":[{"name":"","side":"left","color":"#000000"},{"name":"Alice","side":"left","color":"#ff8800"}],"retired":[],"selected":""}"##;
         let settings = stored(&[(USERS_KEY, nameless)]);
-        assert_eq!(settings.users, [User::new("Alice", Side::Left, "#ff8800")]);
-        assert_eq!(settings.selected, "Alice");
+        assert_eq!(
+            settings.users(),
+            [User::new("Alice", Side::Left, "#ff8800")]
+        );
+        assert_eq!(settings.selected(), "Alice");
         let only_nameless = r##"{"users":[{"name":" ","side":"left","color":"#000000"}],"retired":[],"selected":" "}"##;
         assert_eq!(
             stored(&[(USERS_KEY, only_nameless)]).users,
