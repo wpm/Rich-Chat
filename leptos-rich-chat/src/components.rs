@@ -9,9 +9,11 @@
 
 use std::time::Duration;
 
+use leptos::attribute_interceptor::AttributeInterceptor;
 use leptos::ev;
 use leptos::html;
 use leptos::prelude::*;
+use leptos::tachys::html::attribute::custom::custom_attribute;
 use wasm_bindgen::JsCast;
 
 use crate::message::Message;
@@ -327,6 +329,14 @@ fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
 /// a signal it holds: to prefill the box (a quoted reply), to read what
 /// is being typed, or to keep a draft across the composer's unmounting.
 /// Sending clears it either way.
+///
+/// Attributes passed to the component go on the text box, not on the
+/// wrapper: `attr:id` for a label elsewhere on the page to point at,
+/// `attr:maxlength`, `attr:data-*`, `class:mine=true` to add a class, and
+/// so on. The text box has `spellcheck="true"`,
+/// `autocapitalize="sentences"` and `autocorrect="on"` unless the host
+/// passes its own, which win. (`attr:class` replaces the box's class
+/// attribute, as it does on any element; `class:` adds to it.)
 #[component]
 pub fn Composer(
     /// Receives the text of each message sent.
@@ -395,67 +405,87 @@ pub fn Composer(
     };
     let expanded = RwSignal::new(true);
     let options = StoredValue::new(options);
+    // Stored, since the view is built once per set of attributes the host
+    // passes and the preview's children are rebuilt every time it shows.
+    let preview_label = StoredValue::new(preview_label);
 
+    // The attributes passed to the component go on the text box, not on
+    // the wrapper Leptos would put them on: `id`, `maxlength`, `data-*`
+    // and the rest are the input's to take. The three the text box has
+    // by default are what prose in a chat wants; they come before the
+    // host's, so in the browser, where the last value set wins, a host
+    // that passes one of them has its way.
     view! {
-        <div class="rc-composer">
-            <Show when=move || preview && has_draft()>
-                <div
-                    class="rc-composer-preview"
-                    class:rc-collapsed=move || !expanded.get()
-                    data-name=preview_name
-                    aria-live="polite"
-                >
-                    <div class="rc-composer-preview-label">
-                        <span>{preview_label.clone()}</span>
-                        <button
-                            type="button"
-                            class="rc-preview-toggle"
-                            aria-expanded=move || expanded.get().to_string()
-                            aria-label=move || {
-                                if expanded.get() { "Collapse preview" } else { "Expand preview" }
-                            }
-                            on:click=move |_| expanded.update(|open| *open = !*open)
-                        >
-                            {move || if expanded.get() { "\u{25BE}" } else { "\u{25B8}" }}
-                        </button>
+        <AttributeInterceptor let:attrs>
+            <div class="rc-composer">
+                <Show when=move || preview && has_draft()>
+                    <div
+                        class="rc-composer-preview"
+                        class:rc-collapsed=move || !expanded.get()
+                        data-name=preview_name
+                        aria-live="polite"
+                    >
+                        <div class="rc-composer-preview-label">
+                            <span>{preview_label.get_value()}</span>
+                            <button
+                                type="button"
+                                class="rc-preview-toggle"
+                                aria-expanded=move || expanded.get().to_string()
+                                aria-label=move || {
+                                    if expanded.get() { "Collapse preview" } else { "Expand preview" }
+                                }
+                                on:click=move |_| expanded.update(|open| *open = !*open)
+                            >
+                                {move || if expanded.get() { "\u{25BE}" } else { "\u{25B8}" }}
+                            </button>
+                        </div>
+                        <Show when=move || expanded.get()>
+                            <RichText
+                                content=draft
+                                draft=true
+                                options=options.get_value()
+                                on_link=on_link
+                            />
+                        </Show>
                     </div>
-                    <Show when=move || expanded.get()>
-                        <RichText content=draft draft=true options=options.get_value() on_link=on_link />
-                    </Show>
-                </div>
-            </Show>
-            <div class="rc-composer-row">
-                <textarea
-                    node_ref=input
-                    class="rc-composer-input"
-                    rows="1"
-                    placeholder=placeholder
-                    aria-label="Message"
-                    prop:value=move || draft.get()
-                    disabled=move || disabled.get()
-                    on:input=move |event| {
-                        draft.set(event_target_value(&event));
-                        fit();
-                    }
-                    on:keydown=move |event: ev::KeyboardEvent| {
-                        if enter_sends(&event.key(), event.shift_key(), event.is_composing()) {
-                            event.prevent_default();
-                            submit();
+                </Show>
+                <div class="rc-composer-row">
+                    <textarea
+                        node_ref=input
+                        class="rc-composer-input"
+                        rows="1"
+                        placeholder=placeholder.clone()
+                        aria-label="Message"
+                        spellcheck="true"
+                        autocapitalize="sentences"
+                        {..custom_attribute("autocorrect", "on")}
+                        prop:value=move || draft.get()
+                        disabled=move || disabled.get()
+                        on:input=move |event| {
+                            draft.set(event_target_value(&event));
+                            fit();
                         }
-                    }
-                ></textarea>
-                <button
-                    type="button"
-                    class="rc-send"
-                    aria-label="Send"
-                    disabled=move || disabled.get() || !has_draft()
-                    on:click=move |_| submit()
-                >
-                    {send.run()}
-                </button>
+                        on:keydown=move |event: ev::KeyboardEvent| {
+                            if enter_sends(&event.key(), event.shift_key(), event.is_composing()) {
+                                event.prevent_default();
+                                submit();
+                            }
+                        }
+                        {..attrs}
+                    ></textarea>
+                    <button
+                        type="button"
+                        class="rc-send"
+                        aria-label="Send"
+                        disabled=move || disabled.get() || !has_draft()
+                        on:click=move |_| submit()
+                    >
+                        {send.run()}
+                    </button>
+                </div>
+                {(!hint.is_empty()).then(|| view! { <div class="rc-composer-hint">{hint.clone()}</div> })}
             </div>
-            {(!hint.is_empty()).then(|| view! { <div class="rc-composer-hint">{hint}</div> })}
-        </div>
+        </AttributeInterceptor>
     }
 }
 
@@ -903,6 +933,74 @@ mod tests {
         let off =
             html(|| view! { <Composer on_send=|_text: String| {} draft=draft preview=false /> });
         assert!(!off.contains("rc-composer-preview"), "{off}");
+    }
+
+    #[test]
+    fn composer_text_box_is_set_up_for_prose() {
+        let out = html(|| view! { <Composer on_send=|_text: String| {} /> });
+        assert!(
+            out.contains(
+                "<textarea rows=\"1\" placeholder=\"Write a message…\" aria-label=\"Message\" \
+                 spellcheck=\"true\" autocapitalize=\"sentences\" autocorrect=\"on\" \
+                 class=\"rc-composer-input\">"
+            ),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn attributes_on_composer_land_on_its_text_box() {
+        let out = html(|| {
+            view! {
+                <Composer
+                    on_send=|_text: String| {}
+                    attr:id="prompt"
+                    attr:maxlength="500"
+                    attr:data-test="box"
+                    class:mine=true
+                />
+            }
+        });
+        assert!(
+            out.starts_with("<div class=\"rc-composer\">"),
+            "the wrapper is untouched: {out}"
+        );
+        assert!(
+            out.contains(
+                "autocorrect=\"on\" id=\"prompt\" maxlength=\"500\" data-test=\"box\" \
+                 class=\"rc-composer-input mine\">"
+            ),
+            "{out}"
+        );
+        assert_eq!(out.matches("id=\"prompt\"").count(), 1, "{out}");
+    }
+
+    #[test]
+    fn attributes_on_composer_come_after_its_defaults() {
+        // The host's value follows the default, which in the browser is
+        // the one that wins: an attribute set twice keeps the last.
+        let out = html(|| {
+            view! { <Composer on_send=|_text: String| {} attr:spellcheck="false" /> }
+        });
+        let default = out.find("spellcheck=\"true\"").expect(&out);
+        let host = out.find("spellcheck=\"false\"").expect(&out);
+        assert!(default < host, "{out}");
+    }
+
+    #[test]
+    fn attributes_on_chat_land_on_the_window() {
+        let none = Vec::<Message>::new();
+        let out = html(|| {
+            view! { <Chat messages=none on_send=|_: String| {} attr:id="chat" attr:data-test="window" /> }
+        });
+        assert!(
+            out.starts_with("<div id=\"chat\" data-test=\"window\" class=\"rc-chat\">"),
+            "{out}"
+        );
+        assert!(
+            out.contains("autocorrect=\"on\" class=\"rc-composer-input\">"),
+            "the text box has none of it: {out}"
+        );
     }
 
     #[test]

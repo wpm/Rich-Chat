@@ -15,6 +15,13 @@ version is 0, a minor release may change the API.
 
 ### Changed
 
+- The composer's text box has `spellcheck="true"`,
+  `autocapitalize="sentences"` and `autocorrect="on"`, the attributes
+  prose in a chat box wants; a host that passes one of them wins.
+- Attributes passed to `Composer` land on its text box rather than on
+  the `.rc-composer` wrapper, so `attr:id`, `attr:maxlength`,
+  `attr:data-*` and the rest reach the input. Attributes passed to
+  `Chat` land on `.rc-chat`, as before.
 - The theme's custom properties are declared on the document root, in
   place of the outermost of `.rc-chat`, `.rc-rich` and `.rc-composer`,
   so a host can declare them on any ancestor of the components rather

@@ -141,12 +141,12 @@ Tauri's opener plugin.
 
 `Chat` is the whole window. Its parts stand alone:
 
-| Component       | Renders                                                            |
-|-----------------|--------------------------------------------------------------------|
-| `Composer`      | the text box, its collapsible preview, and send button             |
-| `MessageBubble` | one message, placed and colored by its name, and named on request |
-| `RichText`      | any Markdown, from a `Signal<String>`                              |
-| `CodeBlock`     | one highlighted block with label and copy button                   |
+| Component       | Renders                                                                          |
+|-----------------|----------------------------------------------------------------------------------|
+| `Composer`      | the text box, its collapsible preview, and send button; attributes reach the box |
+| `MessageBubble` | one message, placed and colored by its name, and named on request                |
+| `RichText`      | any Markdown, from a `Signal<String>`                                            |
+| `CodeBlock`     | one highlighted block with label and copy button                                 |
 
 The `render` module underneath is plain Rust with no DOM dependency:
 `render_html(markdown, &options)` gives sanitized HTML,
@@ -250,6 +250,23 @@ bubbles; and the copy button's labels are a `CodeLabels` provided as
 context, or a prop on `CodeBlock`. The text in the box is
 the composer's own unless `draft`, an `RwSignal<String>` the host holds,
 is given: to prefill it, read it, or keep it across unmounting.
+
+The text box is set up for prose, with `spellcheck="true"`,
+`autocapitalize="sentences"` and `autocorrect="on"`. Anything else it
+should carry, an `id` for a label elsewhere on the page to point at, a
+`maxlength`, a `data-*` attribute, is passed to `Composer` as an
+attribute and lands on the box, where a value of yours for one of the
+three above wins over the default:
+
+```rust
+view! { <Composer on_send=send attr:id="prompt" attr:maxlength="2000" attr:spellcheck="false" /> }
+```
+
+Attributes on `Chat` land on the window, `.rc-chat`, as Leptos puts a
+component's attributes on the top of its view; a host that needs to
+attribute the text box of a `Chat` composes one from `Composer`. Either
+way `attr:class` replaces the element's class attribute, as on any
+element, and `class:mine=true` adds to it.
 
 ## Features
 
