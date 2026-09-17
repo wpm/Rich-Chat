@@ -44,10 +44,19 @@
 //!
 //! # Pieces
 //!
-//! [`Chat`] is the whole window; [`Composer`], [`MessageBubble`],
+//! [`Chat`] is the whole window; [`Composer`], [`MessageView`],
 //! [`RichText`], and [`CodeBlock`] are its parts, each usable alone. The
 //! [`render`] module is the pure Markdown-to-HTML core, with no DOM
 //! dependency, for tests and for hosts that are not Leptos.
+//!
+//! # Bodies
+//!
+//! A [`Message`]'s body is a [`Body`]: [`Body::Text`], the Markdown the
+//! crate renders in a bubble, or [`Body::View`], a view the host draws.
+//! A view body takes the bubble's place, so a tool call, a failure, or a
+//! prompt the reader answers can look like none of the speech around it,
+//! while the crate still places it, keys it and scrolls to it. Build one
+//! with [`Message::view`].
 //!
 //! # Names
 //!
@@ -95,8 +104,8 @@ pub mod render;
 pub mod style;
 
 pub use components::{
-    Chat, CodeBlock, CodeLabels, Composer, MessageBubble, RichChatStyle, RichText, warm_up,
+    Chat, CodeBlock, CodeLabels, Composer, MessageView, RichChatStyle, RichText, warm_up,
 };
-pub use message::Message;
+pub use message::{Body, Message};
 pub use names::{Look, Names, Position};
 pub use render::RenderOptions;
