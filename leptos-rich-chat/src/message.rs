@@ -106,6 +106,60 @@ impl Message {
 
     /// A message from `name` whose body the host draws, in place of the
     /// bubble. Pass a closure returning a view, or a [`ViewFn`].
+    ///
+    /// The closure is called once per `(id, live)` key: when the
+    /// transcript builds the entry, and again only when that key
+    /// changes. It is `Fn` rather than `FnOnce` because [`ViewFn`] is,
+    /// not because it runs often, so a `clone()` inside it is paid once
+    /// per entry and not on every render. Where what it captures is more
+    /// than a couple of small fields, capture an `Arc` of it, so that
+    /// the clone is of a pointer rather than of the data:
+    ///
+    /// ```
+    /// use std::sync::Arc;
+    ///
+    /// use leptos::prelude::*;
+    /// use leptos_rich_chat::Message;
+    ///
+    /// struct Question {
+    ///     ask: String,
+    ///     choices: Vec<String>,
+    /// }
+    ///
+    /// #[component]
+    /// fn QuestionCard(question: Arc<Question>) -> impl IntoView {
+    ///     view! {
+    ///         <div class="question">
+    ///             <p>{question.ask.clone()}</p>
+    ///             {question.choices.iter().map(|choice| view! { <button>{choice.clone()}</button> }).collect_view()}
+    ///         </div>
+    ///     }
+    /// }
+    ///
+    /// enum Entry {
+    ///     Said(String),
+    ///     Asked(Arc<Question>),
+    /// }
+    ///
+    /// fn message(id: String, entry: &Entry) -> Message {
+    ///     match entry {
+    ///         Entry::Said(text) => Message::new(id, "user", text.clone()),
+    ///         Entry::Asked(question) => {
+    ///             let question = Arc::clone(question);
+    ///             Message::view(id, "question", move || {
+    ///                 view! { <QuestionCard question=question.clone() /> }
+    ///             })
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// let asked = Entry::Asked(Arc::new(Question {
+    ///     ask: "Run the tests?".into(),
+    ///     choices: vec!["Yes".into(), "No".into()],
+    /// }));
+    /// let message = message("q1".into(), &asked);
+    /// assert_eq!(message.name, "question");
+    /// ```
     pub fn view(id: impl Into<String>, name: impl Into<String>, view: impl Into<ViewFn>) -> Self {
         Self {
             id: id.into(),
