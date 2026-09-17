@@ -284,10 +284,14 @@ fn hint_text(hint: Option<String>) -> String {
     hint.unwrap_or_else(|| DEFAULT_HINT.to_string())
 }
 
-/// Whether a draft is sent: not while sending is disabled, and never a
-/// blank one.
-fn outgoing(disabled: bool, draft: &str) -> bool {
-    !disabled && !draft.trim().is_empty()
+/// Sends the draft and leaves the box empty; not while sending is
+/// disabled, and never a blank one, which stays as it is.
+fn send_draft(disabled: bool, draft: RwSignal<String>, on_send: Callback<String>) {
+    if disabled || draft.read_untracked().trim().is_empty() {
+        return;
+    }
+    // Taken, not copied: the signal is left empty by the same write.
+    on_send.run(std::mem::take(&mut *draft.write()));
 }
 
 /// Whether a key press in the text box sends: Enter on its own, not
@@ -365,14 +369,7 @@ pub fn Composer(
             let _ = style.set_property("height", &format!("{}px", element.scroll_height()));
         }
     };
-    let submit = move || {
-        if !outgoing(disabled.get_untracked(), &draft.read_untracked()) {
-            return;
-        }
-        // Taken, not copied: the signal is left empty by the same write.
-        let text = std::mem::take(&mut *draft.write());
-        on_send.run(text);
-    };
+    let submit = move || send_draft(disabled.get_untracked(), draft, on_send);
     // The height follows the text however it changes: sent, or put in
     // by the host, at the start or later. Browser only, as the frame is.
     #[cfg(target_arch = "wasm32")]
@@ -1031,11 +1028,26 @@ mod tests {
 
     #[test]
     fn a_draft_is_sent_unless_blank_or_disabled() {
-        assert!(outgoing(false, "hi"));
-        assert!(outgoing(false, "  hi \n"), "blank around text is not blank");
-        assert!(!outgoing(false, ""));
-        assert!(!outgoing(false, " \n\t"));
-        assert!(!outgoing(true, "hi"));
+        Owner::new().with(|| {
+            let sent = RwSignal::new(Vec::<String>::new());
+            let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
+            let draft = RwSignal::new(String::from("hi"));
+            send_draft(true, draft, on_send);
+            assert!(sent.get_untracked().is_empty(), "nothing while disabled");
+            assert_eq!(draft.get_untracked(), "hi", "and the draft is kept");
+            send_draft(false, draft, on_send);
+            assert_eq!(sent.get_untracked(), ["hi"]);
+            assert_eq!(draft.get_untracked(), "", "sent, the box is empty");
+            draft.set(String::from("  hi \n"));
+            send_draft(false, draft, on_send);
+            assert_eq!(sent.get_untracked()[1], "  hi \n", "sent as written");
+            for blank in ["", " \n\t"] {
+                draft.set(blank.to_string());
+                send_draft(false, draft, on_send);
+                assert_eq!(sent.get_untracked().len(), 2, "a blank draft is not sent");
+                assert_eq!(draft.get_untracked(), blank, "and is left as it is");
+            }
+        });
     }
 
     #[test]
