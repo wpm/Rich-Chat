@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rich Chat</title>
+    <link rel="stylesheet" href="/Rich-Chat/app-996734d8f34d19b7.css" integrity="sha384-YQ/UulC5G8XdnUqn7/OQWl3kmTrGVgf6xjwMvm/VQ9dqRd6S09X6WXq8+qAq43dK"/>
+    
+<script type="module">
+import init, * as bindings from '/Rich-Chat/rich-chat-app-2303e4c57023be8e.js';
+const wasm = await init({ module_or_path: '/Rich-Chat/rich-chat-app-2303e4c57023be8e_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+  <link rel="modulepreload" href="/Rich-Chat/rich-chat-app-2303e4c57023be8e.js" crossorigin="anonymous" integrity="sha384-pgOxrxs2NxWqW7q7+YVGHt+wlQlJWgW8m0fVma2Jw+GY8Z3fZn9l+nH8AY9uPbKT"><link rel="preload" href="/Rich-Chat/rich-chat-app-2303e4c57023be8e_bg.wasm" crossorigin="anonymous" integrity="sha384-kWNZfqcUUbaFu5New10XWa7SApNv1e/xA9saQY+Ua/v7wq0mUEIOQM1tCmscOvX+" as="fetch" type="application/wasm"></head>
+  <body></body>
+</html>
