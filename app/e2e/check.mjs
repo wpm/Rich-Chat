@@ -2,7 +2,7 @@
 //
 // Serves a Trunk `dist` directory, opens it in light and dark mode, types
 // Markdown, math, and code into the composer, and asserts what appears:
-// the three bubbles of the tour, the live preview, the sent bubble, fonts,
+// the four bubbles of the tour, the live preview, the sent bubble, fonts,
 // highlighting, the copy button, progressive rendering of an unfinished
 // equation, collapsing the preview, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
@@ -86,10 +86,11 @@ async function type(page, text) {
   await page.waitForTimeout(150);
 }
 
-// The bubbles the window opens on: the tour of Markdown, code and math.
+// The bubbles the window opens on: the introduction, then the tour of
+// Markdown, code and math.
 // Every count of messages below is this many plus what the test sent, and
 // the sent messages' ids count on from it.
-const TOUR = 3;
+const TOUR = 4;
 
 const browser = await chromium.launch();
 try {
@@ -103,24 +104,31 @@ try {
     await page.goto(origin, { waitUntil: 'networkidle' });
     await page.waitForSelector('.rc-composer-input');
 
-    // The window opens on a tour: Markdown from the assistant, code from
-    // the user, then math from the assistant.
+    // The window opens on a tour: an introduction from the assistant,
+    // Markdown from the user, code from the assistant, then math from the
+    // user.
     const welcome = '.rc-message[data-message-id="welcome"]';
+    const markdown = '.rc-message[data-message-id="welcome-markdown"]';
     const code = '.rc-message[data-message-id="welcome-code"]';
     const math = '.rc-message[data-message-id="welcome-math"]';
     check(await page.$(welcome) !== null, 'the welcome bubble is there on startup');
-    check((await page.$$('.rc-message')).length === TOUR, 'with the code and math bubbles after it');
+    check((await page.$$('.rc-message')).length === TOUR, 'with the Markdown, code and math bubbles after it');
     check(await page.$eval(welcome, (el) => el.dataset.kind) === 'Assistant', 'the welcome is from the assistant');
-    check(await page.$eval(code, (el) => el.dataset.kind) === 'User', 'the code from the user');
-    check(await page.$eval(math, (el) => el.dataset.kind) === 'Assistant', 'and the math from the assistant');
+    check(await page.$eval(markdown, (el) => el.dataset.kind) === 'User', 'the Markdown from the user');
+    check(await page.$eval(code, (el) => el.dataset.kind) === 'Assistant', 'the code from the assistant');
+    check(await page.$eval(math, (el) => el.dataset.kind) === 'User', 'and the math from the user');
     const welcomeBox = await page.$eval(`${welcome} .rc-bubble`, (el) => el.getBoundingClientRect());
     const paneBox = await page.$eval('.rc-messages', (el) => el.getBoundingClientRect());
     check(welcomeBox.left - paneBox.left < paneBox.right - welcomeBox.right, 'the welcome bubble sits on the left');
-    const codeBox = await page.$eval(`${code} .rc-bubble`, (el) => el.getBoundingClientRect());
-    check(codeBox.left - paneBox.left > paneBox.right - codeBox.right, 'the code bubble sits on the right');
-    check(await page.$(`${welcome} table`) !== null, 'the welcome has a table');
-    check(await page.$(`${welcome} .rc-codeblock`) === null, 'and no code block');
+    const markdownBox = await page.$eval(`${markdown} .rc-bubble`, (el) => el.getBoundingClientRect());
+    check(markdownBox.left - paneBox.left > paneBox.right - markdownBox.right, 'the Markdown bubble sits on the right');
+    check(await page.$(`${welcome} h1`) !== null, 'the welcome has a heading');
+    check(await page.$(`${welcome} table`) === null, 'and no table');
+    check(await page.$(`${welcome} .rc-codeblock`) === null, 'no code block');
     check(await page.$(`${welcome} math`) === null, 'and no math');
+    check(await page.$(`${markdown} table`) !== null, 'the Markdown bubble has a table');
+    check(await page.$(`${markdown} .rc-codeblock`) === null, 'and no code block');
+    check(await page.$(`${markdown} math`) === null, 'and no math');
     check((await page.$$(`${code} .rc-codeblock`)).length === 1, 'the code bubble has one code block');
     check((await page.$$(`${code} pre.rc-code span`)).length > 20, 'which is highlighted');
     check(await page.$(`${code} math`) === null, 'and no math');
@@ -268,7 +276,7 @@ try {
     await page.waitForSelector('.rc-message[data-kind="User"]');
     check((await gaps('User')).right < 1, 'a sent message is from User, on the right');
     check((await bubbleStyle('User', 'backgroundColor')) === 'rgb(47, 133, 90)', 'in green');
-    check((await gaps('Assistant')).left < 1, 'the welcome and the math are from Assistant, on the left');
+    check((await gaps('Assistant')).left < 1, 'the welcome and the code are from Assistant, on the left');
     check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(42, 100, 200)', 'in blue');
     await page.selectOption('.control-users', 'Assistant');
     await page.waitForTimeout(100);
