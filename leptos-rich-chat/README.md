@@ -181,8 +181,8 @@ in cascade layers, declare the layer order yourself, first, with the
 crate's layers before yours; the crate's CSS is a `<style>` element in
 the body, so its own declaration comes after anything in the head.
 
-To adjust the theme, override its custom properties on the component's
-root. Every color is a `--rc-*` property, and so are the fonts
+To adjust the theme, override its custom properties anywhere above the
+components. Every color is a `--rc-*` property, and so are the fonts
 (`--rc-font`, `--rc-mono`, `--rc-math`), the size, and the bubble
 radius:
 
@@ -196,11 +196,15 @@ radius:
 a bubble has on its side; `--rc-muted` the color of the name over a
 bubble.
 
-The theme sets them on the outermost root only (`.rc-chat`, or a
-`.rc-rich` or `.rc-composer` used on its own), so an override there
-reaches everything inside. It holds in dark mode too, which follows
-`prefers-color-scheme` unless the document sets `data-theme="light"` or
-`"dark"` on its root element.
+The theme declares them on the document root, `:root`, and no component
+declares anything, so an override reaches the chat from wherever you put
+it: on `.rc-chat` as above, on the wrapper your own chrome lives in, or
+on `:root` alongside the rest of your palette. The nearest declaration
+wins, so yours does. A token you take over that way is yours in both
+themes: the theme's dark values are on `:root`, further away, so they no
+longer reach it and the dark one is yours to give too. Otherwise dark
+mode follows `prefers-color-scheme` unless the document sets
+`data-theme="light"` or `"dark"` on its root element.
 To go further, restyle any `rc-*` class the same way; or leave the theme
 out and write your own against the classes:
 
