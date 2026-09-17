@@ -5,11 +5,12 @@
 //!
 //! Above the chat is a bar of controls: the users, who can be added and
 //! removed; where the selected user's bubbles land and their color,
-//! which changes every bubble of theirs; light or dark. The composer's
-//! top edge can be dragged to make the text box taller. All of that is
-//! this app's: the library gets a table of kinds saying where its
-//! bubbles go and in what colors, and the stylesheet gets a custom
-//! property for the text box.
+//! which changes every bubble of theirs; whether every bubble has its
+//! user's name over it; light or dark. The composer's top edge can be
+//! dragged to make the text box taller. All of that is this app's: the
+//! library gets a table of names saying where each user's bubbles go
+//! and in what colors, a flag for the names, and the stylesheet gets a
+//! custom property for the text box.
 
 mod controls;
 mod opener;
@@ -86,8 +87,9 @@ fn App() -> impl IntoView {
     };
 
     // Where each user's bubbles go and their colors, for the library's
-    // stylesheet.
-    let kinds = Signal::derive(move || settings.read().kinds());
+    // stylesheet; and whether it writes their names over them.
+    let names = Signal::derive(move || settings.read().names());
+    let show_names = Signal::derive(move || settings.read().show_names);
     // The setting the app's own stylesheet reads as a custom property.
     let style = move || {
         settings
@@ -146,7 +148,7 @@ fn App() -> impl IntoView {
     let release = move |_| drag.set(None);
 
     view! {
-        <RichChatStyle kinds=kinds />
+        <RichChatStyle names=names />
         <main
             class="app"
             class:app-resizing=move || drag.read().is_some()
@@ -161,7 +163,8 @@ fn App() -> impl IntoView {
                 messages=messages
                 on_send=send
                 on_link=Callback::new(opener::open_url)
-                preview_kind=sender
+                preview_name=sender
+                show_names=show_names
             />
         </main>
     }

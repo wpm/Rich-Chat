@@ -7,6 +7,24 @@ version is 0, a minor release may change the API.
 
 ## [Unreleased]
 
+### Added
+
+- `Chat` and `MessageBubble` take `show_names`, which writes each
+  message's name over its bubble in a `div.rc-sender`, on the bubble's
+  side, in the theme's muted color. Off by default; may be a signal.
+
+### Changed
+
+- `Message::kind` is `Message::name`: who the message is from. With it,
+  the bubble's `data-kind` attribute is `data-name`, the `Kinds` table
+  is `Names` with `Names::name` in place of `Kinds::kind`, and the
+  composer's `preview_kind` is `preview_name`.
+- A message, `div.rc-message`, is a column, and the generated rules
+  place its bubble with `align-items` on it rather than auto margins on
+  the bubble, so that the name and the bubble share a side. A host that
+  placed bubbles with a rule on `.rc-bubble`'s margins sets
+  `align-items` on `.rc-message` instead.
+
 ## [0.1.0] - 2026-09-16
 
 The first release: `Chat`, `Message`, `RichChatStyle` and the rendering

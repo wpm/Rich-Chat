@@ -14,8 +14,8 @@ use leptos::html;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
-use crate::kinds::Kinds;
 use crate::message::Message;
+use crate::names::Names;
 use crate::render::{self, Block, BlockKind, RenderOptions};
 
 /// Injects the crate's stylesheets and, with the `bundled-fonts` feature,
@@ -28,9 +28,10 @@ use crate::render::{self, Block, BlockKind, RenderOptions};
 /// so a host's own unlayered rules win over it regardless of specificity;
 /// see [`style`](crate::style).
 ///
-/// The rules for the host's kinds of message come from `kinds`, which
-/// may be a signal: only they are rewritten when it changes, in a second
-/// `<style>` element, so the fonts and the theme are injected once.
+/// The rules for the names the host's messages are from come from
+/// `names`, which may be a signal: only they are rewritten when it
+/// changes, in a second `<style>` element, so the fonts and the theme
+/// are injected once.
 #[component]
 pub fn RichChatStyle(
     /// The default look, [`style::THEME`](crate::style::THEME).
@@ -43,10 +44,10 @@ pub fn RichChatStyle(
     /// [`style::font_faces`](crate::style::font_faces).
     #[prop(default = true)]
     fonts: bool,
-    /// Where each kind of message sits and its colors. The default is
-    /// [`Kinds::default`]; [`Kinds::none`] leaves every bubble plain.
-    #[prop(default = Signal::stored(Kinds::default()), into)]
-    kinds: Signal<Kinds>,
+    /// Where each name's bubbles sit and their colors. The default is
+    /// [`Names::default`]; [`Names::none`] leaves every bubble plain.
+    #[prop(default = Signal::stored(Names::default()), into)]
+    names: Signal<Names>,
 ) -> impl IntoView {
     let mut css = String::from(crate::style::STRUCTURE);
     for (wanted, part) in [
@@ -61,7 +62,7 @@ pub fn RichChatStyle(
     }
     view! {
         <style inner_html=css></style>
-        <style inner_html=move || kinds.read().css()></style>
+        <style inner_html=move || names.read().css()></style>
     }
 }
 
@@ -241,12 +242,16 @@ fn copy_to_clipboard(text: &str) {
 }
 
 /// One message in the transcript. The outer `div.rc-message` carries the
-/// message's kind as `data-kind`, which the host's [`Kinds`] rules place
-/// and color.
+/// message's name as `data-name`, which the host's [`Names`] rules place
+/// and color. With `show_names`, the name is written over the bubble, in
+/// a `div.rc-sender` on the bubble's side.
 #[component]
 pub fn MessageBubble(
     /// The message.
     message: Message,
+    /// Write the message's name over its bubble. May be a signal.
+    #[prop(optional, into)]
+    show_names: Signal<bool>,
     /// What to render; the default renders everything.
     #[prop(optional)]
     options: RenderOptions,
@@ -257,13 +262,17 @@ pub fn MessageBubble(
     #[prop(optional)]
     node_ref: NodeRef<html::Div>,
 ) -> impl IntoView {
+    let name = message.name.clone();
     view! {
         <div
             class="rc-message"
-            data-kind=message.kind.clone()
+            data-name=message.name.clone()
             data-message-id=message.id.clone()
             node_ref=node_ref
         >
+            <Show when=move || show_names.get()>
+                <div class="rc-sender">{name.clone()}</div>
+            </Show>
             <div class="rc-bubble">
                 <RichText content=message.content draft=message.live options=options on_link=on_link />
             </div>
@@ -339,12 +348,12 @@ pub fn Composer(
     /// The heading over the preview.
     #[prop(default = "Preview".to_string(), into)]
     preview_label: String,
-    /// The kind of message the preview shows, so that it takes that
-    /// kind's colors from the [`Kinds`] rules. Empty, the default,
-    /// leaves it in the theme's tint colors. May be a signal, for a
-    /// host whose sender changes.
+    /// Whose message the preview shows, so that it takes that name's
+    /// colors from the [`Names`] rules. Empty, the default, leaves it in
+    /// the theme's tint colors. May be a signal, for a host whose sender
+    /// changes.
     #[prop(optional, into)]
-    preview_kind: Signal<String>,
+    preview_name: Signal<String>,
     /// The send button's content, in place of the word "Send": an icon,
     /// say. Pass a view function: `send=|| view! { <SendIcon /> }`.
     #[prop(optional, into)]
@@ -380,9 +389,9 @@ pub fn Composer(
     let has_draft = move || !draft.read().trim().is_empty();
     let send = send_content(send);
     let hint = hint_text(hint);
-    let preview_kind = move || {
-        let kind = preview_kind.get();
-        (!kind.is_empty()).then_some(kind)
+    let preview_name = move || {
+        let name = preview_name.get();
+        (!name.is_empty()).then_some(name)
     };
     let expanded = RwSignal::new(true);
     let options = StoredValue::new(options);
@@ -393,7 +402,7 @@ pub fn Composer(
                 <div
                     class="rc-composer-preview"
                     class:rc-collapsed=move || !expanded.get()
-                    data-kind=preview_kind
+                    data-name=preview_name
                     aria-live="polite"
                 >
                     <div class="rc-composer-preview-label">
@@ -513,10 +522,9 @@ pub fn Chat(
     /// The heading over the preview.
     #[prop(default = "Preview".to_string(), into)]
     preview_label: String,
-    /// The kind of message the preview shows, for its colors. See
-    /// [`Composer`].
+    /// Whose message the preview shows, for its colors. See [`Composer`].
     #[prop(optional, into)]
-    preview_kind: Signal<String>,
+    preview_name: Signal<String>,
     /// The send button's content, in place of the word "Send". See
     /// [`Composer`].
     #[prop(optional, into)]
@@ -533,6 +541,10 @@ pub fn Chat(
     /// Shown in the transcript while it is empty.
     #[prop(optional, into)]
     empty: Option<String>,
+    /// Write each message's name over its bubble. Off by default; may be
+    /// a signal, for a host that lets the reader switch it.
+    #[prop(optional, into)]
+    show_names: Signal<bool>,
     /// Compile the common languages' grammars in idle time after mount,
     /// so the first code block renders without a pause. See [`warm_up`].
     #[prop(default = true)]
@@ -567,6 +579,7 @@ pub fn Chat(
                         view! {
                             <MessageBubble
                                 message=message
+                                show_names=show_names
                                 options=bubble_options.clone()
                                 on_link=on_link
                                 node_ref=wrapper
@@ -582,7 +595,7 @@ pub fn Chat(
                 disabled=disabled
                 preview=preview
                 preview_label=preview_label
-                preview_kind=preview_kind
+                preview_name=preview_name
                 send=send_content(send)
                 hint=hint_text(hint)
                 options=options
@@ -712,7 +725,7 @@ impl Follow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::{Look, Position};
+    use crate::names::{Look, Position};
 
     /// Renders a view to its HTML string, the way a server would, under a
     /// reactive owner so that `For` and `Show` have somewhere to live.
@@ -780,18 +793,41 @@ mod tests {
     }
 
     #[test]
-    fn bubbles_carry_kind_and_id() {
-        for kind in ["user", "alice", "a kind \"quoted\""] {
-            let message = Message::new("m7", kind, "hi");
+    fn bubbles_carry_name_and_id() {
+        for name in ["user", "alice", "a name \"quoted\""] {
+            let message = Message::new("m7", name, "hi");
             let out = html(|| view! { <MessageBubble message=message /> });
             assert!(out.starts_with("<div "), "{out}");
             assert!(out.contains(" class=\"rc-message\">"), "{out}");
-            let escaped = kind.replace('"', "&quot;");
-            assert!(out.contains(&format!("data-kind=\"{escaped}\"")), "{out}");
+            let escaped = name.replace('"', "&quot;");
+            assert!(out.contains(&format!("data-name=\"{escaped}\"")), "{out}");
             assert!(out.contains("data-message-id=\"m7\""), "{out}");
             assert!(out.contains("<div class=\"rc-bubble\">"), "{out}");
             assert!(out.contains("<p>hi</p>"), "{out}");
+            assert!(!out.contains("rc-sender"), "no name unless asked: {out}");
         }
+    }
+
+    #[test]
+    fn a_bubble_shows_its_name_when_asked() {
+        let message = Message::new("m8", "Alice <3", "hi");
+        let out = html(|| view! { <MessageBubble message=message show_names=true /> });
+        let name = out
+            .find("<div class=\"rc-sender\">Alice &lt;3</div>")
+            .unwrap_or_else(|| panic!("{out}"));
+        let bubble = out
+            .find("<div class=\"rc-bubble\">")
+            .unwrap_or_else(|| panic!("{out}"));
+        assert!(name < bubble, "the name is over the bubble: {out}");
+
+        // A signal, so that the reader can switch it.
+        let show = RwSignal::new(false);
+        let message = Message::new("m8", "Alice", "hi");
+        let off = html(|| view! { <MessageBubble message=message.clone() show_names=show /> });
+        assert!(!off.contains("rc-sender"), "{off}");
+        show.set(true);
+        let on = html(|| view! { <MessageBubble message=message show_names=show /> });
+        assert!(on.contains("<div class=\"rc-sender\">Alice</div>"), "{on}");
     }
 
     #[test]
@@ -819,16 +855,16 @@ mod tests {
     }
 
     #[test]
-    fn composer_previews_the_hosts_draft_with_the_preview_kind() {
+    fn composer_previews_the_hosts_draft_with_the_preview_name() {
         let draft = RwSignal::new(String::from("so $x^2"));
         let out = html(|| {
             view! {
-                <Composer on_send=|_text: String| {} draft=draft preview_kind="me" preview_label="Draft" />
+                <Composer on_send=|_text: String| {} draft=draft preview_name="me" preview_label="Draft" />
             }
         });
         assert!(
             out.contains(
-                "<div data-kind=\"me\" aria-live=\"polite\" class=\"rc-composer-preview\">"
+                "<div data-name=\"me\" aria-live=\"polite\" class=\"rc-composer-preview\">"
             ),
             "{out}"
         );
@@ -847,7 +883,7 @@ mod tests {
             "send is enabled: {out}"
         );
 
-        // No kind named leaves the attribute out; a blank draft has no
+        // No name given leaves the attribute out; a blank draft has no
         // preview and nothing to send.
         let plain = html(|| view! { <Composer on_send=|_text: String| {} draft=draft /> });
         assert!(
@@ -943,48 +979,62 @@ mod tests {
         );
         assert!(!full.contains("Nothing yet"), "{full}");
         assert!(full.contains("<p>Hi <em>there</em></p>"), "{full}");
-        let me = full.find("data-kind=\"me\"").unwrap();
-        let them = full.find("data-kind=\"them\"").unwrap();
+        let me = full.find("data-name=\"me\"").unwrap();
+        let them = full.find("data-name=\"them\"").unwrap();
         assert!(me < them, "messages keep their order");
+        assert!(
+            !full.contains("rc-sender"),
+            "names are off by default: {full}"
+        );
+
+        let named = html(|| {
+            view! { <Chat messages=messages on_send=|_: String| {} show_names=true /> }
+        });
+        assert!(
+            named.contains("<div class=\"rc-sender\">me</div>"),
+            "{named}"
+        );
+        assert!(
+            named.contains("<div class=\"rc-sender\">them</div>"),
+            "{named}"
+        );
     }
 
     #[test]
-    fn style_component_writes_the_kinds_rules_separately() {
+    fn style_component_writes_the_names_rules_separately() {
         let out = html(|| view! { <RichChatStyle /> });
         assert_eq!(out.matches("<style>").count(), 2, "{}", &out[..80]);
         assert!(
-            out.contains("[data-kind=\"user\"]"),
-            "default kinds missing"
+            out.contains("[data-name=\"user\"]"),
+            "default names missing"
         );
         assert!(
-            out.contains("[data-kind=\"assistant\"]"),
-            "default kinds missing"
+            out.contains("[data-name=\"assistant\"]"),
+            "default names missing"
         );
-        let kinds = Kinds::none().kind("notice", Look::at(Position::Center));
-        let out = html(|| view! { <RichChatStyle kinds=kinds /> });
+        let names = Names::none().name("notice", Look::at(Position::Center));
+        let out = html(|| view! { <RichChatStyle names=names /> });
         assert!(
-            !out.contains("[data-kind=\"user\"]"),
-            "default kinds still there"
+            !out.contains("[data-name=\"user\"]"),
+            "default names still there"
         );
         assert!(
-            out.contains(
-                "[data-kind=\"notice\"] > .rc-bubble { margin-left: auto; margin-right: auto; }"
-            ),
+            out.contains(".rc-message[data-name=\"notice\"] { align-items: center; }"),
             "{out}"
         );
-        let out = html(|| view! { <RichChatStyle kinds=Kinds::none() /> });
-        assert!(!out.contains("[data-kind="), "no kinds, no rules");
+        let out = html(|| view! { <RichChatStyle names=Names::none() /> });
+        assert!(!out.contains("[data-name="), "no names, no rules");
     }
 
     #[test]
-    fn the_preview_kind_takes_a_literal_or_a_signal() {
+    fn the_preview_name_takes_a_literal_or_a_signal() {
         let none = Vec::<Message>::new();
         let literal =
-            html(|| view! { <Chat messages=none on_send=|_: String| {} preview_kind="me" /> });
+            html(|| view! { <Chat messages=none on_send=|_: String| {} preview_name="me" /> });
         let none = Vec::<Message>::new();
         let sender = RwSignal::new(String::from("me"));
         let signal =
-            html(|| view! { <Chat messages=none on_send=|_: String| {} preview_kind=sender /> });
+            html(|| view! { <Chat messages=none on_send=|_: String| {} preview_name=sender /> });
         assert!(literal.contains("rc-composer"), "{literal}");
         assert!(signal.contains("rc-composer"), "{signal}");
     }

@@ -1,32 +1,33 @@
-//! The kinds of message a host shows, and how each looks.
+//! The names a host's messages are from, and how each one's bubbles look.
 //!
 //! The crate has no idea who says what. A [`Message`](crate::Message)
-//! carries a `kind`, a name the host chooses, and the bubble carries it
-//! as a `data-kind` attribute. What a kind looks like is the host's too,
-//! declared in a [`Kinds`] table: where the bubble sits and what colors
-//! it has. [`RichChatStyle`](crate::RichChatStyle) turns the table into
-//! one rule per kind, in the `rich-chat.theme` cascade layer, so a host's
-//! own stylesheet still wins over it. A kind with no entry gets the plain
-//! bubble: on the left, in the theme's `--rc-bubble-*` colors.
+//! carries a `name`, which the host chooses, and the bubble carries it
+//! as a `data-name` attribute. What a name looks like is the host's too,
+//! declared in a [`Names`] table: where the bubbles sit and what colors
+//! they have. [`RichChatStyle`](crate::RichChatStyle) turns the table
+//! into rules per name, in the `rich-chat.theme` cascade layer, so a
+//! host's own stylesheet still wins over them. A name with no entry gets
+//! the plain bubble: on the left, in the theme's `--rc-bubble-*` colors.
 //!
-//! The default table has two kinds, `user` on the right in the theme's
+//! The default table has two names, `user` on the right in the theme's
 //! tint colors and `assistant` on the left, which suits a chat with a
 //! model. Anything else, a group chat or a transcript with notices in
 //! the middle, is a different table:
 //!
 //! ```
-//! use leptos_rich_chat::{Kinds, Look, Position};
+//! use leptos_rich_chat::{Look, Names, Position};
 //!
-//! let kinds = Kinds::none()
-//!     .kind("me", Look::at(Position::Right).background("#ddf4ff").foreground("#1f2328"))
-//!     .kind("alice", Look::at(Position::Left).background("var(--alice)"))
-//!     .kind("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
+//! let names = Names::none()
+//!     .name("me", Look::at(Position::Right).background("#ddf4ff").foreground("#1f2328"))
+//!     .name("alice", Look::at(Position::Left).background("var(--alice)"))
+//!     .name("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
 //! ```
 //!
 //! Position and the two colors are the only properties here, because
-//! they are what a stylesheet cannot express without knowing the kind's
-//! name. Everything else about a kind (its font size, a border, an
-//! avatar) is ordinary CSS against `.rc-message[data-kind="…"]`.
+//! they are what a stylesheet cannot express without knowing the name.
+//! Everything else about a name (its font size, a border, an avatar, or
+//! that a `notice` shows no name over its bubble) is ordinary CSS
+//! against `.rc-message[data-name="…"]`.
 
 use std::fmt::Write;
 
@@ -54,7 +55,7 @@ impl Position {
     }
 }
 
-/// How the bubbles of one kind look.
+/// How the bubbles from one name look.
 ///
 /// The colors are CSS values, inserted into the generated stylesheet as
 /// they are: a color, a `var(--…)`, a `light-dark(…, …)`. A color
@@ -91,39 +92,40 @@ impl Look {
     }
 }
 
-/// The host's kinds of message, each with its [`Look`], in the order
-/// they were added. [`Kinds::default`] is `user` and `assistant`.
+/// The names the host's messages are from, each with its [`Look`], in
+/// the order they were added. [`Names::default`] is `user` and
+/// `assistant`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Kinds {
+pub struct Names {
     entries: Vec<(String, Look)>,
 }
 
-impl Default for Kinds {
+impl Default for Names {
     /// `user` on the right in the theme's tint colors (`--rc-tint-bg`
     /// and `--rc-tint-fg`), `assistant` on the left in its plain ones.
     fn default() -> Self {
         Self::none()
-            .kind(
+            .name(
                 "user",
                 Look::at(Position::Right)
                     .background("var(--rc-tint-bg)")
                     .foreground("var(--rc-tint-fg)"),
             )
-            .kind("assistant", Look::at(Position::Left))
+            .name("assistant", Look::at(Position::Left))
     }
 }
 
-impl Kinds {
-    /// No kinds at all: every bubble gets the plain look.
+impl Names {
+    /// No names at all: every bubble gets the plain look.
     pub fn none() -> Self {
         Self {
             entries: Vec::new(),
         }
     }
 
-    /// The table with `name` looking like `look`. A kind already in the
+    /// The table with `name` looking like `look`. A name already in the
     /// table is replaced in place.
-    pub fn kind(mut self, name: impl Into<String>, look: Look) -> Self {
+    pub fn name(mut self, name: impl Into<String>, look: Look) -> Self {
         let name = name.into();
         match self
             .entries
@@ -144,7 +146,7 @@ impl Kinds {
             .map(|(_, look)| look)
     }
 
-    /// The kinds and their looks, in order.
+    /// The names and their looks, in order.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &Look)> {
         self.entries
             .iter()
@@ -152,27 +154,36 @@ impl Kinds {
     }
 
     /// The stylesheet for the table, in the layer `rich-chat.theme`, the
-    /// same form as the constants in [`style`](crate::style). One rule
-    /// per kind places its bubbles; a second gives them their colors,
-    /// and the same colors to a composer preview of that kind. The tail
-    /// radius is the theme's `--rc-tail`.
+    /// same form as the constants in [`style`](crate::style). For each
+    /// name, one rule places its messages: `align-items` on the
+    /// `.rc-message` column, which puts the bubble and the name written
+    /// over it on the same side. On a side, a second rule gives the
+    /// bubble its tail there, the theme's `--rc-tail`. Colors given are
+    /// a last rule, on the bubble and on a composer preview of that
+    /// name.
     pub fn css(&self) -> String {
         let mut css = String::from(
             "@layer rich-chat.structure, rich-chat.theme;\n@layer rich-chat.theme {\n",
         );
         for (name, look) in self.iter() {
             let name = css_string(name);
-            let bubble = format!(".rc-message[data-kind=\"{name}\"] > .rc-bubble");
-            let placement = match look.position {
-                Position::Left => {
-                    "margin-right: auto; border-bottom-left-radius: var(--rc-tail, 0);"
-                }
-                Position::Center => "margin-left: auto; margin-right: auto;",
-                Position::Right => {
-                    "margin-left: auto; border-bottom-right-radius: var(--rc-tail, 0);"
-                }
+            let message = format!(".rc-message[data-name=\"{name}\"]");
+            let bubble = format!("{message} > .rc-bubble");
+            let (placement, tail) = match look.position {
+                Position::Left => (
+                    "flex-start",
+                    Some("border-bottom-left-radius: var(--rc-tail, 0);"),
+                ),
+                Position::Center => ("center", None),
+                Position::Right => (
+                    "flex-end",
+                    Some("border-bottom-right-radius: var(--rc-tail, 0);"),
+                ),
             };
-            let _ = writeln!(css, "{bubble} {{ {placement} }}");
+            let _ = writeln!(css, "{message} {{ align-items: {placement}; }}");
+            if let Some(tail) = tail {
+                let _ = writeln!(css, "{bubble} {{ {tail} }}");
+            }
             let mut colors = String::new();
             if let Some(background) = &look.background {
                 let _ = write!(colors, " background: {background};");
@@ -183,7 +194,7 @@ impl Kinds {
             if !colors.is_empty() {
                 let _ = writeln!(
                     css,
-                    ":is({bubble}, .rc-composer-preview[data-kind=\"{name}\"]) {{{colors} }}"
+                    ":is({bubble}, .rc-composer-preview[data-name=\"{name}\"]) {{{colors} }}"
                 );
             }
         }
@@ -216,32 +227,32 @@ mod tests {
 
     #[test]
     fn the_default_is_a_chat_with_a_model() {
-        let kinds = Kinds::default();
-        let names: Vec<_> = kinds.iter().map(|(name, _)| name).collect();
-        assert_eq!(names, ["user", "assistant"]);
-        assert_eq!(kinds.get("user").unwrap().position, Position::Right);
-        assert_eq!(kinds.get("assistant").unwrap().position, Position::Left);
-        assert_eq!(kinds.get("assistant").unwrap().background, None);
-        assert_eq!(kinds.get("system"), None);
+        let names = Names::default();
+        let listed: Vec<_> = names.iter().map(|(name, _)| name).collect();
+        assert_eq!(listed, ["user", "assistant"]);
+        assert_eq!(names.get("user").unwrap().position, Position::Right);
+        assert_eq!(names.get("assistant").unwrap().position, Position::Left);
+        assert_eq!(names.get("assistant").unwrap().background, None);
+        assert_eq!(names.get("system"), None);
     }
 
     #[test]
-    fn a_kind_added_twice_is_replaced_in_place() {
-        let kinds = Kinds::none()
-            .kind("a", Look::at(Position::Left))
-            .kind("b", Look::at(Position::Right))
-            .kind("a", Look::at(Position::Center));
-        let names: Vec<_> = kinds.iter().map(|(name, _)| name).collect();
-        assert_eq!(names, ["a", "b"]);
-        assert_eq!(kinds.get("a").unwrap().position, Position::Center);
+    fn a_name_added_twice_is_replaced_in_place() {
+        let names = Names::none()
+            .name("a", Look::at(Position::Left))
+            .name("b", Look::at(Position::Right))
+            .name("a", Look::at(Position::Center));
+        let listed: Vec<_> = names.iter().map(|(name, _)| name).collect();
+        assert_eq!(listed, ["a", "b"]);
+        assert_eq!(names.get("a").unwrap().position, Position::Center);
     }
 
     #[test]
-    fn each_position_places_the_bubble_and_only_colors_given_are_set() {
-        let css = Kinds::none()
-            .kind("l", Look::at(Position::Left))
-            .kind("c", Look::at(Position::Center).background("teal"))
-            .kind(
+    fn each_position_places_the_message_and_only_colors_given_are_set() {
+        let css = Names::none()
+            .name("l", Look::at(Position::Left))
+            .name("c", Look::at(Position::Center).background("teal"))
+            .name(
                 "r",
                 Look::at(Position::Right)
                     .background("#fff")
@@ -252,30 +263,43 @@ mod tests {
             "@layer rich-chat.structure, rich-chat.theme;\n@layer rich-chat.theme {\n"
         ));
         assert!(css.trim_end().ends_with('}'));
+        assert!(
+            css.contains(".rc-message[data-name=\"l\"] { align-items: flex-start; }\n"),
+            "{css}"
+        );
         assert!(css.contains(
-            ".rc-message[data-kind=\"l\"] > .rc-bubble { margin-right: auto; border-bottom-left-radius: var(--rc-tail, 0); }\n"
-        ), "{css}");
-        assert!(css.contains(
-            ".rc-message[data-kind=\"c\"] > .rc-bubble { margin-left: auto; margin-right: auto; }\n"
-        ), "{css}");
-        assert!(css.contains(
-            ".rc-message[data-kind=\"r\"] > .rc-bubble { margin-left: auto; border-bottom-right-radius: var(--rc-tail, 0); }\n"
+            ".rc-message[data-name=\"l\"] > .rc-bubble { border-bottom-left-radius: var(--rc-tail, 0); }\n"
         ), "{css}");
         assert!(
-            !css.contains("data-kind=\"l\"]) {"),
+            css.contains(".rc-message[data-name=\"c\"] { align-items: center; }\n"),
+            "{css}"
+        );
+        assert!(
+            !css.contains("data-name=\"c\"] > .rc-bubble {"),
+            "a centered bubble has no tail: {css}"
+        );
+        assert!(
+            css.contains(".rc-message[data-name=\"r\"] { align-items: flex-end; }\n"),
+            "{css}"
+        );
+        assert!(css.contains(
+            ".rc-message[data-name=\"r\"] > .rc-bubble { border-bottom-right-radius: var(--rc-tail, 0); }\n"
+        ), "{css}");
+        assert!(
+            !css.contains("data-name=\"l\"]) {"),
             "l has no color rule: {css}"
         );
         assert!(css.contains(
-            ":is(.rc-message[data-kind=\"c\"] > .rc-bubble, .rc-composer-preview[data-kind=\"c\"]) { background: teal; }\n"
+            ":is(.rc-message[data-name=\"c\"] > .rc-bubble, .rc-composer-preview[data-name=\"c\"]) { background: teal; }\n"
         ), "{css}");
         assert!(css.contains(
-            ":is(.rc-message[data-kind=\"r\"] > .rc-bubble, .rc-composer-preview[data-kind=\"r\"]) { background: #fff; color: #000; }\n"
+            ":is(.rc-message[data-name=\"r\"] > .rc-bubble, .rc-composer-preview[data-name=\"r\"]) { background: #fff; color: #000; }\n"
         ), "{css}");
     }
 
     #[test]
-    fn no_kinds_is_an_empty_layer() {
-        let css = Kinds::none().css();
+    fn no_names_is_an_empty_layer() {
+        let css = Names::none().css();
         assert_eq!(
             css,
             "@layer rich-chat.structure, rich-chat.theme;\n@layer rich-chat.theme {\n}\n"
@@ -283,12 +307,12 @@ mod tests {
     }
 
     #[test]
-    fn kind_names_are_escaped_in_the_selector() {
-        let css = Kinds::none()
-            .kind("say \"hi\"\\\n", Look::at(Position::Left))
+    fn names_are_escaped_in_the_selector() {
+        let css = Names::none()
+            .name("say \"hi\"\\\n", Look::at(Position::Left))
             .css();
         assert!(
-            css.contains("[data-kind=\"say \\\"hi\\\"\\\\\\a \"]"),
+            css.contains("[data-name=\"say \\\"hi\\\"\\\\\\a \"]"),
             "{css}"
         );
     }
@@ -303,7 +327,7 @@ mod tests {
 
     #[test]
     fn the_default_reads_only_theme_properties() {
-        let css = Kinds::default().css();
+        let css = Names::default().css();
         assert!(
             css.contains("background: var(--rc-tint-bg); color: var(--rc-tint-fg);"),
             "{css}"

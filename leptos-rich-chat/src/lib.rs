@@ -49,14 +49,16 @@
 //! [`render`] module is the pure Markdown-to-HTML core, with no DOM
 //! dependency, for tests and for hosts that are not Leptos.
 //!
-//! # Kinds of message
+//! # Names
 //!
-//! A [`Message`] carries a `kind`, a name the host chooses, and the crate
-//! attaches no meaning to it. The host's [`Kinds`] table says where each
-//! kind sits and what colors it has; [`RichChatStyle`] turns that into
-//! CSS. The default table is `user` on the right and `assistant` on the
-//! left. A group chat, or a transcript with notices down the middle, is
-//! a different table, with a [`Look`] at a [`Position`] per kind.
+//! A [`Message`] carries a `name`, who it is from, which the host chooses
+//! and the crate attaches no meaning to. The host's [`Names`] table says
+//! where each name's bubbles sit and what colors they have;
+//! [`RichChatStyle`] turns that into CSS. The default table is `user` on
+//! the right and `assistant` on the left. A group chat, or a transcript
+//! with notices down the middle, is a different table, with a [`Look`]
+//! at a [`Position`] per name. [`Chat`]'s `show_names` writes the name
+//! over each bubble, on its side.
 //!
 //! # Styling
 //!
@@ -74,6 +76,7 @@
 //! The words in the interface are props too: the composer's
 //! `placeholder`, `hint`, `preview_label`, and `send` content, the
 //! transcript's `empty` text, and the copy button's [`CodeLabels`].
+//! Whether the transcript writes names over its bubbles is `show_names`.
 //!
 //! # Features
 //!
@@ -86,14 +89,14 @@
 #![forbid(unsafe_code)]
 
 mod components;
-mod kinds;
 mod message;
+mod names;
 pub mod render;
 pub mod style;
 
 pub use components::{
     Chat, CodeBlock, CodeLabels, Composer, MessageBubble, RichChatStyle, RichText, warm_up,
 };
-pub use kinds::{Kinds, Look, Position};
 pub use message::Message;
+pub use names::{Look, Names, Position};
 pub use render::RenderOptions;
