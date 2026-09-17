@@ -125,9 +125,9 @@
 }
 
 /* The plain bubble. Where a bubble sits and any other colors it has
- * come from the host's kinds, as rules keyed on the message's data-kind
+ * come from the host's names, as rules keyed on the message's data-name
  * attribute that RichChatStyle generates; the tail they give a bubble on
- * its side is --rc-tail. A kind the host has not declared gets this and
+ * its side is --rc-tail. A name the host has not declared gets this and
  * nothing more. */
 .rc-bubble {
   max-width: min(85%, 76ch);
@@ -135,6 +135,18 @@
   border-radius: var(--rc-radius);
   background: var(--rc-bubble-bg);
   color: var(--rc-bubble-fg);
+}
+
+/* The sender's name over a bubble, when the host shows names. Outside
+ * the bubble and on its side, set in from its edge to about where its
+ * text starts, in the transcript's muted color rather than the bubble's,
+ * so that it reads the same over a bubble of any color. */
+.rc-sender {
+  margin: 0 12px 3px;
+  font-size: 0.875em;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--rc-muted);
 }
 
 /* ---- Rendered Markdown ------------------------------------------------ */

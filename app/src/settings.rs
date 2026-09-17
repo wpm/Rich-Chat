@@ -4,12 +4,13 @@
 //! Tauri), one key each, so a value that was never chosen is simply
 //! absent and the app falls back to the system's or the defaults.
 
-use leptos_rich_chat::{Kinds, Look, Position};
+use leptos_rich_chat::{Look, Names, Position};
 use serde::{Deserialize, Serialize};
 
 const THEME_KEY: &str = "rich-chat.theme";
 const USERS_KEY: &str = "rich-chat.users";
 const INPUT_HEIGHT_KEY: &str = "rich-chat.input-height";
+const SHOW_NAMES_KEY: &str = "rich-chat.show-names";
 
 /// Light or dark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -75,8 +76,8 @@ impl Side {
     }
 }
 
-/// Someone in the chat. The name is the kind of their messages, and the
-/// side and color are how their bubbles look.
+/// Someone in the chat. The name is the one their messages carry, and
+/// the side and color are how their bubbles look.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
     pub name: String,
@@ -131,6 +132,8 @@ pub struct Settings {
     selected: String,
     /// The text box's height in CSS pixels, once it has been dragged.
     pub input_height: Option<f64>,
+    /// Whether every bubble has its user's name written over it.
+    pub show_names: bool,
 }
 
 impl Default for Settings {
@@ -144,6 +147,7 @@ impl Default for Settings {
             retired: Vec::new(),
             selected: USER.to_string(),
             input_height: None,
+            show_names: false,
         }
     }
 }
@@ -237,14 +241,14 @@ impl Settings {
         self.selected = self.users[at.saturating_sub(1)].name.clone();
     }
 
-    /// The library's table of kinds: every user there has been, with the
+    /// The library's table of names: every user there has been, with the
     /// current list last so that it wins over a deleted namesake.
-    pub fn kinds(&self) -> Kinds {
+    pub fn names(&self) -> Names {
         self.retired
             .iter()
             .chain(&self.users)
-            .fold(Kinds::none(), |kinds, user| {
-                kinds.kind(user.name.clone(), user.look())
+            .fold(Names::none(), |names, user| {
+                names.name(user.name.clone(), user.look())
             })
     }
 
@@ -285,6 +289,7 @@ impl Settings {
         settings.input_height = read(INPUT_HEIGHT_KEY)
             .and_then(|value| value.parse().ok())
             .filter(|height: &f64| height.is_finite() && *height > 0.0);
+        settings.show_names = read(SHOW_NAMES_KEY).is_some_and(|value| value == "true");
         settings
     }
 
@@ -317,6 +322,7 @@ impl Settings {
             INPUT_HEIGHT_KEY,
             self.input_height.map(|height| height.to_string()),
         );
+        write(SHOW_NAMES_KEY, Some(self.show_names.to_string()));
     }
 }
 
@@ -439,22 +445,22 @@ mod tests {
             .collect();
         assert_eq!(names, [ASSISTANT, USER]);
         assert_eq!(settings.selected_user().name, USER);
-        let kinds = settings.kinds();
-        assert_eq!(kinds.get(ASSISTANT).unwrap().position, Position::Left);
-        assert_eq!(kinds.get(USER).unwrap().position, Position::Right);
+        assert!(
+            !settings.show_names,
+            "the bubbles are unnamed to begin with"
+        );
+        let names = settings.names();
+        assert_eq!(names.get(ASSISTANT).unwrap().position, Position::Left);
+        assert_eq!(names.get(USER).unwrap().position, Position::Right);
         assert_eq!(
-            kinds.get(USER).unwrap().background.as_deref(),
+            names.get(USER).unwrap().background.as_deref(),
             Some("#2f855a")
         );
         assert_eq!(
-            kinds.get(USER).unwrap().foreground.as_deref(),
+            names.get(USER).unwrap().foreground.as_deref(),
             Some(LIGHT_TEXT)
         );
-        assert_eq!(
-            kinds.get("user"),
-            None,
-            "the names are the kinds, as spelled"
-        );
+        assert_eq!(names.get("user"), None, "the names are as spelled");
     }
 
     #[test]
@@ -475,7 +481,7 @@ mod tests {
 
         settings.selected_user_mut().side = Side::Center;
         settings.selected_user_mut().color = "#ff8800".to_string();
-        let look = settings.kinds().get("Alice").cloned().unwrap();
+        let look = settings.names().get("Alice").cloned().unwrap();
         assert_eq!(look.position, Position::Center);
         assert_eq!(look.background.as_deref(), Some("#ff8800"));
         assert_eq!(look.foreground.as_deref(), Some(DARK_TEXT));
@@ -485,13 +491,13 @@ mod tests {
     fn a_deleted_user_keeps_their_look_and_hands_over_to_a_neighbor() {
         let mut settings = Settings::default();
         settings.add_user("Alice");
-        let before = settings.kinds().get("Alice").cloned().unwrap();
+        let before = settings.names().get("Alice").cloned().unwrap();
         assert!(settings.can_delete());
         settings.delete_selected();
         assert_eq!(settings.selected, USER, "the user before Alice");
         assert_eq!(settings.selected_user().name, USER);
         assert_eq!(settings.users.len(), 2);
-        assert_eq!(settings.kinds().get("Alice"), Some(&before));
+        assert_eq!(settings.names().get("Alice"), Some(&before));
         assert!(settings.can_add("Alice"), "and can come back");
 
         // Back with a new look, the old one is forgotten.
@@ -499,7 +505,7 @@ mod tests {
         settings.selected_user_mut().color = "#000000".to_string();
         assert_eq!(settings.retired.len(), 0);
         assert_eq!(
-            settings.kinds().get("Alice").unwrap().background.as_deref(),
+            settings.names().get("Alice").unwrap().background.as_deref(),
             Some("#000000")
         );
     }
@@ -618,6 +624,14 @@ mod tests {
     }
 
     #[test]
+    fn names_are_shown_only_when_stored_as_true() {
+        assert!(stored(&[(SHOW_NAMES_KEY, "true")]).show_names);
+        for off in ["false", "yes", "1", ""] {
+            assert!(!stored(&[(SHOW_NAMES_KEY, off)]).show_names, "{off:?}");
+        }
+    }
+
+    #[test]
     fn the_stored_users_and_selection_are_read() {
         let json = r##"{"users":[{"name":"Alice","side":"center","color":"#ff8800"},{"name":"Bob","side":"right","color":"#000000"}],"retired":[{"name":"Carol","side":"left","color":"#123456"}],"selected":"Bob"}"##;
         let settings = stored(&[(USERS_KEY, json)]);
@@ -689,7 +703,10 @@ mod tests {
         let mut written = Vec::new();
         Settings::default().store_with(|key, value| written.push((key.to_string(), value)));
         let keys: Vec<_> = written.iter().map(|(key, _)| key.as_str()).collect();
-        assert_eq!(keys, [THEME_KEY, USERS_KEY, INPUT_HEIGHT_KEY]);
+        assert_eq!(
+            keys,
+            [THEME_KEY, USERS_KEY, INPUT_HEIGHT_KEY, SHOW_NAMES_KEY]
+        );
         assert_eq!(written[0].1, None, "no theme chosen");
         assert!(
             written[1]
@@ -701,16 +718,19 @@ mod tests {
             written[1]
         );
         assert_eq!(written[2].1, None, "no height dragged");
+        assert_eq!(written[3].1.as_deref(), Some("false"), "names off");
 
         let mut written = Vec::new();
         let settings = Settings {
             theme: Some(Theme::Dark),
             input_height: Some(120.0),
+            show_names: true,
             ..Settings::default()
         };
         settings.store_with(|key, value| written.push((key.to_string(), value)));
         assert_eq!(written[0].1.as_deref(), Some("dark"));
         assert_eq!(written[2].1.as_deref(), Some("120"));
+        assert_eq!(written[3].1.as_deref(), Some("true"));
     }
 
     #[test]
@@ -718,6 +738,7 @@ mod tests {
         let mut settings = Settings {
             theme: Some(Theme::Light),
             input_height: Some(96.5),
+            show_names: true,
             ..Settings::default()
         };
         settings.add_user("Alice");

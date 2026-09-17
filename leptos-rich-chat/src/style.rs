@@ -21,13 +21,15 @@
 //!   two runs of it. Run it for any other two-face theme to swap the
 //!   colors.
 //!
-//! None of it names a kind of message. Where each kind sits and what
-//! colors it has is the host's [`Kinds`](crate::Kinds) table, whose
-//! [`css`](crate::Kinds::css) is a fourth part in the same form, in
+//! None of it names anyone. Where each name's bubbles sit and what
+//! colors they have is the host's [`Names`](crate::Names) table, whose
+//! [`css`](crate::Names::css) is a fourth part in the same form, in
 //! `rich-chat.theme`. The theme gives it `--rc-tail`, the radius of a
 //! bubble's tail, and the plain bubble's `--rc-bubble-*` colors plus a
 //! second pair, `--rc-tint-*`, which the default table uses for `user`
-//! and the composer's preview takes.
+//! and the composer's preview takes. The name written over a bubble,
+//! `.rc-sender`, is the theme's: small, in `--rc-muted`, whatever the
+//! bubble's colors.
 //!
 //! [`STYLESHEET`] is all three. The [`RichChatStyle`](crate::RichChatStyle)
 //! component injects them, each part switchable, or a consumer can serve
@@ -288,8 +290,9 @@ mod tests {
     }
 
     #[test]
-    fn the_stylesheet_names_no_kind_of_message() {
+    fn the_stylesheet_names_no_one() {
         for word in [
+            "[data-name=",
             "[data-kind=",
             "rc-message-",
             "rc-user",
@@ -298,11 +301,21 @@ mod tests {
         ] {
             assert!(
                 !STYLESHEET.contains(word),
-                "the stylesheet knows a kind: {word}"
+                "the stylesheet knows a name: {word}"
             );
         }
         assert!(THEME.contains("--rc-tail:"));
         assert!(THEME.contains("--rc-bubble-bg:"));
         assert!(THEME.contains("--rc-tint-bg:"));
+        assert!(
+            THEME.contains(".rc-sender {"),
+            "the name over a bubble is themed"
+        );
+        assert!(
+            STRUCTURE.contains(
+                ".rc-message {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;"
+            ),
+            "a message is a column the names rules align"
+        );
     }
 }

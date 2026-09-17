@@ -6,9 +6,9 @@
 // highlighting, the copy button, progressive rendering of an unfinished
 // equation, collapsing the preview, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
-// bubble side and color changing every bubble of theirs, adding and
-// deleting a user, the theme switch, dragging the text box taller, and
-// that all of it survives a reload. Last, that the transcript keeps
+// bubble side and color changing every bubble of theirs, the names over
+// the bubbles, adding and deleting a user, the theme switch, dragging
+// the text box taller, and that all of it survives a reload. Last, that the transcript keeps
 // its end in view: through a burst of messages, a growing composer, and
 // a shrinking window, but not for a reader who has scrolled up.
 // Screenshots land in ./screenshots for a human to look at.
@@ -113,10 +113,10 @@ try {
     const math = '.rc-message[data-message-id="welcome-math"]';
     check(await page.$(welcome) !== null, 'the welcome bubble is there on startup');
     check((await page.$$('.rc-message')).length === TOUR, 'with the Markdown, code and math bubbles after it');
-    check(await page.$eval(welcome, (el) => el.dataset.kind) === 'Assistant', 'the welcome is from the assistant');
-    check(await page.$eval(markdown, (el) => el.dataset.kind) === 'User', 'the Markdown from the user');
-    check(await page.$eval(code, (el) => el.dataset.kind) === 'Assistant', 'the code from the assistant');
-    check(await page.$eval(math, (el) => el.dataset.kind) === 'User', 'and the math from the user');
+    check(await page.$eval(welcome, (el) => el.dataset.name) === 'Assistant', 'the welcome is from the assistant');
+    check(await page.$eval(markdown, (el) => el.dataset.name) === 'User', 'the Markdown from the user');
+    check(await page.$eval(code, (el) => el.dataset.name) === 'Assistant', 'the code from the assistant');
+    check(await page.$eval(math, (el) => el.dataset.name) === 'User', 'and the math from the user');
     const welcomeBox = await page.$eval(`${welcome} .rc-bubble`, (el) => el.getBoundingClientRect());
     const paneBox = await page.$eval('.rc-messages', (el) => el.getBoundingClientRect());
     check(welcomeBox.left - paneBox.left < paneBox.right - welcomeBox.right, 'the welcome bubble sits on the left');
@@ -166,7 +166,7 @@ try {
     const sent = `.rc-message[data-message-id="m${TOUR}"]`;
     await page.waitForSelector(sent);
     await page.waitForTimeout(300);
-    check(await page.$eval(sent, (el) => el.dataset.kind) === 'User', 'the sent message is from the selected user');
+    check(await page.$eval(sent, (el) => el.dataset.name) === 'User', 'the sent message is from the selected user');
     // Captured before the screenshot: Playwright hides the caret for a
     // screenshot by touching inline styles on form controls, which leaves
     // an empty style attribute on the task-list checkboxes.
@@ -232,15 +232,15 @@ try {
     console.log('\ncontrols');
     const theme = () => page.$eval('html', (el) => el.dataset.theme);
     const chatBackground = () => page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
-    // A style of every bubble of a kind; one value when they all agree.
-    const bubbleStyle = async (kind, property) => {
-      const values = await page.$$eval(`.rc-message[data-kind="${kind}"] .rc-bubble`, (els, property) => els.map((el) => getComputedStyle(el)[property]), property);
+    // A style of every bubble of a name; one value when they all agree.
+    const bubbleStyle = async (name, property) => {
+      const values = await page.$$eval(`.rc-message[data-name="${name}"] .rc-bubble`, (els, property) => els.map((el) => getComputedStyle(el)[property]), property);
       return values.every((value) => value === values[0]) ? values[0] : values;
     };
-    // The gaps between a kind's bubbles and the transcript's edges say
+    // The gaps between a name's bubbles and the transcript's edges say
     // where they sit; the largest of each, so every bubble must agree.
-    const gaps = async (kind) => {
-      const all = await page.$$eval(`.rc-message[data-kind="${kind}"]`, (els) => els.map((row) => {
+    const gaps = async (name) => {
+      const all = await page.$$eval(`.rc-message[data-name="${name}"]`, (els) => els.map((row) => {
         const bubble = row.querySelector('.rc-bubble').getBoundingClientRect();
         const pane = row.getBoundingClientRect();
         return { left: bubble.left - pane.left, right: pane.right - bubble.right };
@@ -250,6 +250,22 @@ try {
     const users = () => page.$$eval('.control-users option', (els) => els.map((el) => el.value));
     const selected = () => page.$eval('.control-users', (el) => el.value);
     const pressedSide = () => page.$$eval('.control-side[aria-pressed="true"]', (els) => els.map((el) => el.value).join());
+    const namesOn = () => page.$eval('.control-names', (el) => el.getAttribute('aria-checked') === 'true');
+    // The name written over each bubble, null where there is none: its
+    // text against the name the bubble carries, and where it sits.
+    const labels = () => page.$$eval('.rc-message', (rows) => rows.map((row) => {
+      const label = row.querySelector('.rc-sender');
+      if (!label) return null;
+      const name = label.getBoundingClientRect();
+      const bubble = row.querySelector('.rc-bubble').getBoundingClientRect();
+      const style = getComputedStyle(label);
+      return {
+        text: label.textContent, carried: row.dataset.name,
+        above: name.bottom <= bubble.top, inside: name.left >= bubble.left - 1 && name.right <= bubble.right + 1,
+        leftGap: name.left - bubble.left, rightGap: bubble.right - name.right,
+        color: style.color, size: parseFloat(style.fontSize),
+      };
+    }));
     const boxHeight = () => page.$eval('.rc-composer-input', (el) => el.getBoundingClientRect().height);
     const send = async (text) => {
       await type(page, text);
@@ -273,7 +289,7 @@ try {
     check((await pressedSide()) === 'right', 'whose bubbles go on the right');
     check((await page.$eval('.control-color', (el) => el.value)) === '#2f855a', 'in green');
     await send('From the user');
-    await page.waitForSelector('.rc-message[data-kind="User"]');
+    await page.waitForSelector('.rc-message[data-name="User"]');
     check((await gaps('User')).right < 1, 'a sent message is from User, on the right');
     check((await bubbleStyle('User', 'backgroundColor')) === 'rgb(47, 133, 90)', 'in green');
     check((await gaps('Assistant')).left < 1, 'the welcome and the code are from Assistant, on the left');
@@ -321,6 +337,37 @@ try {
     check((await bubbleStyle('Assistant', 'color')) === 'rgb(230, 237, 243)', 'a dark color gets light text');
     await type(page, '');
 
+    // Names over the bubbles: off to begin with, then on for every bubble
+    // at once, each on its bubble's side.
+    check(!(await namesOn()), 'the bubbles start unnamed');
+    check((await page.$$('.rc-sender')).length === 0, 'and carry no name');
+    await page.click('.control-names');
+    await page.waitForTimeout(100);
+    check(await namesOn(), 'the Names switch reports it is on');
+    const named = await labels();
+    check(named.length > 0 && named.every((label) => label !== null), 'and every bubble has a name over it');
+    check(named.every((label) => label.text === label.carried), 'the name over each bubble is the one it carries');
+    check(named.every((label) => label.above && label.inside), 'above the bubble, within its width');
+    const assistantLabels = named.filter((label) => label.carried === 'Assistant');
+    const userLabels = named.filter((label) => label.carried === 'User');
+    check(assistantLabels.length > 0 && assistantLabels.every((label) => Math.abs(label.leftGap - label.rightGap) < 2), 'centered over a centered bubble');
+    check(userLabels.length > 0 && userLabels.every((label) => label.rightGap < label.leftGap), 'at the right of a bubble on the right');
+    const bubbleSize = await page.$eval('.rc-bubble', (el) => parseFloat(getComputedStyle(el).fontSize));
+    check(named.every((label) => label.size < bubbleSize), 'set smaller than the text');
+    check(named.every((label) => label.color === named[0].color), 'in one color whatever the bubble\'s');
+    await page.screenshot({ path: `${shots}/controls-0-names.png` });
+    await page.click('.control-side[value="left"]');
+    await page.waitForTimeout(100);
+    check((await labels()).filter((label) => label.carried === 'Assistant').every((label) => label.leftGap < label.rightGap), 'moving the bubbles to the left takes the names with them');
+    await page.click('.control-side[value="center"]');
+    await page.waitForTimeout(100);
+    await page.click('.control-names');
+    await page.waitForTimeout(100);
+    check(!(await namesOn()) && (await page.$$('.rc-sender')).length === 0, 'the switch takes the names off again');
+    await page.click('.control-names');
+    await page.waitForTimeout(100);
+    check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'and back on');
+
     // Adding a user.
     check(await page.$eval('.control-add', (el) => el.disabled), 'nothing to add until a name is typed');
     await page.fill('.control-new-user', 'User');
@@ -337,6 +384,7 @@ try {
     await send('From Alice');
     check((await gaps('Alice')).count === 1 && (await gaps('Alice')).left < 1, 'and sends as Alice, on the left');
     check((await bubbleStyle('Alice', 'backgroundColor')) === 'rgb(14, 116, 144)', 'in her color');
+    check((await labels()).at(-1)?.text === 'Alice', 'with her name over it');
     await page.screenshot({ path: `${shots}/controls-0-three-users.png` });
 
     // Deleting one.
@@ -389,6 +437,8 @@ try {
     check((await page.$eval('.control-color', (el) => el.value)) === '#123456', 'and color');
     check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'which the welcome wears');
     check((await boxHeight()) === after, 'and the text box height');
+    check(await namesOn(), 'and the names');
+    check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'which every bubble still has');
     await page.click('.control-theme');
     await page.waitForTimeout(100);
     check((await theme()) === 'light', 'the switch turns the theme light again');

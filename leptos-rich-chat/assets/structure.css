@@ -29,8 +29,20 @@
   flex-direction: column;
 }
 
+/* A message is a column: the name, when shown, over the bubble. Aligning
+ * the column's items is what puts both on one side, and it is what the
+ * generated rules for the host's names set; a name with no rule sits on
+ * the left. Not stretch, the flex default, which would widen every
+ * bubble to its maximum. */
 .rc-message {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.rc-sender {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .rc-bubble {

@@ -1,9 +1,9 @@
-//! The bar above the chat: the users, the selected user's bubbles, the
-//! theme.
+//! The bar above the chat: the users, the selected user's bubbles,
+//! whether bubbles are named, the theme.
 //!
 //! Each control edits the app's [`Settings`]; the app root turns those
-//! into the library's table of kinds, the root element's theme
-//! attribute, and a custom property for the stylesheet.
+//! into the library's table of names and its `show_names`, the root
+//! element's theme attribute, and a custom property for the stylesheet.
 
 use leptos::ev;
 use leptos::prelude::*;
@@ -72,6 +72,10 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
         settings.update(|settings| settings.selected_user_mut().color = value);
     };
 
+    let show_names = move || settings.read().show_names;
+    let toggle_names =
+        move |_| settings.update(|settings| settings.show_names = !settings.show_names);
+
     view! {
         <header class="controls" aria-label="Appearance">
             <div class="control-group" role="group" aria-label="Users">
@@ -134,6 +138,16 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
                     on:input=recolor
                 />
             </div>
+            <button
+                type="button"
+                class="control-button control-names"
+                role="switch"
+                aria-checked=move || show_names().to_string()
+                title="Write the user's name over every bubble"
+                on:click=toggle_names
+            >
+                "Names"
+            </button>
             <button
                 type="button"
                 class="control-button control-theme"

@@ -75,39 +75,54 @@ messages.update(|all| {
 A live message is rendered as a draft, so an equation shows as math
 before its closing `$$` has arrived.
 
-### Kinds of message
+### Names
 
-A message's `kind` is a name you choose. The crate attaches no meaning
-to it: the bubble carries it as `data-kind`, and a `Kinds` table you
-give `RichChatStyle` says where each kind sits and what colors it has.
-The default table is `user` on the right in the theme's tint colors
-and `assistant` on the left, which is a chat with a model. Any other
-shape is another table:
+A message's `name` is who it is from, and you choose it. The crate
+attaches no meaning to it: the bubble carries it as `data-name`, and a
+`Names` table you give `RichChatStyle` says where each name's bubbles
+sit and what colors they have. The default table is `user` on the right
+in the theme's tint colors and `assistant` on the left, which is a chat
+with a model. Any other shape is another table:
 
 ```rust
-use leptos_rich_chat::{Kinds, Look, Position};
+use leptos_rich_chat::{Look, Names, Position};
 
-let kinds = Kinds::none()
-    .kind("me", Look::at(Position::Right).background("#ddf4ff").foreground("#1f2328"))
-    .kind("alice", Look::at(Position::Left).background("var(--alice)"))
-    .kind("bob", Look::at(Position::Left).background("var(--bob)"))
-    .kind("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
+let names = Names::none()
+    .name("me", Look::at(Position::Right).background("#ddf4ff").foreground("#1f2328"))
+    .name("alice", Look::at(Position::Left).background("var(--alice)"))
+    .name("bob", Look::at(Position::Left).background("var(--bob)"))
+    .name("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
 
-view! { <RichChatStyle kinds=kinds /> }
+view! { <RichChatStyle names=names /> }
 ```
 
 The colors are CSS values, so `var(--…)` and `light-dark(…, …)` keep
 light and dark mode in your stylesheet. A color left out is the theme's
-plain bubble color, and a kind with no entry gets the plain bubble on
-the left. `kinds` can be a signal, and only its rules are rewritten when
+plain bubble color, and a name with no entry gets the plain bubble on
+the left. `names` can be a signal, and only its rules are rewritten when
 it changes. Position and the two colors are all a `Look` holds, because
-they are what a stylesheet cannot say without knowing the kind's name;
-anything else about a kind is a rule of yours against
-`.rc-message[data-kind="…"]`.
+they are what a stylesheet cannot say without knowing the name;
+anything else about a name is a rule of yours against
+`.rc-message[data-name="…"]`.
 
 The composer's preview takes the theme's tint colors, or those of the
-kind named in `preview_kind`, so it can look like the bubble about to be
+name given as `preview_name`, so it can look like the bubble about to be
 sent.
+
+To write the name over every bubble, as a group chat does, give `Chat`
+(or `MessageBubble`) `show_names=true`, or a `Signal<bool>` for a switch
+the reader can flip:
+
+```rust
+view! { <Chat messages=messages on_send=send show_names=true /> }
+```
+
+The name goes in a `div.rc-sender` above the bubble, on the bubble's side,
+small and in the theme's muted color so that it reads the same over a
+bubble of any color. It is the name as spelled, so a chat that shows
+names picks names meant to be read: `Alice`, not `alice`. A name that
+is nobody, the `notice` above, keeps its label off with a rule of yours:
+`.rc-message[data-name="notice"] > .rc-sender { display: none; }`.
 
 ### Links
 
@@ -126,12 +141,12 @@ Tauri's opener plugin.
 
 `Chat` is the whole window. Its parts stand alone:
 
-| Component       | Renders                                              |
-|-----------------|------------------------------------------------------|
-| `Composer`      | the text box, its collapsible preview, and send button |
-| `MessageBubble` | one message, placed and colored by its kind         |
-| `RichText`      | any Markdown, from a `Signal<String>`                |
-| `CodeBlock`     | one highlighted block with label and copy button     |
+| Component       | Renders                                                            |
+|-----------------|--------------------------------------------------------------------|
+| `Composer`      | the text box, its collapsible preview, and send button             |
+| `MessageBubble` | one message, placed and colored by its name, and named on request |
+| `RichText`      | any Markdown, from a `Signal<String>`                              |
+| `CodeBlock`     | one highlighted block with label and copy button                   |
 
 The `render` module underneath is plain Rust with no DOM dependency:
 `render_html(markdown, &options)` gives sanitized HTML,
@@ -156,8 +171,8 @@ selectors:
   the block wrappers that must not become boxes, and the alignment of
   MathML environments. No colors, fonts, spacing, or radii. Keep it.
 - `style::THEME` and `style::HIGHLIGHT`, layer `rich-chat.theme`: the
-  default look and the code colors. Neither names a kind of message;
-  the rules for those are `Kinds::css()`, in the same layer.
+  default look and the code colors. Neither names anyone; the rules
+  for the names are `Names::css()`, in the same layer.
 
 That cuts both ways: a global reset in your stylesheet, such as
 Tailwind 3's preflight, reaches inside the chat too, and you put back
@@ -176,9 +191,10 @@ radius:
 ```
 
 `--rc-bubble-bg` and `--rc-bubble-fg` are the plain bubble;
-`--rc-tint-bg` and `--rc-tint-fg` the tinted one the default kinds give
+`--rc-tint-bg` and `--rc-tint-fg` the tinted one the default names give
 `user` and the composer's preview; `--rc-tail` the radius of the corner
-a bubble has on its side.
+a bubble has on its side; `--rc-muted` the color of the name over a
+bubble.
 
 The theme sets them on the outermost root only (`.rc-chat`, or a
 `.rc-rich` or `.rc-composer` used on its own), so an override there
@@ -220,8 +236,9 @@ checkout of this repository or the package in Cargo's registry cache.
 The words in the interface are props: `Chat` and `Composer` take
 `placeholder`, `hint` (empty leaves the line out), `preview_label`, and
 `send`, the button's content, so it can be an icon; `Chat` takes `empty`
-for the bare transcript; and the copy button's labels are a `CodeLabels`
-provided as context, or a prop on `CodeBlock`. The text in the box is
+for the bare transcript and `show_names` for the names over the
+bubbles; and the copy button's labels are a `CodeLabels` provided as
+context, or a prop on `CodeBlock`. The text in the box is
 the composer's own unless `draft`, an `RwSignal<String>` the host holds,
 is given: to prefill it, read it, or keep it across unmounting.
 
