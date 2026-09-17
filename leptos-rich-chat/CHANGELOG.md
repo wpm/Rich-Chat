@@ -9,9 +9,24 @@ version is 0, a minor release may change the API.
 
 ### Added
 
-- `Chat` and `MessageBubble` take `show_names`, which writes each
+- `Chat` and `MessageView` take `show_names`, which writes each
   message's name over its bubble in a `div.rc-sender`, on the bubble's
   side, in the theme's muted color. Off by default; may be a signal.
+- `Body`, what a message shows: `Body::Text`, the Markdown the crate
+  renders in a bubble, or `Body::View`, a view the host draws, which is
+  where a transcript puts what is not speech — a tool call, a failure, a
+  prompt the reader has to answer — without leaving the pane that
+  scrolls. The crate still places the message by its name, keys it, and
+  scrolls to it and follows it as it grows.
+- `Message::view(id, name, view)`, a message whose body the host draws.
+  Its root element takes the bubble's place as the child of
+  `div.rc-message`, rather than sitting inside the bubble, since the
+  bubble is where the width, padding, radius and background live and a
+  body that is deliberately not speech would otherwise start by undoing
+  them. A host that wants the bubble around its own body puts
+  `class="rc-bubble"` on that root element; the name's colors and tail
+  land on it, because the generated rules are
+  `.rc-message[data-name="…"] > .rc-bubble`.
 
 ### Changed
 
@@ -45,6 +60,20 @@ version is 0, a minor release may change the API.
   the bubble's `data-kind` attribute is `data-name`, the `Kinds` table
   is `Names` with `Names::name` in place of `Kinds::kind`, and the
   composer's `preview_kind` is `preview_name`.
+- `Message::content`, a `Signal<String>`, is `Message::body`, a `Body`.
+  `Message::new` and `Message::streaming` are unchanged and build a
+  `Body::Text`; a host that built a `Message` field by field, or read
+  `content`, matches on `body` instead.
+- `MessageBubble` is `MessageView`. It names what it renders: under
+  `Body::View` the thing it draws may deliberately not be a bubble. The
+  `rc-*` classes are unchanged, and `.rc-bubble` is now more precise
+  than it was, since the bubble appears for `Body::Text` or by the
+  host's opt-in.
+- `Message` no longer implements `PartialEq`. A view body is a function,
+  which has no honest equality, and a dishonest one would be worst in
+  the place a host would use it: a `Memo<Vec<Message>>` whose view arms
+  never compare equal fires on every read. Use `Signal::derive`, since
+  the transcript's keyed diff already decides what is rebuilt.
 - A message, `div.rc-message`, is a column, and the generated rules
   place its bubble with `align-items` on it rather than auto margins on
   the bubble, so that the name and the bubble share a side. A host that

@@ -58,7 +58,7 @@ injects the stylesheets and fonts once; place it anywhere.
 
 ### Streaming a reply
 
-A message's content is a signal. To stream, hold an `RwSignal<String>`,
+A text body is a signal. To stream, hold an `RwSignal<String>`,
 append to it as tokens arrive, and mark the message finished at the end:
 
 ```rust
@@ -74,6 +74,29 @@ messages.update(|all| {
 
 A live message is rendered as a draft, so an equation shows as math
 before its closing `$$` has arrived.
+
+### Bodies
+
+A message's `body` is a `Body`: `Body::Text`, the Markdown above, which
+the crate renders in a bubble; or `Body::View`, a view you draw. That is
+where a transcript puts what is not speech, a tool call, a failure, a
+prompt the reader has to answer, without leaving the pane that scrolls:
+
+```rust
+messages.update(|all| {
+    all.push(Message::view("t1", "tool", || {
+        view! { <details class="tool-call"><summary>"Ran the tests"</summary><pre>"122 passed"</pre></details> }
+    }))
+});
+```
+
+The crate still places the message by its name, keys it, scrolls to it
+and follows it as it grows; only what is inside is yours. Your view is
+rendered *in place of* the bubble, as the child of `div.rc-message`, so
+a body that is deliberately not speech does not start by undoing the
+bubble's width, padding and background. To have the bubble around your
+own body, give its root element `class="rc-bubble"`: the name's colors
+and tail land on it.
 
 ### Names
 
@@ -110,7 +133,7 @@ name given as `preview_name`, so it can look like the bubble about to be
 sent.
 
 To write the name over every bubble, as a group chat does, give `Chat`
-(or `MessageBubble`) `show_names=true`, or a `Signal<bool>` for a switch
+(or `MessageView`) `show_names=true`, or a `Signal<bool>` for a switch
 the reader can flip:
 
 ```rust
@@ -144,7 +167,7 @@ Tauri's opener plugin.
 | Component       | Renders                                                                          |
 |-----------------|----------------------------------------------------------------------------------|
 | `Composer`      | the text box, its collapsible preview, and send button; attributes reach the box |
-| `MessageBubble` | one message, placed and colored by its name, and named on request                |
+| `MessageView`   | one message, placed and colored by its name, and named on request                |
 | `RichText`      | any Markdown, from a `Signal<String>`                                            |
 | `CodeBlock`     | one highlighted block with label and copy button                                 |
 

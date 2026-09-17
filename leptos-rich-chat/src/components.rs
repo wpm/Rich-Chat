@@ -1,7 +1,7 @@
 //! The Leptos components.
 //!
 //! [`Chat`] is the whole thing: a transcript above a [`Composer`]. Each
-//! piece is also usable alone: [`MessageBubble`] for one message,
+//! piece is also usable alone: [`MessageView`] for one message,
 //! [`RichText`] for any Markdown, [`CodeBlock`] for one highlighted block.
 //! All of them expect at least the structure stylesheet, which
 //! [`RichChatStyle`] injects; see [`style`](crate::style) for what a host
@@ -16,7 +16,7 @@ use leptos::prelude::*;
 use leptos::tachys::html::attribute::custom::custom_attribute;
 use wasm_bindgen::JsCast;
 
-use crate::message::Message;
+use crate::message::{Body, Message};
 use crate::names::Names;
 use crate::render::{self, Block, BlockKind, RenderOptions};
 
@@ -245,13 +245,23 @@ fn copy_to_clipboard(text: &str) {
 
 /// One message in the transcript. The outer `div.rc-message` carries the
 /// message's name as `data-name`, which the host's [`Names`] rules place
-/// and color. With `show_names`, the name is written over the bubble, in
-/// a `div.rc-sender` on the bubble's side.
+/// and color. With `show_names`, the name is written over the body, in a
+/// `div.rc-sender` on the body's side.
+///
+/// What follows the name depends on the message's [`Body`]. Markdown,
+/// [`Body::Text`], is rendered by [`RichText`] inside a `div.rc-bubble`,
+/// which is where the theme's width, padding, radius and colors live. A
+/// view of the host's, [`Body::View`], is rendered in the bubble's place,
+/// as a direct child of `div.rc-message`, so a body that is deliberately
+/// not speech does not start by undoing the bubble; a host that wants
+/// the bubble around its own body gives its root element
+/// `class="rc-bubble"`, and the name's colors and tail land on it.
+/// `options` and `on_link` apply to Markdown bodies only.
 #[component]
-pub fn MessageBubble(
+pub fn MessageView(
     /// The message.
     message: Message,
-    /// Write the message's name over its bubble. May be a signal.
+    /// Write the message's name over its body. May be a signal.
     #[prop(optional, into)]
     show_names: Signal<bool>,
     /// What to render; the default renders everything.
@@ -265,6 +275,15 @@ pub fn MessageBubble(
     node_ref: NodeRef<html::Div>,
 ) -> impl IntoView {
     let name = message.name.clone();
+    let body = match message.body {
+        Body::Text(content) => view! {
+            <div class="rc-bubble">
+                <RichText content=content draft=message.live options=options on_link=on_link />
+            </div>
+        }
+        .into_any(),
+        Body::View(view) => view.run(),
+    };
     view! {
         <div
             class="rc-message"
@@ -275,9 +294,7 @@ pub fn MessageBubble(
             <Show when=move || show_names.get()>
                 <div class="rc-sender">{name.clone()}</div>
             </Show>
-            <div class="rc-bubble">
-                <RichText content=message.content draft=message.live options=options on_link=on_link />
-            </div>
+            {body}
         </div>
     }
 }
@@ -615,7 +632,7 @@ pub fn Chat(
     #[cfg(not(target_arch = "wasm32"))]
     let _ = warm_up;
 
-    let bubble_options = options.clone();
+    let body_options = options.clone();
     view! {
         <div class="rc-chat">
             <div class="rc-messages" node_ref=pane on:scroll=move |_| follow.scrolled()>
@@ -629,10 +646,10 @@ pub fn Chat(
                         let wrapper = NodeRef::<html::Div>::new();
                         follow.watch(wrapper);
                         view! {
-                            <MessageBubble
+                            <MessageView
                                 message=message
                                 show_names=show_names
-                                options=bubble_options.clone()
+                                options=body_options.clone()
                                 on_link=on_link
                                 node_ref=wrapper
                             />
@@ -848,7 +865,7 @@ mod tests {
     fn bubbles_carry_name_and_id() {
         for name in ["user", "alice", "a name \"quoted\""] {
             let message = Message::new("m7", name, "hi");
-            let out = html(|| view! { <MessageBubble message=message /> });
+            let out = html(|| view! { <MessageView message=message /> });
             assert!(out.starts_with("<div "), "{out}");
             assert!(out.contains(" class=\"rc-message\">"), "{out}");
             let escaped = name.replace('"', "&quot;");
@@ -863,7 +880,7 @@ mod tests {
     #[test]
     fn a_bubble_shows_its_name_when_asked() {
         let message = Message::new("m8", "Alice <3", "hi");
-        let out = html(|| view! { <MessageBubble message=message show_names=true /> });
+        let out = html(|| view! { <MessageView message=message show_names=true /> });
         let name = out
             .find("<div class=\"rc-sender\">Alice &lt;3</div>")
             .unwrap_or_else(|| panic!("{out}"));
@@ -875,23 +892,70 @@ mod tests {
         // A signal, so that the reader can switch it.
         let show = RwSignal::new(false);
         let message = Message::new("m8", "Alice", "hi");
-        let off = html(|| view! { <MessageBubble message=message.clone() show_names=show /> });
+        let off = html(|| view! { <MessageView message=message.clone() show_names=show /> });
         assert!(!off.contains("rc-sender"), "{off}");
         show.set(true);
-        let on = html(|| view! { <MessageBubble message=message show_names=show /> });
+        let on = html(|| view! { <MessageView message=message show_names=show /> });
         assert!(on.contains("<div class=\"rc-sender\">Alice</div>"), "{on}");
     }
 
     #[test]
     fn a_live_bubble_renders_as_a_draft() {
         let text = RwSignal::new(String::from("so $x^2"));
-        let live =
-            html(|| view! { <MessageBubble message=Message::streaming("s", "bob", text) /> });
+        let live = html(|| view! { <MessageView message=Message::streaming("s", "bob", text) /> });
         assert!(live.contains("<math"), "{live}");
         let done = html(
-            || view! { <MessageBubble message=Message::streaming("s", "bob", text).finished() /> },
+            || view! { <MessageView message=Message::streaming("s", "bob", text).finished() /> },
         );
         assert!(!done.contains("<math"), "{done}");
+    }
+
+    #[test]
+    fn a_view_body_takes_the_bubbles_place() {
+        let message = Message::view("t1", "tool", || {
+            view! { <details class="tool-call"><summary>"ran a tool"</summary>"output"</details> }
+        });
+        let out = html(|| view! { <MessageView message=message show_names=true /> });
+        assert!(out.starts_with("<div "), "{out}");
+        assert!(out.contains(" class=\"rc-message\">"), "{out}");
+        assert!(out.contains("data-name=\"tool\""), "{out}");
+        assert!(out.contains("data-message-id=\"t1\""), "{out}");
+        assert!(
+            !out.contains("rc-bubble"),
+            "no bubble unless the host asks for one: {out}"
+        );
+        assert!(
+            !out.contains("rc-rich"),
+            "nothing is rendered as Markdown: {out}"
+        );
+        let name = out
+            .find("<div class=\"rc-sender\">tool</div>")
+            .unwrap_or_else(|| panic!("{out}"));
+        let body = out
+            .find("<details class=\"tool-call\">")
+            .unwrap_or_else(|| panic!("{out}"));
+        assert!(name < body, "the name is over the body: {out}");
+        assert!(
+            out.ends_with("</details></div>"),
+            "the body is the message's last child: {out}"
+        );
+    }
+
+    #[test]
+    fn a_view_body_may_opt_into_the_bubble() {
+        let message = Message::view("t2", "tool", || {
+            view! { <div class="rc-bubble">"looks like speech"</div> }
+        });
+        let out = html(|| view! { <MessageView message=message /> });
+        assert!(
+            out.contains("<div class=\"rc-bubble\">looks like speech</div>"),
+            "{out}"
+        );
+        assert_eq!(
+            out.matches("rc-bubble").count(),
+            1,
+            "one bubble, the host's: {out}"
+        );
     }
 
     #[test]
@@ -1117,6 +1181,42 @@ mod tests {
         assert!(
             named.contains("<div class=\"rc-sender\">them</div>"),
             "{named}"
+        );
+    }
+
+    #[test]
+    fn chat_places_a_view_message_among_the_text_ones() {
+        let messages = vec![
+            Message::new("1", "me", "Run it"),
+            Message::view(
+                "2",
+                "tool",
+                || view! { <pre class="tool-output">"ok"</pre> },
+            ),
+            Message::new("3", "them", "Done"),
+        ];
+        let out = html(|| view! { <Chat messages=messages on_send=|_: String| {} /> });
+        let first = out.find("data-message-id=\"1\"").unwrap();
+        let tool = out.find("data-message-id=\"2\"").unwrap();
+        let last = out.find("data-message-id=\"3\"").unwrap();
+        assert!(
+            first < tool && tool < last,
+            "messages keep their order: {out}"
+        );
+        // From the tool message's opening tag to the end of its body: the
+        // host's element, and no bubble around it.
+        let open = out[..tool].rfind("<div ").unwrap();
+        let body = &out[open..out[tool..].find("</pre>").unwrap() + tool];
+        assert!(body.contains("data-name=\"tool\""), "{body}");
+        assert!(body.contains("<pre class=\"tool-output\">ok"), "{body}");
+        assert!(
+            !body.contains("rc-bubble"),
+            "no bubble around the view: {body}"
+        );
+        assert_eq!(
+            out.matches("rc-bubble").count(),
+            2,
+            "one bubble per text message: {out}"
         );
     }
 
