@@ -15,6 +15,13 @@ version is 0, a minor release may change the API.
 
 ### Changed
 
+- The theme's custom properties are declared on the document root, in
+  place of the outermost of `.rc-chat`, `.rc-rich` and `.rc-composer`,
+  so a host can declare them on any ancestor of the components rather
+  than only at the chat's own boundary. `.rc-chat { --rc-accent: … }`
+  keeps winning; a declaration further up now wins too, by proximity. A
+  host that takes a token over on an ancestor owns it in both themes,
+  since the crate's dark values are on `:root` and no longer reach it.
 - The highlighter's classes are `hl-keyword`, `hl-string`, and so on,
   in place of `rc-keyword` and the rest: a prefix of their own, since
   every dotted atom of a scope became a class under the components'

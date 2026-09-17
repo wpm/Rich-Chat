@@ -6,14 +6,16 @@
  * of them. Dark mode follows prefers-color-scheme unless the document
  * forces a theme with data-theme="light" or "dark" on its root.
  *
- * The properties are set on the outermost component root only: on
- * .rc-chat, or on a .rc-rich or .rc-composer used on its own, never on
- * one nested inside another root. A value declared on an element beats
- * one inherited from above, so declaring them on every root would stop
- * a host's `.rc-chat { --rc-accent: … }` from reaching the composer.
+ * The properties are declared on the document root, so a host can take
+ * any of them over on any ancestor of the components: on :root itself,
+ * on .rc-chat, or on anything in between. The nearest declaration wins
+ * and no component declares anything, so an override is inherited down
+ * to every root and to every one nested inside another. A host that
+ * claims a token that way owns it in both themes: the dark values
+ * below are on :root, further away, so they no longer reach it.
  */
 
-:is(.rc-chat, .rc-rich, .rc-composer):not(:is(.rc-chat, .rc-rich, .rc-composer) *) {
+:root {
   --rc-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --rc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --rc-math: "Latin Modern Math", "STIX Two Math", "Cambria Math", "Noto Sans Math", math, serif;
@@ -48,7 +50,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) :is(.rc-chat, .rc-rich, .rc-composer):not(:is(.rc-chat, .rc-rich, .rc-composer) *) {
+  :root:not([data-theme="light"]) {
     --rc-fg: #e6edf3;
     --rc-muted: #9198a1;
     --rc-bg: #0d1117;
@@ -74,7 +76,7 @@
   }
 }
 
-[data-theme="dark"] :is(.rc-chat, .rc-rich, .rc-composer):not(:is(.rc-chat, .rc-rich, .rc-composer) *) {
+:root[data-theme="dark"] {
   --rc-fg: #e6edf3;
   --rc-muted: #9198a1;
   --rc-bg: #0d1117;

@@ -10,10 +10,10 @@
 //!   block wrappers that must not become boxes, and the alignment of
 //!   MathML environments. No colors, fonts, spacing, or radii. Keep it.
 //! - [`THEME`], in `rich-chat.theme`: the default look. Every color is
-//!   a `--rc-*` custom property set on the outermost component root
-//!   (`.rc-chat`, or a `.rc-rich` or `.rc-composer` used alone), so a
-//!   host can override any of them there from its own stylesheet; or
-//!   leave the whole theme out and write one against the `rc-*` classes.
+//!   a `--rc-*` custom property declared on the document root, so a host
+//!   can override any of them from its own stylesheet, on `.rc-chat` or
+//!   on any other ancestor of the components; or leave the whole theme
+//!   out and write one against the `rc-*` classes.
 //! - [`HIGHLIGHT`], also in `rich-chat.theme`: the code colors, from
 //!   two-face's OneHalfLight and OneHalfDark. Generated, not written:
 //!   `examples/highlight_css.rs` prints one theme's rules scoped to one
