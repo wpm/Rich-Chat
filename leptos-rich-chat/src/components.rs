@@ -1050,7 +1050,7 @@ mod tests {
         assert!(out.contains("@layer rich-chat.theme {"), "theme missing");
         assert!(out.contains("--rc-accent:"), "palette missing");
         assert!(out.contains(".rc-rich mtable"), "math rules missing");
-        assert!(out.contains(".rc-keyword"), "highlighting missing");
+        assert!(out.contains(".hl-keyword"), "highlighting missing");
         if cfg!(feature = "bundled-fonts") {
             assert!(out.contains("data:font/woff2;base64,"), "fonts missing");
         }
@@ -1067,7 +1067,7 @@ mod tests {
         );
         assert!(out.contains(".rc-block {"), "{out}");
         assert!(!out.contains("--rc-accent:"), "theme leaked in");
-        assert!(!out.contains(".rc-keyword"), "highlighting leaked in");
+        assert!(!out.contains(".hl-keyword"), "highlighting leaked in");
         assert!(!out.contains("@font-face"), "fonts leaked in");
     }
 
