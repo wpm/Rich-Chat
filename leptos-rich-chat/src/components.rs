@@ -284,10 +284,10 @@ fn hint_text(hint: Option<String>) -> String {
     hint.unwrap_or_else(|| DEFAULT_HINT.to_string())
 }
 
-/// The message a draft makes when sent: none while sending is disabled
-/// or the draft is blank.
-fn outgoing(disabled: bool, draft: String) -> Option<String> {
-    (!disabled && !draft.trim().is_empty()).then_some(draft)
+/// Whether a draft is sent: not while sending is disabled, and never a
+/// blank one.
+fn outgoing(disabled: bool, draft: &str) -> bool {
+    !disabled && !draft.trim().is_empty()
 }
 
 /// Whether a key press in the text box sends: Enter on its own, not
@@ -322,7 +322,7 @@ pub fn Composer(
     /// The text in the box, held by the host. The default is a signal of
     /// the composer's own, starting empty.
     #[prop(optional)]
-    draft: Option<RwSignal<String>>,
+    draft: RwSignal<String>,
     /// The text box's placeholder.
     #[prop(default = "Write a message…".to_string(), into)]
     placeholder: String,
@@ -356,7 +356,6 @@ pub fn Composer(
     #[prop(into, optional_no_strip)]
     on_link: Option<Callback<String>>,
 ) -> impl IntoView {
-    let draft = draft.unwrap_or_else(|| RwSignal::new(String::new()));
     let input = NodeRef::<html::Textarea>::new();
 
     let fit = move || {
@@ -367,12 +366,20 @@ pub fn Composer(
         }
     };
     let submit = move || {
-        if let Some(text) = outgoing(disabled.get_untracked(), draft.get_untracked()) {
-            on_send.run(text);
-            draft.set(String::new());
-            request_animation_frame(fit);
+        if !outgoing(disabled.get_untracked(), &draft.read_untracked()) {
+            return;
         }
+        // Taken, not copied: the signal is left empty by the same write.
+        let text = std::mem::take(&mut *draft.write());
+        on_send.run(text);
     };
+    // The height follows the text however it changes: sent, or put in
+    // by the host, at the start or later. Browser only, as the frame is.
+    #[cfg(target_arch = "wasm32")]
+    Effect::new(move |_| {
+        draft.track();
+        request_animation_frame(fit);
+    });
     let has_draft = move || !draft.read().trim().is_empty();
     let send = send_content(send);
     let hint = hint_text(hint);
@@ -496,7 +503,7 @@ pub fn Chat(
     on_send: Callback<String>,
     /// The text in the box, held by the host. See [`Composer`].
     #[prop(optional)]
-    draft: Option<RwSignal<String>>,
+    draft: RwSignal<String>,
     /// The text box's placeholder.
     #[prop(default = "Write a message…".to_string(), into)]
     placeholder: String,
@@ -573,7 +580,7 @@ pub fn Chat(
             </div>
             <Composer
                 on_send=on_send
-                draft=draft.unwrap_or_else(|| RwSignal::new(String::new()))
+                draft=draft
                 placeholder=placeholder
                 disabled=disabled
                 preview=preview
@@ -1024,15 +1031,11 @@ mod tests {
 
     #[test]
     fn a_draft_is_sent_unless_blank_or_disabled() {
-        assert_eq!(outgoing(false, "hi".into()), Some("hi".to_string()));
-        assert_eq!(
-            outgoing(false, "  hi \n".into()),
-            Some("  hi \n".to_string()),
-            "sent as written"
-        );
-        assert_eq!(outgoing(false, "".into()), None);
-        assert_eq!(outgoing(false, " \n\t".into()), None);
-        assert_eq!(outgoing(true, "hi".into()), None);
+        assert!(outgoing(false, "hi"));
+        assert!(outgoing(false, "  hi \n"), "blank around text is not blank");
+        assert!(!outgoing(false, ""));
+        assert!(!outgoing(false, " \n\t"));
+        assert!(!outgoing(true, "hi"));
     }
 
     #[test]

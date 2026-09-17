@@ -121,13 +121,14 @@ pub struct Settings {
     /// The chosen theme; `None` follows the system.
     pub theme: Option<Theme>,
     /// The users in the list, in the order they were added.
-    pub users: Vec<User>,
+    users: Vec<User>,
     /// Users deleted from the list. Their bubbles keep the look they
     /// had, so the look is kept.
     pub retired: Vec<User>,
     /// The user the controls edit and messages are sent as. Always one
-    /// in the list, which is never empty.
-    pub selected: String,
+    /// in the list, which is never empty. Only the methods below write
+    /// the two, which is what keeps that so.
+    selected: String,
     /// The text box's height in CSS pixels, once it has been dragged.
     pub input_height: Option<f64>,
 }
@@ -147,30 +148,44 @@ impl Default for Settings {
     }
 }
 
-/// The users as they are stored: one JSON value under one key.
+/// The users as they are stored: one JSON value under one key. Generic
+/// so that storing borrows the lists and loading owns them.
 #[derive(Serialize, Deserialize)]
-struct StoredUsers {
-    users: Vec<User>,
-    retired: Vec<User>,
+struct StoredUsers<U = Vec<User>, S = Option<String>> {
+    users: U,
+    retired: U,
     /// Older builds stored no selection for nobody.
-    selected: Option<String>,
+    selected: S,
 }
 
 impl Settings {
-    /// The selected user.
-    pub fn selected_user(&self) -> &User {
+    /// The users in the list, in the order they were added.
+    pub fn users(&self) -> &[User] {
+        &self.users
+    }
+
+    /// The selected user's name.
+    pub fn selected(&self) -> &str {
+        &self.selected
+    }
+
+    /// Where in the list the selected user is.
+    fn selected_at(&self) -> usize {
         self.users
             .iter()
-            .find(|user| user.name == self.selected)
+            .position(|user| user.name == self.selected)
             .expect("the selection names a user in the list")
+    }
+
+    /// The selected user.
+    pub fn selected_user(&self) -> &User {
+        &self.users[self.selected_at()]
     }
 
     /// The selected user, to change.
     pub fn selected_user_mut(&mut self) -> &mut User {
-        self.users
-            .iter_mut()
-            .find(|user| user.name == self.selected)
-            .expect("the selection names a user in the list")
+        let at = self.selected_at();
+        &mut self.users[at]
     }
 
     /// Selects `name`. A name not in the list changes nothing.
@@ -215,11 +230,7 @@ impl Settings {
         if !self.can_delete() {
             return;
         }
-        let at = self
-            .users
-            .iter()
-            .position(|user| user.name == self.selected)
-            .expect("the selection names a user in the list");
+        let at = self.selected_at();
         let user = self.users.remove(at);
         self.retired.retain(|retired| retired.name != user.name);
         self.retired.push(user);
@@ -239,7 +250,8 @@ impl Settings {
 
     /// What was stored last time, or the defaults. A stored list with no
     /// one in it, or a selection naming no one in it, which older builds
-    /// allowed, is corrected: the defaults, or the first user.
+    /// allowed, is corrected: the defaults, or the first user. A user
+    /// with no name, which nothing here makes, is left out.
     pub fn load() -> Self {
         match storage() {
             Some(storage) => Self::from_stored(|key| storage.get_item(key).ok().flatten()),
@@ -250,26 +262,29 @@ impl Settings {
     /// The settings `read` finds under the keys, with the defaults for
     /// what it does not find or what does not parse. See [`load`](Self::load).
     fn from_stored(read: impl Fn(&str) -> Option<String>) -> Self {
-        let defaults = Self::default();
-        let stored =
-            read(USERS_KEY).and_then(|json| serde_json::from_str::<StoredUsers>(&json).ok());
-        let (users, retired, selected) = match stored {
-            Some(stored) if !stored.users.is_empty() => {
-                (stored.users, stored.retired, stored.selected)
+        let mut settings = Self::default();
+        if let Some(mut stored) =
+            read(USERS_KEY).and_then(|json| serde_json::from_str::<StoredUsers>(&json).ok())
+        {
+            stored.users.retain(|user| !user.name.trim().is_empty());
+            if stored.users.is_empty() {
+                // The defaults stand in, so a deleted namesake of theirs
+                // would be in both lists.
+                let defaults = &settings.users;
+                stored
+                    .retired
+                    .retain(|user| !defaults.iter().any(|default| default.name == user.name));
+            } else {
+                settings.users = stored.users;
+                settings.selected = settings.users[0].name.clone();
+                settings.select(stored.selected.as_deref().unwrap_or(USER));
             }
-            Some(stored) => (defaults.users, stored.retired, None),
-            None => (defaults.users, defaults.retired, None),
-        };
-        let mut settings = Settings {
-            theme: read(THEME_KEY).as_deref().and_then(Theme::parse),
-            selected: users[0].name.clone(),
-            users,
-            retired,
-            input_height: read(INPUT_HEIGHT_KEY)
-                .and_then(|value| value.parse().ok())
-                .filter(|height: &f64| height.is_finite() && *height > 0.0),
-        };
-        settings.select(selected.as_deref().unwrap_or(&defaults.selected));
+            settings.retired = stored.retired;
+        }
+        settings.theme = read(THEME_KEY).as_deref().and_then(Theme::parse);
+        settings.input_height = read(INPUT_HEIGHT_KEY)
+            .and_then(|value| value.parse().ok())
+            .filter(|height: &f64| height.is_finite() && *height > 0.0);
         settings
     }
 
@@ -293,9 +308,9 @@ impl Settings {
             self.theme.map(|theme| theme.as_str().to_string()),
         );
         let users = StoredUsers {
-            users: self.users.clone(),
-            retired: self.retired.clone(),
-            selected: Some(self.selected.clone()),
+            users: self.users.as_slice(),
+            retired: self.retired.as_slice(),
+            selected: Some(self.selected.as_str()),
         };
         write(USERS_KEY, serde_json::to_string(&users).ok());
         write(
@@ -637,6 +652,32 @@ mod tests {
         assert_eq!(settings.retired.len(), 1, "the retired are kept");
         let unreadable = stored(&[(USERS_KEY, "not json")]);
         assert_eq!(unreadable, Settings::default());
+    }
+
+    #[test]
+    fn the_defaults_are_taken_out_of_the_retired_and_the_nameless_left_out() {
+        // An older build let everyone be deleted. The defaults stand in
+        // for the empty list, and are not counted among the retired too.
+        let everyone_deleted = r##"{"users":[],"retired":[{"name":"Assistant","side":"left","color":"#2a64c8"},{"name":"User","side":"right","color":"#2f855a"},{"name":"Carol","side":"left","color":"#123456"}],"selected":null}"##;
+        let mut settings = stored(&[(USERS_KEY, everyone_deleted)]);
+        assert_eq!(settings.users, Settings::default().users);
+        assert_eq!(
+            settings.retired,
+            [User::new("Carol", Side::Left, "#123456")]
+        );
+        settings.add_user("Dave");
+        assert_eq!(settings.selected_user().color, PALETTE[3], "the next color");
+
+        // A user with no name could not be sent as.
+        let nameless = r##"{"users":[{"name":"","side":"left","color":"#000000"},{"name":"Alice","side":"left","color":"#ff8800"}],"retired":[],"selected":""}"##;
+        let settings = stored(&[(USERS_KEY, nameless)]);
+        assert_eq!(settings.users, [User::new("Alice", Side::Left, "#ff8800")]);
+        assert_eq!(settings.selected, "Alice");
+        let only_nameless = r##"{"users":[{"name":" ","side":"left","color":"#000000"}],"retired":[],"selected":" "}"##;
+        assert_eq!(
+            stored(&[(USERS_KEY, only_nameless)]).users,
+            Settings::default().users
+        );
     }
 
     #[test]

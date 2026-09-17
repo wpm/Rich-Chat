@@ -86,6 +86,11 @@ async function type(page, text) {
   await page.waitForTimeout(150);
 }
 
+// The bubbles the window opens on: the tour of Markdown, code and math.
+// Every count of messages below is this many plus what the test sent, and
+// the sent messages' ids count on from it.
+const TOUR = 3;
+
 const browser = await chromium.launch();
 try {
   for (const colorScheme of ['light', 'dark']) {
@@ -104,7 +109,7 @@ try {
     const code = '.rc-message[data-message-id="welcome-code"]';
     const math = '.rc-message[data-message-id="welcome-math"]';
     check(await page.$(welcome) !== null, 'the welcome bubble is there on startup');
-    check((await page.$$('.rc-message')).length === 3, 'with the code and math bubbles after it');
+    check((await page.$$('.rc-message')).length === TOUR, 'with the code and math bubbles after it');
     check(await page.$eval(welcome, (el) => el.dataset.kind) === 'Assistant', 'the welcome is from the assistant');
     check(await page.$eval(code, (el) => el.dataset.kind) === 'User', 'the code from the user');
     check(await page.$eval(math, (el) => el.dataset.kind) === 'Assistant', 'and the math from the assistant');
@@ -149,8 +154,8 @@ try {
     const previewHtml = await page.$eval('.rc-composer-preview .rc-rich', (el) => el.innerHTML);
     await page.screenshot({ path: `${shots}/${colorScheme}-2-preview.png` });
     await page.press('.rc-composer-input', 'Enter');
-    // The sent message: the fourth, after the three of the tour.
-    const sent = '.rc-message[data-message-id="m3"]';
+    // The sent message: the one after the tour, whose id counts from it.
+    const sent = `.rc-message[data-message-id="m${TOUR}"]`;
     await page.waitForSelector(sent);
     await page.waitForTimeout(300);
     check(await page.$eval(sent, (el) => el.dataset.kind) === 'User', 'the sent message is from the selected user');
@@ -195,7 +200,7 @@ try {
     await type(page, 'Shift+Enter keeps typing\nline two');
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
-    check((await page.$$('.rc-message')).length === 5, 'a second sent message appends');
+    check((await page.$$('.rc-message')).length === TOUR + 2, 'a second sent message appends');
 
     const background = await page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
     check(colorScheme === 'dark' ? background !== 'rgb(255, 255, 255)' : background === 'rgb(255, 255, 255)', `${colorScheme} palette applied`);
@@ -269,8 +274,9 @@ try {
     await page.waitForTimeout(100);
     check((await pressedSide()) === 'left', 'selecting Assistant shows the assistant\'s side');
     check((await page.$eval('.control-color', (el) => el.value)) === '#2a64c8', 'and color');
+    const assistantBubbles = (await gaps('Assistant')).count;
     await send('From the assistant');
-    check((await gaps('Assistant')).count === 3, 'and sends as the assistant');
+    check((await gaps('Assistant')).count === assistantBubbles + 1, 'and sends as the assistant');
 
     // Theme.
     check((await theme()) === 'light', 'the theme starts as the system\'s');
@@ -345,10 +351,6 @@ try {
     await page.press('.control-new-user', 'Enter');
     await page.waitForTimeout(100);
     check(JSON.stringify(await users()) === '["Assistant","User"]', 'User is added back');
-    check((await pressedSide()) === 'left', 'on the left, as a new user');
-    await page.click('.control-side[value="right"]');
-    await page.fill('.control-color', '#2f855a');
-    await page.waitForTimeout(100);
     check(!(await page.$eval('.control-delete', (el) => el.disabled)), 'and Delete works again');
 
     // The text box.
@@ -420,7 +422,7 @@ try {
       await page.press('.rc-composer-input', 'Enter');
     }
     await page.waitForTimeout(300);
-    check((await page.$$('.rc-message')).length === 8, 'a burst of five messages all arrive');
+    check((await page.$$('.rc-message')).length === TOUR + 5, 'a burst of five messages all arrive');
     check((await gap()) === 0, 'and the transcript is at the end after them');
 
     // The composer growing over the transcript, by a draft or by a drag.

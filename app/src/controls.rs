@@ -20,9 +20,11 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
         settings.update(|settings| settings.theme = Some(next));
     };
 
-    // The users, and the one the other controls edit.
-    let users = Signal::derive(move || settings.read().users.clone());
-    let selected = Signal::derive(move || settings.read().selected_user().clone());
+    // The users, and the one the other controls edit. Memos, so that a
+    // settings change that touches neither (the text box's height, as
+    // it is dragged) re-renders neither.
+    let users = Memo::new(move |_| settings.read().users().to_vec());
+    let selected = Memo::new(move |_| settings.read().selected_user().clone());
     let choose = move |event: ev::Event| {
         let name = event_target_value(&event);
         settings.update(|settings| settings.select(&name));

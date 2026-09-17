@@ -4,10 +4,10 @@
 # repository out first, then `uses: ./.github/actions/wasm-toolchain`.
 #
 # Versions in more than one place: dtolnay/rust-toolchain and
-# Swatinem/rust-cache are also used directly by the library and desktop
-# jobs in ci.yml, which build natively and do not need Trunk, and
-# actions/checkout is in every job of every workflow. Bump each of them
-# everywhere at once.
+# Swatinem/rust-cache are also used directly by the library, desktop and
+# coverage jobs in ci.yml and by publish-crate.yml, which build natively
+# and do not need Trunk, and actions/checkout is in every job of every
+# workflow. Bump each of them everywhere at once.
 name: Wasm toolchain
 description: Rust with the wasm32 target, the shared cargo cache, and Trunk.
 inputs:
@@ -31,7 +31,7 @@ runs:
     # release unauthenticated, and when that is rate-limited it silently
     # installs v0.19.1, whose wasm-opt lacks bulk memory and which ignores
     # data-wasm-opt-params, so the build fails.
-    - uses: jetli/trunk-action@v0.5.0
+    - uses: jetli/trunk-action@v0.5.1
       with:
         version: v0.21.14
     # The wasm-bindgen and wasm-opt binaries Trunk runs. It fetches them
@@ -40,17 +40,23 @@ runs:
     # run was a download, and a download that failed (a connection reset
     # from GitHub's release storage, which happens) failed the build.
     # Cached, they are fetched once per platform and per version: the
-    # wasm-bindgen version is in Cargo.lock, and the wasm-opt one is
-    # Trunk's default for the version pinned above, so the key covers both
-    # files. An older cache seeds a new key, and Trunk downloads only what
-    # is missing. The directory is where the `directories` crate puts
-    # `ProjectDirs::from("dev", "trunkrs", "trunk").cache_dir()` on each
-    # platform.
+    # wasm-bindgen version is read from Cargo.lock (only that one, so that
+    # a bump of anything else keeps the entry), and the wasm-opt one is
+    # Trunk's default for the version pinned above, so this file is in
+    # the key too. An older cache seeds a new key, and Trunk downloads
+    # only what is missing. The directory is where the `directories`
+    # crate puts `ProjectDirs::from("dev", "trunkrs", "trunk").cache_dir()`
+    # on each platform.
+    - id: tools
+      shell: bash
+      run: |
+        version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | tr -d '\r' | sed -n 's/^version = "\(.*\)"$/\1/p')
+        echo "wasm-bindgen=$version" >> "$GITHUB_OUTPUT"
     - uses: actions/cache@v4
       with:
         path: |
           ~/.cache/trunk
           ~/Library/Caches/dev.trunkrs.trunk
           ~/AppData/Local/trunkrs/trunk/cache
-        key: trunk-tools-${{ runner.os }}-${{ hashFiles('Cargo.lock', '.github/actions/wasm-toolchain/action.yml') }}
+        key: trunk-tools-${{ runner.os }}-wasm-bindgen-${{ steps.tools.outputs.wasm-bindgen }}-${{ hashFiles('.github/actions/wasm-toolchain/action.yml') }}
         restore-keys: trunk-tools-${{ runner.os }}-
