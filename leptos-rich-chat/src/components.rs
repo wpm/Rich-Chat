@@ -426,9 +426,8 @@ pub fn Composer(
     /// The text box's placeholder.
     #[prop(default = "Write a message…".to_string(), into)]
     placeholder: String,
-    /// The composer is off while true: the text box is disabled, so there
-    /// is no draft to preview, and nothing can be sent. The draft signal
-    /// is kept.
+    /// The composer is off while true: the text box is disabled, nothing
+    /// is previewed, and nothing can be sent. The draft signal is kept.
     #[prop(optional, into)]
     disabled: Signal<bool>,
     /// A reply is in flight while true: the text box stays open and its
@@ -631,9 +630,9 @@ pub fn Chat(
     /// The text box's placeholder.
     #[prop(default = "Write a message…".to_string(), into)]
     placeholder: String,
-    /// The composer is off while true: the text box is disabled, so there
-    /// is no draft to preview, and nothing can be sent. The draft signal
-    /// is kept. See [`Composer`].
+    /// The composer is off while true: the text box is disabled, nothing
+    /// is previewed, and nothing can be sent. The draft signal is kept.
+    /// See [`Composer`].
     #[prop(optional, into)]
     disabled: Signal<bool>,
     /// A reply is in flight while true: the text box stays open and its
@@ -1147,6 +1146,32 @@ mod tests {
             both.starts_with("<div class=\"rc-composer rc-busy\">"),
             "the class follows busy alone: {both}"
         );
+    }
+
+    #[test]
+    fn the_preview_goes_while_disabled_and_comes_back_after() {
+        // Signals, as a host holds them. A render off the browser is
+        // made once, so each state is rendered anew; the same composer
+        // living through the change is the end-to-end check's to see.
+        let draft = RwSignal::new(String::from("**typed** before"));
+        let disabled = RwSignal::new(false);
+        let render = || {
+            html(|| view! { <Composer on_send=|_text: String| {} draft=draft disabled=disabled /> })
+        };
+        let on = render();
+        assert!(on.contains("rc-composer-preview"), "{on}");
+        assert!(!opening_tag(&on, "textarea").contains("disabled"), "{on}");
+
+        disabled.set(true);
+        let off = render();
+        assert!(!off.contains("rc-composer-preview"), "{off}");
+        assert!(opening_tag(&off, "textarea").contains(" disabled"), "{off}");
+        assert_eq!(draft.get_untracked(), "**typed** before", "kept");
+
+        disabled.set(false);
+        let back = render();
+        assert!(back.contains("<strong>typed</strong>"), "{back}");
+        assert!(!send_button(&back).contains("disabled"), "{back}");
     }
 
     #[test]
