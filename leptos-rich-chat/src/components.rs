@@ -340,6 +340,21 @@ fn send_draft(
     focus(input);
 }
 
+/// What Enter and the send button do: send the draft, unless the composer
+/// is off or busy at that moment. The signals are read when the key or
+/// the button is pressed, not when the composer is built, and untracked,
+/// since an event handler subscribes to nothing.
+fn submit_draft(
+    disabled: Signal<bool>,
+    busy: Signal<bool>,
+    draft: RwSignal<String>,
+    on_send: Callback<String>,
+    input: NodeRef<html::Textarea>,
+) {
+    let blocked = sending_blocked(disabled.get_untracked(), busy.get_untracked());
+    send_draft(blocked, draft, on_send, input);
+}
+
 /// Puts the caret in the text box.
 #[cfg(target_arch = "wasm32")]
 fn focus(input: NodeRef<html::Textarea>) {
@@ -457,10 +472,7 @@ pub fn Composer(
             let _ = style.set_property("height", &format!("{}px", element.scroll_height()));
         }
     };
-    let submit = move || {
-        let blocked = sending_blocked(disabled.get_untracked(), busy.get_untracked());
-        send_draft(blocked, draft, on_send, input);
-    };
+    let submit = move || submit_draft(disabled, busy, draft, on_send, input);
     // The height follows the text however it changes: sent, or put in
     // by the host, at the start or later. Browser only, as the frame is.
     #[cfg(target_arch = "wasm32")]
@@ -1475,6 +1487,46 @@ mod tests {
             send_draft(sending_blocked(false, false), draft, on_send, input);
             assert_eq!(sent.get_untracked(), ["the next one"]);
             assert_eq!(draft.get_untracked(), "");
+        });
+    }
+
+    #[test]
+    fn a_press_reads_busy_and_disabled_as_they_are_then() {
+        Owner::new().with(|| {
+            let sent = RwSignal::new(Vec::<String>::new());
+            let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
+            let draft = RwSignal::new(String::from("written during the wait"));
+            let input = NodeRef::new();
+            // The host's signals, as the composer holds them.
+            let waiting = RwSignal::new(true);
+            let off = RwSignal::new(false);
+            let (busy, disabled) = (Signal::from(waiting), Signal::from(off));
+            let press = || submit_draft(disabled, busy, draft, on_send, input);
+
+            press();
+            assert!(sent.get_untracked().is_empty(), "nothing while busy");
+            assert_eq!(draft.get_untracked(), "written during the wait");
+
+            // The reply lands. That alone sends nothing; the next press does.
+            waiting.set(false);
+            assert!(
+                sent.get_untracked().is_empty(),
+                "the wait ending is no send"
+            );
+            assert_eq!(draft.get_untracked(), "written during the wait");
+            press();
+            assert_eq!(sent.get_untracked(), ["written during the wait"]);
+            assert_eq!(draft.get_untracked(), "");
+
+            // Off blocks a press as well, and lets it through once on again.
+            draft.set(String::from("next"));
+            off.set(true);
+            press();
+            assert_eq!(sent.get_untracked().len(), 1, "nothing while disabled");
+            assert_eq!(draft.get_untracked(), "next", "and the draft is kept");
+            off.set(false);
+            press();
+            assert_eq!(sent.get_untracked()[1], "next");
         });
     }
 
