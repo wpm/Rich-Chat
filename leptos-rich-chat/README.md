@@ -300,8 +300,8 @@ context, or a prop on `CodeBlock`. The text in the box is
 the composer's own unless `draft`, an `RwSignal<String>` the host holds,
 is given: to prefill it, read it, or keep it across unmounting.
 
-Both take two signals that keep a message from being sent, and they are
-not each other. `disabled` turns the composer off, for a host with
+`Chat` and `Composer` also take two signals that keep a message from
+being sent, and they are not each other. `disabled` turns the composer off, for a host with
 nothing to send with: the text box is disabled, there is no preview, and
 nothing can be sent. `busy` is a wait, for a host whose reply is still in
 flight: the text box and the preview carry on, neither Enter nor the

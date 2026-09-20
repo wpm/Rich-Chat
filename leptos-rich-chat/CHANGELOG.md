@@ -98,11 +98,11 @@ version is 0, a minor release may change the API.
 - `disabled`'s documentation, on `Composer` and `Chat`, says what it
   does: the composer is off, the text box disabled, nothing previewed
   and nothing sent, with the draft signal kept. It had said "Blocks
-  sending while true; the draft is kept", which describes `busy`. To
-  make "nothing previewed" true of a draft the host put in the box, a
-  disabled composer now shows no preview whatever the draft holds;
-  before, a draft already there was previewed beside a box that could
-  not edit it.
+  sending while true; the draft is kept", which describes `busy`.
+- A disabled composer shows no preview whatever its draft holds, which
+  is what makes "nothing previewed" true of a draft the host put in the
+  box. Before, a draft already there was previewed beside a box that
+  could not edit it.
 
 ### Fixed
 
