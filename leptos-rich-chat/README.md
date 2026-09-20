@@ -190,7 +190,7 @@ punctuation, and marks text as a draft.
 The components carry `rc-*` classes and no inline styles, so the look is
 entirely CSS, and the CSS is yours to decide. What the crate ships comes
 in two tiers, each in a [cascade layer](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer),
-so any rule in your own stylesheet wins over it regardless of
+so any unlayered rule in your own stylesheet wins over it regardless of
 specificity, with no `!important` and no matching of the crate's
 selectors:
 
@@ -202,12 +202,33 @@ selectors:
   default look and the code colors. Neither names anyone; the rules
   for the names are `Names::css()`, in the same layer.
 
-That cuts both ways: a global reset in your stylesheet, such as
-Tailwind 3's preflight, reaches inside the chat too, and you put back
-what you want by rule against the `rc-*` classes. If your own rules are
-in cascade layers, declare the layer order yourself, first, with the
-crate's layers before yours; the crate's CSS is a `<style>` element in
-the body, so its own declaration comes after anything in the head.
+That cuts both ways: an unlayered global reset in your stylesheet, such
+as Tailwind 3's preflight, reaches inside the chat too, and you put back
+what you want by rule against the `rc-*` classes.
+
+If your own rules are in cascade layers, the order the layers are first
+declared in decides, and the crate's CSS is a `<style>` element in the
+body, so its own declaration comes after anything in the head and would
+put its layers last, over all of yours. Declare the order yourself,
+first: the crate's layers go after any layer that resets elements and
+before any layer whose rules should win over the theme. `rich-chat`
+names the parent of `rich-chat.structure` and `rich-chat.theme`, so one
+name places both.
+
+For Tailwind v4 that is between its reset and its utilities:
+
+```css
+@layer theme, base, rich-chat, components, utilities;
+@import "tailwindcss";
+```
+
+`base` comes first because Tailwind's preflight is in it. With `base`
+before `rich-chat`, preflight loses to the theme and the Markdown is
+styled. With `base` after `rich-chat`, preflight wins: it resets the
+margins of paragraphs and lists, the list markers, the heading sizes,
+and the `pre` and `code` fonts, and the Markdown comes out flat.
+`utilities` comes after, so a utility class on a body you draw or on a
+wrapper still wins.
 
 To adjust the theme, override its custom properties anywhere above the
 components. Every color is a `--rc-*` property, and so are the fonts
