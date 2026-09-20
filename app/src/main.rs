@@ -48,13 +48,19 @@ struct Drag {
     height: f64,
 }
 
-/// The first bubble, from the assistant.
+/// The first bubble, from the assistant. Its paragraph is longer than
+/// the widest measure the Width slider offers, so that the bubble wraps
+/// at every position and the slider is seen to move it; the end-to-end
+/// check holds it to that.
 const WELCOME: &str = include_str!("../welcome.md");
-/// The second bubble, from the user: the Markdown.
+/// The second bubble, from the user: the Markdown. Its first paragraph
+/// is as long as the welcome's, for the same reason, so that the slider
+/// is seen to move both users' bubbles alike.
 const WELCOME_MARKDOWN: &str = include_str!("../welcome-markdown.md");
-/// The third, from the assistant again: the code.
+/// The third, from the assistant again: the code, which does not wrap.
 const WELCOME_CODE: &str = include_str!("../welcome-code.md");
-/// The fourth, from the user again: the math.
+/// The fourth, from the user again: the math, with a first paragraph as
+/// long as the welcome's, as the Markdown's is.
 const WELCOME_MATH: &str = include_str!("../welcome-math.md");
 
 #[component]

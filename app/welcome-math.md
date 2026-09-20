@@ -1,6 +1,6 @@
 ## Math
 
-Inline math sits in a sentence, like $e^{i\pi} + 1 = 0$ or $\binom{n}{k} = \frac{n!}{k!\,(n-k)!}$. Display math gets its own line, set in Latin Modern, the TeX font, as native MathML with no JavaScript:
+Inline math sits in a sentence, like $e^{i\pi} + 1 = 0$ or $\binom{n}{k} = \frac{n!}{k!\,(n-k)!}$, and stays in the line with the words around it, at the size of the text. Display math gets its own line, set in Latin Modern, the TeX font, as native MathML with no JavaScript, so it scales and prints as sharply as the text around it:
 
 $$
 \oint_{\partial\Omega} \mathbf{F} \cdot d\mathbf{S}

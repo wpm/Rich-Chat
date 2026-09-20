@@ -704,8 +704,9 @@ try {
     // The width: the widest a message gets, for every user at once. A
     // bubble that wraps is exactly as wide as its maximum, so the wrapped
     // bubbles of the tour, the assistant's welcome and the user's
-    // Markdown, are the measure of it; a message that fits on one line
-    // is as wide as its text and must not move.
+    // Markdown and math, are the measure of it, and must agree at every
+    // position; a message that fits on one line is as wide as its text
+    // and must not move.
     const width = () => page.$eval('.control-width', (el) => el.value);
     const readout = () => page.$eval('.control-width-readout', (el) => el.textContent.trim());
     const spoken = () => page.$eval('.control-width', (el) => el.getAttribute('aria-valuetext'));
@@ -715,7 +716,16 @@ try {
     };
     const bubbleWidth = (id) => page.$eval(`.rc-message[data-message-id="${id}"] .rc-bubble`, (el) => el.getBoundingClientRect().width);
     const gapsOf = (id) => rowGaps(`.rc-message[data-message-id="${id}"]`);
-    const wrapped = ['welcome', 'welcome-markdown'];
+    const wrapped = ['welcome', 'welcome-markdown', 'welcome-math'];
+    // The width of the wrapped bubbles, read together, after a check that
+    // every one of them, whichever user's, is at it. Should one fall
+    // short, its paragraph has come to fit at this measure: lengthen it
+    // in its file under app/, or the slider looks like one user's.
+    const wrappedWidth = async (when) => {
+      const all = await page.evaluate((ids) => ids.map((id) => document.querySelector(`.rc-message[data-message-id="${id}"] .rc-bubble`).getBoundingClientRect().width), wrapped);
+      check(all.every((w) => w === all[0]), `the wrapped bubbles of both users are one width ${when} (${all})`);
+      return all[0];
+    };
     const oneLine = `m${TOUR}`;
     const track = await page.$eval('.control-width', (el) => ({ type: el.type, min: el.min, max: el.max, step: el.step }));
     check(track.type === 'range' && track.min === '76' && track.max === '161' && track.step === '1', 'the width is a slider from 76 to one past 160');
@@ -726,30 +736,30 @@ try {
     check((await page.$eval('.control-width', (el) => el.labels[0]?.textContent)) === 'Width', 'labelled Width');
     const order = await page.$$eval('.controls > *', (els) => els.map((el) => (el.querySelector('#bubble-color') ? 'color' : el.querySelector('.control-width') ? 'width' : el.querySelector('.control-names') ? 'names' : null)).filter(Boolean).join());
     check(order === 'color,width,names', 'between the color and the Names switch');
-    const atFloor = await Promise.all(wrapped.map(bubbleWidth));
+    const atFloor = await wrappedWidth('at 76');
     const shortAtFloor = await bubbleWidth(oneLine);
-    check(shortAtFloor < atFloor[0] && atFloor[0] === atFloor[1], 'the wrapped bubbles of both users are one width, and a one-line message is narrower');
+    check(shortAtFloor < atFloor, 'and a one-line message is narrower');
     // With the app's token taken off, the library's own maximum shows:
     // the same, since the slider starts where the library does.
     await page.evaluate(() => document.querySelector('.app').style.removeProperty('--rc-bubble-max-width'));
-    check((await bubbleWidth('welcome')) === atFloor[0], 'at 76 a wrapped bubble is exactly as wide as the library alone makes it');
+    check((await bubbleWidth('welcome')) === atFloor, 'at 76 a wrapped bubble is exactly as wide as the library alone makes it');
     await setWidth('120');
     check((await width()) === '120' && (await readout()) === '120' && (await spoken()) === '120 characters', 'dragging the slider to 120 says so');
-    const atMiddle = await Promise.all(wrapped.map(bubbleWidth));
-    check(atMiddle.every((now, i) => now > atFloor[i]), `and widens the wrapped bubbles of both users (${atFloor} to ${atMiddle})`);
+    const atMiddle = await wrappedWidth('at 120');
+    check(atMiddle > atFloor, `and widens them (${atFloor} to ${atMiddle})`);
     check((await bubbleWidth(oneLine)) === shortAtFloor, 'while the message that fits on a line does not move');
     await setWidth(fullPosition);
     check((await width()) === fullPosition && (await readout()) === 'Full' && (await spoken()) === 'Full width', 'one past 160 is Full');
     const full = await gapsOf('welcome');
     check(full.left < 1 && full.right < 1, 'at which a long message spans the transcript from one padding edge to the other');
-    check((await bubbleWidth('welcome')) > atMiddle[0], 'wider than any measure');
+    check((await bubbleWidth('welcome')) > atMiddle, 'wider than any measure');
     check((await bubbleWidth(oneLine)) === shortAtFloor, 'and the one-line message still does not move');
     await page.screenshot({ path: `${shots}/controls-1-full-width.png` });
     // The floor: the slider cannot go below the library's measure.
     await page.focus('.control-width');
     await page.keyboard.press('Home');
     await page.waitForTimeout(100);
-    check((await width()) === '76' && (await bubbleWidth('welcome')) === atFloor[0], 'Home takes it back to 76');
+    check((await width()) === '76' && (await bubbleWidth('welcome')) === atFloor, 'Home takes it back to 76');
     await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(100);
     check((await width()) === '76' && (await readout()) === '76', 'and it cannot be dragged below 76');
@@ -765,9 +775,27 @@ try {
     await setWidth(fullPosition);
     const narrowFull = await gapsOf('welcome');
     check(narrowFull.left < 1 && narrowFull.right < 1, 'and Full still spans it');
+    // In a window wide enough that the measure binds rather than the
+    // gutter, the whole track tells: every wrapped bubble, whichever
+    // user's, goes on widening to the last measure, and by the same
+    // amount. A bubble whose longest line fits at some measure would
+    // stop there while the others went on, and the slider would look
+    // like one user's.
+    await page.setViewportSize({ width: 2000, height: 900 });
+    await setWidth(ceiling);
+    const wideRow = await page.$eval(`.rc-message[data-message-id="welcome"]`, (el) => el.getBoundingClientRect().width);
+    check((await bubbleWidth('welcome')) < 0.85 * wideRow, 'the window is wide enough that at 160 the measure binds and not the gutter');
+    await setWidth('120');
+    const wideAtMiddle = await wrappedWidth('at 120 in the wide window');
+    check(wideAtMiddle > atMiddle, `wider than the gutter let them be (${atMiddle} to ${wideAtMiddle})`);
+    await setWidth(ceiling);
+    const wideAtCeiling = await wrappedWidth('at 160');
+    check(wideAtCeiling > wideAtMiddle, `wider again (${wideAtMiddle} to ${wideAtCeiling})`);
+    check((await bubbleWidth(oneLine)) === shortAtFloor, 'while the one-line message still does not move');
+    await page.screenshot({ path: `${shots}/controls-1-wide-width.png` });
     await page.setViewportSize({ width: 1000, height: 900 });
     await setWidth('120');
-    check((await bubbleWidth('welcome')) === atMiddle[0], 'back at 120 in the wide window, the bubble is as it was');
+    check((await bubbleWidth('welcome')) === atMiddle, 'back at 120 in the first window, the bubble is as it was');
     await page.screenshot({ path: `${shots}/controls-1-changed.png` });
 
     // Everything survives a reload.
@@ -783,7 +811,7 @@ try {
     check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'which the welcome wears');
     check((await boxHeight()) === after, 'and the text box height');
     check((await width()) === '120' && (await readout()) === '120', 'and the width');
-    check((await bubbleWidth('welcome')) === atMiddle[0], 'which the welcome is wrapped at');
+    check((await bubbleWidth('welcome')) === atMiddle, 'which the welcome is wrapped at');
     check(await namesOn(), 'and the names');
     check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'which every bubble still has');
     check((await sliderAt()) === '1.4', 'and their size');
