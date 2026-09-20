@@ -225,13 +225,10 @@ For Tailwind v4 that is between its reset and its utilities:
 `base` comes first because Tailwind's preflight is in it. With `base`
 before `rich-chat`, preflight loses to the theme and the Markdown is
 styled. With `base` after `rich-chat`, preflight wins: it resets the
-margins of paragraphs and lists, the heading sizes, and the `pre` and
-`code` fonts, and the Markdown comes out flat. `utilities` comes after, so a utility class on
-a body you draw or on a wrapper still wins. The order settles only what
-both sides declare: the theme leaves list markers to the browser, so
-preflight's `list-style: none` holds in any order, and you put the
-markers back by rule, `.rc-rich ul { list-style: disc; }` and
-`.rc-rich ol { list-style: decimal; }`.
+margins of paragraphs and lists, the list markers, the heading sizes,
+and the `pre` and `code` fonts, and the Markdown comes out flat.
+`utilities` comes after, so a utility class on a body you draw or on a
+wrapper still wins.
 
 To adjust the theme, override its custom properties anywhere above the
 components. Every color is a `--rc-*` property, and so are the fonts
