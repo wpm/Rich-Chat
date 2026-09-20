@@ -428,11 +428,6 @@ mod tests {
         );
     }
 
-    /// The widest a bubble gets is a token of the theme's, declared on
-    /// the root with the rest so that a host takes it over from any
-    /// ancestor, and read by the bubble's rule, so that a host's own body
-    /// with the bubble's class gets it too. The default is the one value
-    /// that was in the rule before it was a token.
     /// The declarations of the rule for `selector` in `css`: what is
     /// between its opening brace and the closing one.
     fn rule<'a>(css: &'a str, selector: &str) -> &'a str {
@@ -443,6 +438,11 @@ mod tests {
         &body[..body.find('}').expect("the rule is closed")]
     }
 
+    /// The widest a bubble gets is a token of the theme's, declared on
+    /// the root with the rest so that a host takes it over from any
+    /// ancestor, and read by the bubble's rule, so that a host's own body
+    /// with the bubble's class gets it too. The default is the one value
+    /// that was in the rule before it was a token.
     #[test]
     fn the_theme_declares_the_bubbles_maximum_width_and_the_bubble_reads_it() {
         assert!(
@@ -462,6 +462,21 @@ mod tests {
             !rule(STRUCTURE, ".rc-bubble").contains("max-width")
                 && !STRUCTURE.contains("--rc-bubble-max-width"),
             "the width is the theme's to give, not the structure's"
+        );
+    }
+
+    /// The window's background is its own token, `--rc-chat-bg`, which
+    /// the theme leaves undeclared so that it falls back to whichever
+    /// `--rc-bg` is in force; theme.css says why beside the rule.
+    #[test]
+    fn the_window_background_is_its_own_undeclared_token() {
+        assert!(
+            THEME.contains("background: var(--rc-chat-bg, var(--rc-bg));"),
+            "the window reads --rc-chat-bg, falling back to --rc-bg"
+        );
+        assert!(
+            !THEME.contains("--rc-chat-bg:"),
+            "the theme declares --rc-chat-bg, which would cut it off from --rc-bg"
         );
     }
 

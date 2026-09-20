@@ -6,16 +6,17 @@
 //! Above the chat is a bar of controls: the users, who can be added and
 //! removed; where the selected user's bubbles land and their color,
 //! which changes every bubble of theirs; the widest a message gets, for
-//! every user at once; whether every bubble has its user's name over
-//! it, and how big; whether the chat is busy, as a host waiting on a
-//! model's reply sets it, so that the text box and the preview stay and
-//! only the sending waits, or disabled, the composer off; light or dark.
+//! every user at once; the window's background, the ground behind the
+//! bubbles alone; whether every bubble has its user's name over it, and
+//! how big; whether the chat is busy, as a host waiting on a model's
+//! reply sets it, so that the text box and the preview stay and only
+//! the sending waits, or disabled, the composer off; light or dark.
 //! The composer's top edge can be dragged to make the text box taller.
 //! All of that is this app's: the library gets a table of names saying
 //! where each user's bubbles go and in what colors, a flag for the
-//! names, and its `--rc-bubble-max-width` set above the chat, and the
-//! app's own stylesheet gets custom properties for the text box and the
-//! names.
+//! names, and its tokens for the widest a bubble gets and for the
+//! window's background set above the chat, and the app's own stylesheet
+//! gets custom properties for the text box and the names.
 
 mod controls;
 mod opener;
@@ -102,12 +103,16 @@ fn App() -> impl IntoView {
     let busy = RwSignal::new(false);
     // And the composer off altogether, as for a host with no key.
     let disabled = RwSignal::new(false);
-    // The settings that are lengths, as custom properties on the root:
-    // the library's token for the widest a bubble gets, which reaches
-    // every bubble by inheritance as its docs say a host's override on
-    // any ancestor does, and the app's own for the text box and the
-    // names. The name's size is always set, whether or not the names
-    // are showing; the stylesheet reads it only when they are.
+    // The settings the stylesheets read as custom properties, on the
+    // root, from where the library's reach every component by
+    // inheritance as its docs say a host's override on any ancestor
+    // does. The widest a bubble gets is the library's --rc-bubble-max-
+    // width, always set. The name's size is always set too, whether or
+    // not the names are showing; the app's stylesheet reads it only
+    // when they are. The window's background is the library's
+    // --rc-chat-bg, and is not emitted while unset, so the window
+    // follows the theme's light and dark switch until a background is
+    // chosen.
     let style = move || {
         let settings = settings.read();
         let mut style = format!("--rc-bubble-max-width: {}; ", settings.bubble_width.css());
@@ -115,6 +120,9 @@ fn App() -> impl IntoView {
             let _ = write!(style, "--app-input-height: {height}px; ");
         }
         let _ = write!(style, "--app-sender-size: {}em;", settings.sender_size);
+        if let Some(background) = &settings.background {
+            let _ = write!(style, " --rc-chat-bg: {background};");
+        }
         style
     };
 

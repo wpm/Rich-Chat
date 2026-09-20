@@ -107,8 +107,14 @@
 
 /* ---- The window ------------------------------------------------------ */
 
+/* The ground behind the bubbles is its own token, --rc-chat-bg, apart
+ * from --rc-bg, the neutral surface the composer and its text box also
+ * read. The theme declares it nowhere on purpose: declared on :root it
+ * would be computed there and inherited down as the root's --rc-bg, so
+ * a host's `.rc-chat { --rc-bg: … }` would miss the window alone. Left
+ * undeclared, it resolves through whichever --rc-bg is in force. */
 .rc-chat {
-  background: var(--rc-bg);
+  background: var(--rc-chat-bg, var(--rc-bg));
   color: var(--rc-fg);
   font: var(--rc-font-size) / var(--rc-line-height) var(--rc-font);
   -webkit-font-smoothing: antialiased;

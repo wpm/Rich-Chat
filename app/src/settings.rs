@@ -24,6 +24,7 @@ pub const SENDER_SIZE_STEP: f64 = 0.05;
 /// The name's size to begin with: just under the `1em` of a bold label
 /// in a bubble, and above the library's own `0.875em`.
 const DEFAULT_SENDER_SIZE: f64 = 0.95;
+const BACKGROUND_KEY: &str = "rich-chat.background";
 
 /// Light or dark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +56,16 @@ impl Theme {
         match self {
             Theme::Light => Theme::Dark,
             Theme::Dark => Theme::Light,
+        }
+    }
+
+    /// The window's background in this theme, the library's `--rc-bg`,
+    /// which the window falls back to while none is chosen. A test keeps
+    /// the copies in step with the library's stylesheet.
+    pub fn background(self) -> &'static str {
+        match self {
+            Theme::Light => "#ffffff",
+            Theme::Dark => "#0d1117",
         }
     }
 }
@@ -261,6 +272,10 @@ pub struct Settings {
     /// names are off, when nothing reads it, so that they come back at
     /// the size they had.
     pub sender_size: f64,
+    /// The window's background as `#rrggbb`, the ground behind the
+    /// bubbles alone, once one is chosen; the theme's otherwise, which
+    /// follows the light and dark switch.
+    pub background: Option<String>,
 }
 
 impl Default for Settings {
@@ -277,6 +292,7 @@ impl Default for Settings {
             show_names: false,
             bubble_width: BubbleWidth::default(),
             sender_size: DEFAULT_SENDER_SIZE,
+            background: None,
         }
     }
 }
@@ -427,6 +443,7 @@ impl Settings {
             .as_deref()
             .and_then(parse_sender_size)
             .unwrap_or(DEFAULT_SENDER_SIZE);
+        settings.background = read(BACKGROUND_KEY);
         settings
     }
 
@@ -461,6 +478,7 @@ impl Settings {
         );
         write(SHOW_NAMES_KEY, Some(self.show_names.to_string()));
         write(SENDER_SIZE_KEY, Some(self.sender_size.to_string()));
+        write(BACKGROUND_KEY, self.background.clone());
         write(BUBBLE_WIDTH_KEY, Some(self.bubble_width.as_stored()));
     }
 }
@@ -590,6 +608,17 @@ mod tests {
         assert_eq!(Theme::parse("blue"), None);
     }
 
+    /// The window's backgrounds are copies of the library's `--rc-bg`,
+    /// the light one declared before the dark blocks and the dark one in
+    /// them.
+    #[test]
+    fn the_theme_backgrounds_are_the_librarys() {
+        let theme = leptos_rich_chat::style::THEME;
+        let (light, dark) = theme.split_once("@media").unwrap();
+        assert!(light.contains(&format!("--rc-bg: {};", Theme::Light.background())));
+        assert!(dark.contains(&format!("--rc-bg: {};", Theme::Dark.background())));
+    }
+
     #[test]
     fn the_defaults_are_an_assistant_and_a_user() {
         let settings = Settings::default();
@@ -608,6 +637,7 @@ mod tests {
             settings.sender_size, 0.95,
             "and the names just under the text"
         );
+        assert_eq!(settings.background, None, "the window is the theme's");
         let names = settings.names();
         assert_eq!(names.get(ASSISTANT).unwrap().position, Position::Left);
         assert_eq!(names.get(USER).unwrap().position, Position::Right);
@@ -878,6 +908,14 @@ mod tests {
     }
 
     #[test]
+    fn the_background_is_read() {
+        assert_eq!(
+            stored(&[(BACKGROUND_KEY, "#fff8e7")]).background.as_deref(),
+            Some("#fff8e7")
+        );
+    }
+
+    #[test]
     fn the_stored_users_and_selection_are_read() {
         let json = r##"{"users":[{"name":"Alice","side":"center","color":"#ff8800"},{"name":"Bob","side":"right","color":"#000000"}],"retired":[{"name":"Carol","side":"left","color":"#123456"}],"selected":"Bob"}"##;
         let settings = stored(&[(USERS_KEY, json)]);
@@ -957,6 +995,7 @@ mod tests {
                 INPUT_HEIGHT_KEY,
                 SHOW_NAMES_KEY,
                 SENDER_SIZE_KEY,
+                BACKGROUND_KEY,
                 BUBBLE_WIDTH_KEY
             ]
         );
@@ -977,7 +1016,8 @@ mod tests {
             Some("0.95"),
             "but at their size, which is always set"
         );
-        assert_eq!(written[5].1.as_deref(), Some("76"), "the library's width");
+        assert_eq!(written[5].1, None, "no background chosen");
+        assert_eq!(written[6].1.as_deref(), Some("76"), "the library's width");
 
         let mut written = Vec::new();
         let settings = Settings {
@@ -986,6 +1026,7 @@ mod tests {
             show_names: true,
             bubble_width: BubbleWidth::Full,
             sender_size: 1.25,
+            background: Some("#fff8e7".to_string()),
             ..Settings::default()
         };
         settings.store_with(|key, value| written.push((key.to_string(), value)));
@@ -993,7 +1034,8 @@ mod tests {
         assert_eq!(written[2].1.as_deref(), Some("120"));
         assert_eq!(written[3].1.as_deref(), Some("true"));
         assert_eq!(written[4].1.as_deref(), Some("1.25"));
-        assert_eq!(written[5].1.as_deref(), Some("full"));
+        assert_eq!(written[5].1.as_deref(), Some("#fff8e7"));
+        assert_eq!(written[6].1.as_deref(), Some("full"));
     }
 
     #[test]
@@ -1004,6 +1046,7 @@ mod tests {
             show_names: true,
             bubble_width: BubbleWidth::Measure(120),
             sender_size: 1.15,
+            background: Some("#fff8e7".to_string()),
             ..Settings::default()
         };
         settings.add_user("Alice");

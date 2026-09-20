@@ -7,15 +7,17 @@
 // equation, collapsing the preview, reaching the preview by key and
 // coming back, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
-// bubble side and color changing every bubble of theirs, the names over
-// the bubbles and the slider that sizes them, the Busy switch holding
-// what is sent while the text box and the preview carry on, the Disabled
-// switch turning the composer off and back with its draft and collapsed
-// preview intact and the caret back in the box where the reader left it,
-// adding and deleting a user, the theme switch, dragging the text box
-// taller, the Width slider widening every user's wrapped bubbles at once
-// up to the transcript's edges, and that all of it survives a reload.
-// Last, that the transcript keeps its end in view:
+// bubble side and color changing every bubble of theirs, the window's
+// background changing the ground behind the bubbles and nothing of the
+// composer's, and going back to the theme's, the names over the bubbles
+// and the slider that sizes them, the Busy switch holding what is sent
+// while the text box and the preview carry on, the Disabled switch
+// turning the composer off and back with its draft and collapsed
+// preview intact and the caret back in the box where the reader left
+// it, adding and deleting a user, the theme switch, dragging the text
+// box taller, the Width slider widening every user's wrapped bubbles at
+// once up to the transcript's edges, and that all of it survives a
+// reload. Last, that the transcript keeps its end in view:
 // through a burst of messages, a growing composer, and
 // a shrinking window, but not for a reader who has scrolled up.
 // Screenshots land in ./screenshots for a human to look at.
@@ -98,6 +100,9 @@ const focusIs = (page, selector) => page.evaluate((selector) => document.activeE
 
 /** What is in the composer's text box. */
 const boxText = (page) => page.$eval('.rc-composer-input', (el) => el.value);
+
+/** The computed `property` of each of `selectors`, joined, in one round trip. */
+const computed = (page, selectors, property) => page.evaluate(([selectors, property]) => selectors.map((s) => getComputedStyle(document.querySelector(s))[property]).join(), [selectors, property]);
 
 /** Sets the composer's text the way typing does, through the input event. */
 async function type(page, text) {
@@ -313,6 +318,15 @@ try {
     const accent = await page.$eval('.rc-send', (el) => getComputedStyle(el).backgroundColor);
     check(accent === 'rgb(1, 2, 3)', `a host override of --rc-accent wins in ${colorScheme} mode`);
 
+    // The window's background is its own token, undeclared: a host's
+    // --rc-bg on .rc-chat still reaches the window along with the
+    // composer, and --rc-chat-bg reaches the window alone.
+    const surfaces = () => computed(page, ['.rc-chat', '.rc-composer', '.rc-composer-input'], 'backgroundColor');
+    await page.addStyleTag({ content: '.rc-chat { --rc-bg: rgb(4, 5, 6); }' });
+    check((await surfaces()) === 'rgb(4, 5, 6),rgb(4, 5, 6),rgb(4, 5, 6)', `a host's --rc-bg on .rc-chat colors the window, the composer and the text box in ${colorScheme} mode`);
+    await page.addStyleTag({ content: '.rc-chat { --rc-chat-bg: rgb(7, 8, 9); }' });
+    check((await surfaces()) === 'rgb(7, 8, 9),rgb(4, 5, 6),rgb(4, 5, 6)', `and --rc-chat-bg colors the window alone in ${colorScheme} mode`);
+
     check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
     await page.close();
   }
@@ -441,6 +455,22 @@ try {
     await page.waitForTimeout(100);
     check((await bubbleStyle('Assistant', 'color')) === 'rgb(230, 237, 243)', 'a dark color gets light text');
     await type(page, '');
+
+    // The window's background: the ground behind the bubbles alone. The
+    // theme is dark here, so the theme's is the dark palette's.
+    const windowColor = () => page.$eval('.control-background', (el) => el.value);
+    const resetDisabled = () => page.$eval('.control-background-reset', (el) => el.disabled);
+    const composerLook = async () => (await computed(page, ['.rc-composer', '.rc-composer-input'], 'backgroundColor')) + ',' + (await computed(page, ['.rc-composer-input'], 'borderTopColor'));
+    check((await windowColor()) === '#0d1117', 'the Window control shows the theme\'s background while none is chosen');
+    check(await resetDisabled(), 'and there is nothing to put back');
+    const composerBefore = await composerLook();
+    await page.fill('.control-background', '#fff8e7');
+    await page.waitForTimeout(100);
+    check((await chatBackground()) === 'rgb(255, 248, 231)', 'picking a window color changes the ground behind the bubbles');
+    check((await composerLook()) === composerBefore, 'and leaves the composer strip, the text box and its border as they were');
+    check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'the bubbles keep their colors');
+    check(!(await resetDisabled()), 'and the button can put the theme\'s back');
+    await page.screenshot({ path: `${shots}/controls-0-window.png` });
 
     // Names over the bubbles: off to begin with, then on for every bubble
     // at once, each on its bubble's side.
@@ -694,7 +724,7 @@ try {
     const ceiling = String(Number(track.max) - 1);
     check((await width()) === '76' && (await readout()) === '76' && (await spoken()) === '76 characters', 'which starts at 76, and says so in words');
     check((await page.$eval('.control-width', (el) => el.labels[0]?.textContent)) === 'Width', 'labelled Width');
-    const order = await page.$$eval('.controls > *', (els) => els.map((el) => (el.querySelector('.control-color') ? 'color' : el.querySelector('.control-width') ? 'width' : el.querySelector('.control-names') ? 'names' : null)).filter(Boolean).join());
+    const order = await page.$$eval('.controls > *', (els) => els.map((el) => (el.querySelector('#bubble-color') ? 'color' : el.querySelector('.control-width') ? 'width' : el.querySelector('.control-names') ? 'names' : null)).filter(Boolean).join());
     check(order === 'color,width,names', 'between the color and the Names switch');
     const atFloor = await Promise.all(wrapped.map(bubbleWidth));
     const shortAtFloor = await bubbleWidth(oneLine);
@@ -758,10 +788,20 @@ try {
     check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'which every bubble still has');
     check((await sliderAt()) === '1.4', 'and their size');
     check(namesAre(await labels(), 1.4), 'which they are written at');
+    check((await chatBackground()) === 'rgb(255, 248, 231)', 'and the window\'s background');
+    check((await windowColor()) === '#fff8e7' && !(await resetDisabled()), 'which its control shows, with the theme\'s to put back');
     await page.click('.control-theme');
     await page.waitForTimeout(100);
     check((await theme()) === 'light', 'the switch turns the theme light again');
     check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'and the bubble keeps its own color');
+    check((await chatBackground()) === 'rgb(255, 248, 231)', 'and so does the window');
+    await page.click('.control-background-reset');
+    await page.waitForTimeout(100);
+    check((await chatBackground()) === 'rgb(255, 255, 255)', 'put back to the theme\'s, the window is the light palette\'s');
+    check((await windowColor()) === '#ffffff' && await resetDisabled(), 'the control shows it, with nothing to put back');
+    await page.click('.control-theme');
+    await page.waitForTimeout(100);
+    check((await chatBackground()) === 'rgb(13, 17, 23)', 'and the window follows the switch to dark');
 
     check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
     await page.close();
