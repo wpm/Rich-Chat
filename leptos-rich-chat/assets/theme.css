@@ -602,11 +602,15 @@ pre.rc-code code {
   cursor: pointer;
 }
 
-.rc-send:hover:not(:disabled) {
+.rc-send:hover:not(:disabled, [aria-disabled="true"]) {
   filter: brightness(1.08);
 }
 
-.rc-send:disabled {
+/* Disabled, or held by a wait: the composer keeps a busy button in the
+ * tab order with aria-disabled rather than disabled, and it looks the
+ * same. */
+.rc-send:disabled,
+.rc-send[aria-disabled="true"] {
   opacity: 0.45;
   cursor: default;
 }

@@ -36,6 +36,23 @@ version is 0, a minor release may change the API.
   for a host's styles that the theme leaves alone. When it falls back
   to false nothing is sent on its own: the draft waits for Enter or the
   button.
+- `Composer` and `Chat` take `busy_label`, the words a screen reader
+  gets for the wait, "Sending is paused" by default; a host talking to
+  a model might pass "Waiting for a reply". `rc-busy` and a disabled
+  send button had told a reader who does not see the screen nothing: a
+  press went nowhere with no word of why, and "Send, dimmed" did not
+  tell a busy composer from an empty one. Now, while the wait alone
+  holds a draft back, the send button is named `Send, {busy_label}` and
+  carries `aria-disabled="true"` in place of `disabled`, so it stays in
+  the tab order and going to it says why it cannot be pressed; the
+  theme gives it the disabled look all the same. A composer that is
+  off, or a blank draft, still disables the button under the plain
+  name. And a press that only the wait refused, by Enter or the button,
+  puts `busy_label` in `div.rc-composer-status`, a `role="status"` live
+  region that is the first child of `.rc-composer`, always in the
+  markup and hidden from sight by the structure stylesheet. The phrase
+  stays until the wait ends; repeated presses within one wait announce
+  it once, and the wait beginning announces nothing.
 - Alt+Shift+P in the composer's text box puts the focus in the preview,
   expanding it first if it is collapsed, and does nothing while there is
   no preview; Escape in the preview puts the caret back in the box where
