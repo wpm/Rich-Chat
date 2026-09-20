@@ -388,7 +388,9 @@ fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
 /// state touches the draft, and nothing is sent on its own when either
 /// ends: the draft waits for Enter or the button. `.rc-composer` has the
 /// class `rc-busy` for the length of the wait, which the theme leaves
-/// alone; it is there for a host that wants the wait to show.
+/// alone; it is there for a host that wants the wait to show. With both
+/// set the composer is off, and the class, which follows `busy` alone,
+/// is still there.
 ///
 /// Attributes passed to the component go on the text box, not on the
 /// wrapper: `attr:id` for a label elsewhere on the page to point at,
@@ -1129,6 +1131,10 @@ mod tests {
             "{both}"
         );
         assert!(!both.contains("rc-composer-preview"), "{both}");
+        assert!(
+            both.starts_with("<div class=\"rc-composer rc-busy\">"),
+            "the class follows busy alone: {both}"
+        );
     }
 
     #[test]
