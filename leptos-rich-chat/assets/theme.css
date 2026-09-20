@@ -530,6 +530,14 @@ pre.rc-code code {
   user-select: none;
 }
 
+/* Where Alt+Shift+P lands: the box's own focus look, so that a sighted
+ * keyboard user sees the reader has moved. */
+.rc-composer-preview:focus-visible {
+  outline: none;
+  border-color: var(--rc-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rc-accent) 22%, transparent);
+}
+
 .rc-composer-preview.rc-collapsed {
   padding-bottom: 8px;
 }
