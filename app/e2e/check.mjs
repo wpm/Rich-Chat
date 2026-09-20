@@ -90,6 +90,9 @@ function check(condition, label) {
   if (!condition) failures += 1;
 }
 
+/** What is in the composer's text box. */
+const boxText = (page) => page.$eval('.rc-composer-input', (el) => el.value);
+
 /** Sets the composer's text the way typing does, through the input event. */
 async function type(page, text) {
   await page.evaluate((text) => {
@@ -192,11 +195,11 @@ try {
     // The draft goes while the reader is in the preview (here by the
     // input event alone, which moves no focus, as a host clearing the
     // draft does): the preview goes, and the focus goes to the box.
-    const draft = await page.$eval('.rc-composer-input', (el) => el.value);
+    const draft = await boxText(page);
     await type(page, '');
     check(await page.$('.rc-composer-preview') === null && await focusIs('.rc-composer-input'), 'the draft going takes the focus to the box, not the body');
     await page.keyboard.press('Alt+Shift+P');
-    check(await focusIs('.rc-composer-input') && (await page.$eval('.rc-composer-input', (el) => el.value)) === '', 'with no draft the key does nothing');
+    check(await focusIs('.rc-composer-input') && (await boxText(page)) === '', 'with no draft the key does nothing');
     await type(page, draft);
 
     // An open fence is a code block already.
@@ -231,7 +234,7 @@ try {
       console.log(`     bubble:  ${JSON.stringify(b.slice(Math.max(0, i - 40), i + 120))}`);
     }
     check(markup(previewHtml) === markup(bubbleHtml), 'the bubble renders exactly what the preview showed');
-    check((await page.$eval('.rc-composer-input', (el) => el.value)) === '', 'Enter clears the box');
+    check((await boxText(page)) === '', 'Enter clears the box');
     check(await page.$('.rc-composer-preview') === null, 'the preview goes away when the box is empty');
     check((await page.$$(`${sent} math`)).length === 3, 'three equations in the bubble');
     check((await page.$$(`${sent} pre.rc-code span[class^="hl-"]`)).length > 20, 'the Rust block is highlighted');
@@ -282,7 +285,7 @@ try {
     await page.click('.rc-send');
     await page.waitForTimeout(200);
     check((await page.$$('.rc-message')).length === TOUR + 3, 'the Send button sends');
-    check(await page.evaluate(() => document.activeElement === document.querySelector('.rc-composer-input')), 'and the caret is back in the box');
+    check(await focusIs('.rc-composer-input'), 'and the caret is back in the box');
 
     // A send while the reader is in the preview: the preview goes, and
     // the focus goes to the box with it rather than to the body. The
@@ -458,7 +461,6 @@ try {
     // writing the next message, preview and all.
     const busyOn = () => page.$eval('.control-busy', (el) => el.getAttribute('aria-checked') === 'true');
     const composerBusy = () => page.$eval('.rc-composer', (el) => el.classList.contains('rc-busy'));
-    const boxText = () => page.$eval('.rc-composer-input', (el) => el.value);
     const messageCount = async () => (await page.$$('.rc-message')).length;
     check(!(await busyOn()) && !(await composerBusy()), 'the chat starts with nothing in flight');
     await page.click('.control-busy');
@@ -470,17 +472,17 @@ try {
     await page.click('.rc-composer-input');
     await page.keyboard.type('Written while **busy**');
     await page.waitForTimeout(150);
-    check((await boxText()) === 'Written while **busy**', 'and takes what is typed into it');
+    check((await boxText(page)) === 'Written while **busy**', 'and takes what is typed into it');
     check(await page.$('.rc-composer-preview strong') !== null, 'which the preview renders');
     check(await page.$('.rc-preview-toggle') !== null, 'collapse toggle included');
     check(await page.$eval('.rc-send', (el) => el.disabled), 'the send button is disabled');
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
     check((await messageCount()) === beforeBusy, 'Enter sends nothing while busy');
-    check((await boxText()) === 'Written while **busy**', 'and neither clears the draft nor breaks a line');
+    check((await boxText(page)) === 'Written while **busy**', 'and neither clears the draft nor breaks a line');
     await page.press('.rc-composer-input', 'Shift+Enter');
     await page.waitForTimeout(150);
-    check((await boxText()) === 'Written while **busy**\n', 'Shift+Enter still breaks a line');
+    check((await boxText(page)) === 'Written while **busy**\n', 'Shift+Enter still breaks a line');
     await page.keyboard.type('and after');
     await page.waitForTimeout(150);
     await page.screenshot({ path: `${shots}/controls-0-busy.png` });
@@ -488,13 +490,13 @@ try {
     await page.waitForTimeout(200);
     check(!(await busyOn()) && !(await composerBusy()), 'the switch ends the wait');
     check((await messageCount()) === beforeBusy, 'which sends nothing on its own');
-    check((await boxText()) === 'Written while **busy**\nand after', 'the draft is still in the box');
+    check((await boxText(page)) === 'Written while **busy**\nand after', 'the draft is still in the box');
     check(!(await page.$eval('.rc-send', (el) => el.disabled)), 'and the send button is back');
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
     check((await messageCount()) === beforeBusy + 1, 'Enter sends it now');
     check((await page.$eval('.rc-message:last-child .rc-bubble', (el) => el.textContent)).includes('and after'), 'as it was written');
-    check((await boxText()) === '', 'and the box is empty again');
+    check((await boxText(page)) === '', 'and the box is empty again');
 
     // Disabled: the composer off. A draft already in the box is kept but
     // not previewed, and comes back as it was, the preview still collapsed.
@@ -512,7 +514,7 @@ try {
     check(await page.$('.rc-composer-preview') === null, 'and the preview goes, draft or no draft');
     check(await page.$eval('.rc-send', (el) => el.disabled), 'the send button is disabled');
     check(!(await composerBusy()), 'off is not waiting: no rc-busy');
-    check((await boxText()) === 'Typed *before* the composer went off', 'the draft is kept');
+    check((await boxText(page)) === 'Typed *before* the composer went off', 'the draft is kept');
     await page.screenshot({ path: `${shots}/controls-0-disabled.png` });
     await page.click('.control-disabled');
     await page.waitForTimeout(150);

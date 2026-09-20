@@ -52,6 +52,8 @@ version is 0, a minor release may change the API.
   line, Alt+Shift+P to read the preview. Markdown, $math$ and ```code```
   render as you type." A host that passes `hint=""` gets neither the
   line nor the attribute.
+- `RichText` takes `node_ref`, a reference to its container, as
+  `MessageView` does.
 
 ### Changed
 
