@@ -25,7 +25,7 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy -p leptos-rich-chat -p rich-chat-app --all-targets -- -D warnings
       # Without `highlight`, as a host that turns it off builds the crate.
-      - run: cargo clippy -p leptos-rich-chat --no-default-features -- -D warnings
+      - run: cargo clippy -p leptos-rich-chat --no-default-features --all-targets -- -D warnings
       # The runs are listed in the script, which the coverage job and
       # publish-crate.yml run too.
       - run: .github/scripts/library-tests.sh cargo test
