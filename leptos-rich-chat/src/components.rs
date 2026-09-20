@@ -341,29 +341,32 @@ fn busy_status(refused: bool, busy: bool, busy_label: &str) -> &str {
 /// What Enter and the send button do: send the draft and leave the box
 /// empty, with the caret back in it for the next message; not while
 /// sending is blocked (see [`sending_blocked`]), when the draft is kept,
-/// and never a blank one, which stays as it is. Returns whether the
-/// wait alone refused the press (see [`busy_refusal`]), which is what
-/// the composer tells the reader. The signals are read when the key or
-/// the button is pressed, not when the composer is built, and untracked,
+/// and never a blank one, which stays as it is. A press that only the
+/// wait refused (see [`busy_refusal`]) sets `refused`, which is what the
+/// composer tells the reader. The signals are read when the key or the
+/// button is pressed, not when the composer is built, and untracked,
 /// since an event handler subscribes to nothing.
 fn send_draft(
     disabled: Signal<bool>,
     busy: Signal<bool>,
     draft: RwSignal<String>,
+    refused: RwSignal<bool>,
     on_send: Callback<String>,
     input: NodeRef<html::Textarea>,
-) -> bool {
+) {
     let (disabled, busy) = (disabled.get_untracked(), busy.get_untracked());
     let blank = draft.read_untracked().trim().is_empty();
     if sending_blocked(disabled, busy) || blank {
-        return busy_refusal(disabled, busy, blank);
+        if busy_refusal(disabled, busy, blank) {
+            refused.set(true);
+        }
+        return;
     }
     // Taken, not copied: the signal is left empty by the same write.
     on_send.run(std::mem::take(&mut *draft.write()));
     // The send came from the box, by Enter in it or the button beside
     // it, and a click on the button took the focus with it.
     focus(input);
-    false
 }
 
 /// Puts the caret in the text box.
@@ -503,11 +506,7 @@ pub fn Composer(
     };
     // A press the wait alone refused, which is what the status line says.
     let refused = RwSignal::new(false);
-    let submit = move || {
-        if send_draft(disabled, busy, draft, on_send, input) {
-            refused.set(true);
-        }
-    };
+    let submit = move || send_draft(disabled, busy, draft, refused, on_send, input);
     // The flag lasts one wait: cleared when the wait ends, so that the
     // next wait begins quiet and only a press during it speaks. Not run
     // in a server render, where the status line is empty anyway.
@@ -1641,20 +1640,21 @@ mod tests {
             let sent = RwSignal::new(Vec::<String>::new());
             let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
             let draft = RwSignal::new(String::from("hi"));
+            let refused = RwSignal::new(false);
             let input = NodeRef::new();
             let (on, off) = (Signal::stored(true), Signal::stored(false));
-            send_draft(on, off, draft, on_send, input);
+            send_draft(on, off, draft, refused, on_send, input);
             assert!(sent.get_untracked().is_empty(), "nothing while disabled");
             assert_eq!(draft.get_untracked(), "hi", "and the draft is kept");
-            send_draft(off, off, draft, on_send, input);
+            send_draft(off, off, draft, refused, on_send, input);
             assert_eq!(sent.get_untracked(), ["hi"]);
             assert_eq!(draft.get_untracked(), "", "sent, the box is empty");
             draft.set(String::from("  hi \n"));
-            send_draft(off, off, draft, on_send, input);
+            send_draft(off, off, draft, refused, on_send, input);
             assert_eq!(sent.get_untracked()[1], "  hi \n", "sent as written");
             for blank in ["", " \n\t"] {
                 draft.set(blank.to_string());
-                send_draft(off, off, draft, on_send, input);
+                send_draft(off, off, draft, refused, on_send, input);
                 assert_eq!(sent.get_untracked().len(), 2, "a blank draft is not sent");
                 assert_eq!(draft.get_untracked(), blank, "and is left as it is");
             }
@@ -1706,11 +1706,17 @@ mod tests {
             let waiting = RwSignal::new(true);
             let off = RwSignal::new(false);
             let (busy, disabled) = (Signal::from(waiting), Signal::from(off));
-            // A press, and whether the wait alone refused it: the one
-            // refusal the composer says out loud.
-            let press = || send_draft(disabled, busy, draft, on_send, input);
+            // A press, then whether the wait alone refused it, the one
+            // refusal the composer says out loud. The flag is taken, as
+            // the wait ending clears it, so each press answers for itself.
+            let refused = RwSignal::new(false);
+            let press = || {
+                send_draft(disabled, busy, draft, refused, on_send, input);
+                refused.try_update(std::mem::take).unwrap()
+            };
 
             assert!(press(), "refused for the wait, and said so");
+            assert!(press(), "and so is the next press of the same wait");
             assert!(sent.get_untracked().is_empty(), "nothing while busy");
             assert_eq!(draft.get_untracked(), "written during the wait");
 
