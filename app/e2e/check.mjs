@@ -7,7 +7,8 @@
 // equation, collapsing the preview, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
 // bubble side and color changing every bubble of theirs, the names over
-// the bubbles, adding and deleting a user, the theme switch, dragging
+// the bubbles, the Busy switch holding what is sent while the text box and
+// the preview carry on, adding and deleting a user, the theme switch, dragging
 // the text box taller, and that all of it survives a reload. Last, that the transcript keeps
 // its end in view: through a burst of messages, a growing composer, and
 // a shrinking window, but not for a reader who has scrolled up.
@@ -396,6 +397,48 @@ try {
     await page.click('.control-names');
     await page.waitForTimeout(100);
     check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'and back on');
+
+    // Busy: a reply is in flight, so sending waits, and the reader goes on
+    // writing the next message, preview and all.
+    const busyOn = () => page.$eval('.control-busy', (el) => el.getAttribute('aria-checked') === 'true');
+    const composerBusy = () => page.$eval('.rc-composer', (el) => el.classList.contains('rc-busy'));
+    const boxText = () => page.$eval('.rc-composer-input', (el) => el.value);
+    const messageCount = async () => (await page.$$('.rc-message')).length;
+    check(!(await busyOn()) && !(await composerBusy()), 'the chat starts with nothing in flight');
+    await page.click('.control-busy');
+    await page.waitForTimeout(100);
+    check(await busyOn(), 'the Busy switch reports it is on');
+    check(await composerBusy(), 'and the composer carries rc-busy');
+    check(!(await page.$eval('.rc-composer-input', (el) => el.disabled)), 'the text box stays open while busy');
+    const beforeBusy = await messageCount();
+    await page.click('.rc-composer-input');
+    await page.keyboard.type('Written while **busy**');
+    await page.waitForTimeout(150);
+    check((await boxText()) === 'Written while **busy**', 'and takes what is typed into it');
+    check(await page.$('.rc-composer-preview strong') !== null, 'which the preview renders');
+    check(await page.$('.rc-preview-toggle') !== null, 'collapse toggle included');
+    check(await page.$eval('.rc-send', (el) => el.disabled), 'the send button is disabled');
+    await page.press('.rc-composer-input', 'Enter');
+    await page.waitForTimeout(200);
+    check((await messageCount()) === beforeBusy, 'Enter sends nothing while busy');
+    check((await boxText()) === 'Written while **busy**', 'and neither clears the draft nor breaks a line');
+    await page.press('.rc-composer-input', 'Shift+Enter');
+    await page.waitForTimeout(150);
+    check((await boxText()) === 'Written while **busy**\n', 'Shift+Enter still breaks a line');
+    await page.keyboard.type('and after');
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: `${shots}/controls-0-busy.png` });
+    await page.click('.control-busy');
+    await page.waitForTimeout(200);
+    check(!(await busyOn()) && !(await composerBusy()), 'the switch ends the wait');
+    check((await messageCount()) === beforeBusy, 'which sends nothing on its own');
+    check((await boxText()) === 'Written while **busy**\nand after', 'the draft is still in the box');
+    check(!(await page.$eval('.rc-send', (el) => el.disabled)), 'and the send button is back');
+    await page.press('.rc-composer-input', 'Enter');
+    await page.waitForTimeout(200);
+    check((await messageCount()) === beforeBusy + 1, 'Enter sends it now');
+    check((await page.$eval('.rc-message:last-child .rc-bubble', (el) => el.textContent)).includes('and after'), 'as it was written');
+    check((await boxText()) === '', 'and the box is empty again');
 
     // Adding a user.
     check(await page.$eval('.control-add', (el) => el.disabled), 'nothing to add until a name is typed');
