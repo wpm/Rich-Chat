@@ -1,6 +1,6 @@
 ## Markdown
 
-CommonMark plus GitHub's extras: *emphasis*, **strong**, ~~struck~~, `inline code`, [links](https://github.com/wpm/Rich-Chat), and footnotes[^1].
+CommonMark plus GitHub's extras: *emphasis*, **strong**, ~~struck~~, `inline code`, [links](https://github.com/wpm/Rich-Chat), and footnotes[^1]; then a table, a task list, and one of GitHub's callouts, drawn with its title in its color, so that a note, a tip, or a warning reads as one at a glance.
 
 | Construct | Syntax | Rendered by |
 |---|:--:|---|
