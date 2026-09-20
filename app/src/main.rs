@@ -5,7 +5,8 @@
 //!
 //! Above the chat is a bar of controls: the users, who can be added and
 //! removed; where the selected user's bubbles land and their color,
-//! which changes every bubble of theirs; whether every bubble has its
+//! which changes every bubble of theirs; the window's background, the
+//! ground behind the bubbles alone; whether every bubble has its
 //! user's name over it; whether the chat is busy, as a host waiting on a
 //! model's reply sets it, so that the text box and the preview stay and
 //! only the sending waits, or disabled, the composer off; light or dark.
@@ -13,7 +14,7 @@
 //! All of that is this app's: the
 //! library gets a table of names saying where each user's bubbles go
 //! and in what colors, a flag for the names, and the stylesheet gets a
-//! custom property for the text box.
+//! custom property for the text box and one for the window.
 
 mod controls;
 mod opener;
@@ -98,13 +99,21 @@ fn App() -> impl IntoView {
     let busy = RwSignal::new(false);
     // And the composer off altogether, as for a host with no key.
     let disabled = RwSignal::new(false);
-    // The setting the app's own stylesheet reads as a custom property.
+    // The settings the stylesheets read as custom properties: the app's
+    // own takes the text box's height, and the library's window takes
+    // --rc-chat-bg, inherited down to .rc-chat. Neither is emitted while
+    // unset, so the window follows the theme's light and dark switch
+    // until a background is chosen.
     let style = move || {
-        settings
-            .read()
-            .input_height
-            .map(|height| format!("--app-input-height: {height}px;"))
-            .unwrap_or_default()
+        let settings = settings.read();
+        let mut style = String::new();
+        if let Some(height) = settings.input_height {
+            style.push_str(&format!("--app-input-height: {height}px;"));
+        }
+        if let Some(background) = &settings.background {
+            style.push_str(&format!("--rc-chat-bg: {background};"));
+        }
+        style
     };
 
     // Dragging the composer's top edge sets the text box's height.

@@ -7,7 +7,9 @@
 // equation, collapsing the preview, reaching the preview by key and
 // coming back, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
-// bubble side and color changing every bubble of theirs, the names over
+// bubble side and color changing every bubble of theirs, the window's
+// background changing the ground behind the bubbles and nothing of the
+// composer's, and going back to the theme's, the names over
 // the bubbles, the Busy switch holding what is sent while the text box and
 // the preview carry on, the Disabled switch turning the composer off and
 // back with its draft and collapsed preview intact and the caret back in
@@ -311,6 +313,15 @@ try {
     const accent = await page.$eval('.rc-send', (el) => getComputedStyle(el).backgroundColor);
     check(accent === 'rgb(1, 2, 3)', `a host override of --rc-accent wins in ${colorScheme} mode`);
 
+    // The window's background is its own token, undeclared: a host's
+    // --rc-bg on .rc-chat still reaches the window along with the
+    // composer, and --rc-chat-bg reaches the window alone.
+    const surfaces = () => page.evaluate(() => ['.rc-chat', '.rc-composer', '.rc-composer-input'].map((s) => getComputedStyle(document.querySelector(s)).backgroundColor).join());
+    await page.addStyleTag({ content: '.rc-chat { --rc-bg: rgb(4, 5, 6); }' });
+    check((await surfaces()) === 'rgb(4, 5, 6),rgb(4, 5, 6),rgb(4, 5, 6)', `a host's --rc-bg on .rc-chat colors the window, the composer and the text box in ${colorScheme} mode`);
+    await page.addStyleTag({ content: '.rc-chat { --rc-chat-bg: rgb(7, 8, 9); }' });
+    check((await surfaces()) === 'rgb(7, 8, 9),rgb(4, 5, 6),rgb(4, 5, 6)', `and --rc-chat-bg colors the window alone in ${colorScheme} mode`);
+
     check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
     await page.close();
   }
@@ -428,6 +439,35 @@ try {
     await page.waitForTimeout(100);
     check((await bubbleStyle('Assistant', 'color')) === 'rgb(230, 237, 243)', 'a dark color gets light text');
     await type(page, '');
+
+    // The window's background: the ground behind the bubbles alone. The
+    // theme is dark here, so the theme's is the dark palette's.
+    const windowColor = () => page.$eval('.control-background', (el) => el.value);
+    const resetDisabled = () => page.$eval('.control-background-reset', (el) => el.disabled);
+    const composerStyle = (selector, property) => page.$eval(selector, (el, property) => getComputedStyle(el)[property], property);
+    const composerLook = async () => [
+      await composerStyle('.rc-composer', 'backgroundColor'),
+      await composerStyle('.rc-composer-input', 'backgroundColor'),
+      await composerStyle('.rc-composer-input', 'borderTopColor'),
+    ].join();
+    check((await windowColor()) === '#0d1117', 'the Window control shows the theme\'s background while none is chosen');
+    check(await resetDisabled(), 'and there is nothing to put back');
+    const composerBefore = await composerLook();
+    check(composerBefore === 'rgb(13, 17, 23),rgb(13, 17, 23),rgb(61, 68, 77)', `the composer strip, the text box and its border are the dark palette's (${composerBefore})`);
+    await page.fill('.control-background', '#fff8e7');
+    await page.waitForTimeout(100);
+    check((await chatBackground()) === 'rgb(255, 248, 231)', 'picking a window color changes the ground behind the bubbles');
+    check((await composerLook()) === composerBefore, 'and leaves the composer strip, the text box and its border as they were');
+    check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'the bubbles keep their colors');
+    check(!(await resetDisabled()), 'and the button can put the theme\'s back');
+    await page.screenshot({ path: `${shots}/controls-0-window.png` });
+    await page.click('.control-background-reset');
+    await page.waitForTimeout(100);
+    check((await chatBackground()) === 'rgb(13, 17, 23)', 'which it does');
+    check((await windowColor()) === '#0d1117' && await resetDisabled(), 'and the control shows the theme\'s again, with nothing to put back');
+    await page.fill('.control-background', '#fff8e7');
+    await page.waitForTimeout(100);
+    check((await chatBackground()) === 'rgb(255, 248, 231)', 'chosen again, to see it survive a reload');
 
     // Names over the bubbles: off to begin with, then on for every bubble
     // at once, each on its bubble's side.
@@ -649,10 +689,22 @@ try {
     check((await boxHeight()) === after, 'and the text box height');
     check(await namesOn(), 'and the names');
     check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'which every bubble still has');
+    check((await chatBackground()) === 'rgb(255, 248, 231)', 'and the window\'s background');
+    check((await windowColor()) === '#fff8e7' && !(await resetDisabled()), 'which its control shows, with the theme\'s to put back');
     await page.click('.control-theme');
     await page.waitForTimeout(100);
     check((await theme()) === 'light', 'the switch turns the theme light again');
     check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'and the bubble keeps its own color');
+    check((await chatBackground()) === 'rgb(255, 248, 231)', 'and so does the window');
+    await page.click('.control-background-reset');
+    await page.waitForTimeout(100);
+    check((await chatBackground()) === 'rgb(255, 255, 255)', 'put back to the theme\'s, the window is the light palette\'s');
+    check((await windowColor()) === '#ffffff', 'and the control shows it');
+    await page.click('.control-theme');
+    await page.waitForTimeout(100);
+    check((await chatBackground()) === 'rgb(13, 17, 23)', 'and follows the switch to dark');
+    await page.click('.control-theme');
+    await page.waitForTimeout(100);
 
     check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
     await page.close();

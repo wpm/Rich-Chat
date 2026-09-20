@@ -103,8 +103,20 @@
 
 /* ---- The window ------------------------------------------------------ */
 
+/* The ground behind the bubbles is its own token, apart from the
+ * composer's. --rc-bg is the theme's neutral surface, and the composer,
+ * its text box and two hover fills read it too; a host that wants the
+ * window alone in another color sets --rc-chat-bg, which the theme
+ * declares nowhere on purpose. Declared on :root it would be computed
+ * there against the root's --rc-bg and inherited down as that value,
+ * so a host's `.rc-chat { --rc-bg: … }` would color the composer and
+ * the text box and miss the window, the one rule it aimed at. Left
+ * undeclared, it resolves through whichever --rc-bg is in force, so an
+ * override of --rc-bg reaches the window as it always has, in both
+ * themes, and it is a background rather than a color: whatever the
+ * property takes is what the window gets. */
 .rc-chat {
-  background: var(--rc-bg);
+  background: var(--rc-chat-bg, var(--rc-bg));
   color: var(--rc-fg);
   font: var(--rc-font-size) / var(--rc-line-height) var(--rc-font);
   -webkit-font-smoothing: antialiased;

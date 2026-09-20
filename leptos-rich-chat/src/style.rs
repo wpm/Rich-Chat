@@ -423,6 +423,33 @@ mod tests {
         );
     }
 
+    /// The window's background is its own token, `--rc-chat-bg`, apart
+    /// from the composer's `--rc-bg`, and the theme declares it nowhere:
+    /// declared on `:root` it would be computed there and inherited down
+    /// as the root's `--rc-bg`, so a host's `--rc-bg` on `.rc-chat` would
+    /// miss the window alone. Undeclared, it falls back to whichever
+    /// `--rc-bg` is in force, and a host that sets neither gets the theme.
+    #[test]
+    fn the_window_background_is_its_own_undeclared_token() {
+        assert!(
+            THEME.contains(".rc-chat {\n  background: var(--rc-chat-bg, var(--rc-bg));\n"),
+            "the window reads --rc-chat-bg, falling back to --rc-bg"
+        );
+        assert!(
+            !THEME.contains("--rc-chat-bg:"),
+            "the theme declares --rc-chat-bg, which would cut it off from --rc-bg"
+        );
+        assert_eq!(
+            THEME.matches("var(--rc-chat-bg").count(),
+            1,
+            "only the window reads --rc-chat-bg"
+        );
+        assert!(
+            THEME.contains(".rc-composer {\n  padding: 10px 16px 10px;\n  border-top: 1px solid var(--rc-border);\n  background: var(--rc-bg);\n"),
+            "the composer still reads --rc-bg"
+        );
+    }
+
     /// A host's reset takes whatever list markers the theme leaves to the
     /// browser: layer order only arbitrates declarations both sides make.
     #[test]

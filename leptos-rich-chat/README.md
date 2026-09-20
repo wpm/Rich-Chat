@@ -243,7 +243,8 @@ radius:
 `--rc-tint-bg` and `--rc-tint-fg` the tinted one the default names give
 `user` and the composer's preview; `--rc-tail` the radius of the corner
 a bubble has on its side; `--rc-muted` the color of the name over a
-bubble.
+bubble. `--rc-bg` is the neutral surface: the window, the composer strip
+and its text box, and the hover fills of the copy and preview buttons.
 
 The theme declares them on the document root, `:root`, and no component
 declares anything, so an override reaches the chat from wherever you put
@@ -254,6 +255,30 @@ themes: the theme's dark values are on `:root`, further away, so they no
 longer reach it and the dark one is yours to give too. Otherwise dark
 mode follows `prefers-color-scheme` unless the document sets
 `data-theme="light"` or `"dark"` on its root element.
+
+`--rc-chat-bg` is the window alone, the ground behind the bubbles, and
+leaves the composer and the text box as they are. The theme declares it
+nowhere, on purpose: the window's rule is
+`var(--rc-chat-bg, var(--rc-bg))`, so while you set nothing it is
+`--rc-bg`, in both themes, and an override of `--rc-bg` still reaches
+the window along with the composer. It is a
+background, not a color, so a gradient or an image does as well as a
+hex. In your stylesheet, or on `Chat` for a color chosen at runtime:
+
+```css
+.rc-chat { --rc-chat-bg: #fff8e7; }
+```
+
+```rust
+view! { <Chat messages=messages on_send=send attr:style="--rc-chat-bg: #fff8e7" /> }
+```
+
+A window color that swallows the bubbles is yours to choose; the crate
+checks no contrast. The only ink it draws directly on the window is the
+name over a bubble and the empty transcript's message, both in
+`--rc-muted`, so a host that darkens the window and shows names sets
+`--rc-muted` too.
+
 To go further, restyle any `rc-*` class the same way; or leave the theme
 out and write your own against the classes:
 

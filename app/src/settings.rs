@@ -11,6 +11,7 @@ const THEME_KEY: &str = "rich-chat.theme";
 const USERS_KEY: &str = "rich-chat.users";
 const INPUT_HEIGHT_KEY: &str = "rich-chat.input-height";
 const SHOW_NAMES_KEY: &str = "rich-chat.show-names";
+const BACKGROUND_KEY: &str = "rich-chat.background";
 
 /// Light or dark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,6 +43,16 @@ impl Theme {
         match self {
             Theme::Light => Theme::Dark,
             Theme::Dark => Theme::Light,
+        }
+    }
+
+    /// The window's background in this theme, as `#rrggbb`: the
+    /// library's `--rc-bg`, which the window falls back to while no
+    /// background is chosen.
+    pub fn background(self) -> &'static str {
+        match self {
+            Theme::Light => LIGHT_BG,
+            Theme::Dark => DARK_BG,
         }
     }
 }
@@ -134,6 +145,10 @@ pub struct Settings {
     pub input_height: Option<f64>,
     /// Whether every bubble has its user's name written over it.
     pub show_names: bool,
+    /// The window's background as `#rrggbb`, the ground behind the
+    /// bubbles alone; `None` is the theme's, which follows the light and
+    /// dark switch.
+    pub background: Option<String>,
 }
 
 impl Default for Settings {
@@ -148,6 +163,7 @@ impl Default for Settings {
             selected: USER.to_string(),
             input_height: None,
             show_names: false,
+            background: None,
         }
     }
 }
@@ -290,6 +306,7 @@ impl Settings {
             .and_then(|value| value.parse().ok())
             .filter(|height: &f64| height.is_finite() && *height > 0.0);
         settings.show_names = read(SHOW_NAMES_KEY).is_some_and(|value| value == "true");
+        settings.background = read(BACKGROUND_KEY).filter(|color| parse_hex(color).is_some());
         settings
     }
 
@@ -323,6 +340,7 @@ impl Settings {
             self.input_height.map(|height| height.to_string()),
         );
         write(SHOW_NAMES_KEY, Some(self.show_names.to_string()));
+        write(BACKGROUND_KEY, self.background.clone());
     }
 }
 
@@ -346,6 +364,10 @@ pub fn system_prefers_dark() -> bool {
 /// theme) and on dark ones (the same in the dark theme).
 const DARK_TEXT: &str = "#1f2328";
 const LIGHT_TEXT: &str = "#e6edf3";
+/// The library's window background in each theme (`--rc-bg`), what the
+/// Window control shows while no background is chosen.
+const LIGHT_BG: &str = "#ffffff";
+const DARK_BG: &str = "#0d1117";
 
 /// The text color that reads best on `background`: the library's own
 /// ink for light backgrounds or its ink for dark ones, whichever has the
@@ -433,6 +455,8 @@ mod tests {
             assert_ne!(theme.toggled(), theme);
         }
         assert_eq!(Theme::parse("blue"), None);
+        assert_eq!(Theme::Light.background(), "#ffffff");
+        assert_eq!(Theme::Dark.background(), "#0d1117");
     }
 
     #[test]
@@ -449,6 +473,7 @@ mod tests {
             !settings.show_names,
             "the bubbles are unnamed to begin with"
         );
+        assert_eq!(settings.background, None, "the window is the theme's");
         let names = settings.names();
         assert_eq!(names.get(ASSISTANT).unwrap().position, Position::Left);
         assert_eq!(names.get(USER).unwrap().position, Position::Right);
@@ -632,6 +657,24 @@ mod tests {
     }
 
     #[test]
+    fn the_background_is_read_when_it_is_a_hex_color() {
+        assert_eq!(
+            stored(&[(BACKGROUND_KEY, "#fff8e7")]).background.as_deref(),
+            Some("#fff8e7")
+        );
+        for bad in [
+            "fff8e7",
+            "#fff",
+            "teal",
+            "var(--x)",
+            "#fff8e7; color: red",
+            "",
+        ] {
+            assert_eq!(stored(&[(BACKGROUND_KEY, bad)]).background, None, "{bad:?}");
+        }
+    }
+
+    #[test]
     fn the_stored_users_and_selection_are_read() {
         let json = r##"{"users":[{"name":"Alice","side":"center","color":"#ff8800"},{"name":"Bob","side":"right","color":"#000000"}],"retired":[{"name":"Carol","side":"left","color":"#123456"}],"selected":"Bob"}"##;
         let settings = stored(&[(USERS_KEY, json)]);
@@ -705,7 +748,13 @@ mod tests {
         let keys: Vec<_> = written.iter().map(|(key, _)| key.as_str()).collect();
         assert_eq!(
             keys,
-            [THEME_KEY, USERS_KEY, INPUT_HEIGHT_KEY, SHOW_NAMES_KEY]
+            [
+                THEME_KEY,
+                USERS_KEY,
+                INPUT_HEIGHT_KEY,
+                SHOW_NAMES_KEY,
+                BACKGROUND_KEY
+            ]
         );
         assert_eq!(written[0].1, None, "no theme chosen");
         assert!(
@@ -719,18 +768,21 @@ mod tests {
         );
         assert_eq!(written[2].1, None, "no height dragged");
         assert_eq!(written[3].1.as_deref(), Some("false"), "names off");
+        assert_eq!(written[4].1, None, "no background chosen");
 
         let mut written = Vec::new();
         let settings = Settings {
             theme: Some(Theme::Dark),
             input_height: Some(120.0),
             show_names: true,
+            background: Some("#fff8e7".to_string()),
             ..Settings::default()
         };
         settings.store_with(|key, value| written.push((key.to_string(), value)));
         assert_eq!(written[0].1.as_deref(), Some("dark"));
         assert_eq!(written[2].1.as_deref(), Some("120"));
         assert_eq!(written[3].1.as_deref(), Some("true"));
+        assert_eq!(written[4].1.as_deref(), Some("#fff8e7"));
     }
 
     #[test]
@@ -739,6 +791,7 @@ mod tests {
             theme: Some(Theme::Light),
             input_height: Some(96.5),
             show_names: true,
+            background: Some("#fff8e7".to_string()),
             ..Settings::default()
         };
         settings.add_user("Alice");
