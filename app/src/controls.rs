@@ -1,9 +1,11 @@
 //! The bar above the chat: the users, the selected user's bubbles,
-//! whether bubbles are named, the theme.
+//! whether bubbles are named, whether the chat is busy, the theme.
 //!
 //! Each control edits the app's [`Settings`]; the app root turns those
 //! into the library's table of names and its `show_names`, the root
 //! element's theme attribute, and a custom property for the stylesheet.
+//! The Busy switch is the exception: it is a state of the conversation,
+//! not a choice to keep, so it is a signal of its own and starts off.
 
 use leptos::ev;
 use leptos::prelude::*;
@@ -11,9 +13,14 @@ use leptos::prelude::*;
 use crate::settings::{Settings, Side, Theme, User};
 
 /// The controls. `theme` is the one in effect, which is the chosen one
-/// or, until one is chosen, the system's.
+/// or, until one is chosen, the system's. `busy` is the chat's: there is
+/// no model here to wait on, so the switch stands in for one.
 #[component]
-pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl IntoView {
+pub fn Controls(
+    settings: RwSignal<Settings>,
+    theme: Signal<Theme>,
+    busy: RwSignal<bool>,
+) -> impl IntoView {
     let dark = move || theme.get() == Theme::Dark;
     let toggle_theme = move |_| {
         let next = theme.get_untracked().toggled();
@@ -147,6 +154,16 @@ pub fn Controls(settings: RwSignal<Settings>, theme: Signal<Theme>) -> impl Into
                 on:click=toggle_names
             >
                 "Names"
+            </button>
+            <button
+                type="button"
+                class="control-button control-busy"
+                role="switch"
+                aria-checked=move || busy.get().to_string()
+                title="Hold what is sent, as a host waiting on a reply does; the text box stays open"
+                on:click=move |_| busy.update(|busy| *busy = !*busy)
+            >
+                "Busy"
             </button>
             <button
                 type="button"
