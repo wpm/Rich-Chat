@@ -225,6 +225,26 @@
   padding-left: 1.6em;
 }
 
+/* The browser's own markers, declared rather than inherited: a host's
+ * reset in a layer beneath this one takes whatever the theme leaves to
+ * the browser. A task-list item's `none`, below, is on the `li`, so it
+ * wins over these, which reach the item by inheritance. */
+.rc-rich ul {
+  list-style: disc;
+}
+
+.rc-rich ol {
+  list-style: decimal;
+}
+
+.rc-rich :is(ul, ol) ul {
+  list-style: circle;
+}
+
+.rc-rich :is(ul, ol) :is(ul, ol) ul {
+  list-style: square;
+}
+
 .rc-rich li + li {
   margin-top: 0.2em;
 }
