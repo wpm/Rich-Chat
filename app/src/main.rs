@@ -8,8 +8,9 @@
 //! which changes every bubble of theirs; whether every bubble has its
 //! user's name over it; whether the chat is busy, as a host waiting on a
 //! model's reply sets it, so that the text box and the preview stay and
-//! only the sending waits; light or dark. The composer's top edge can be
-//! dragged to make the text box taller. All of that is this app's: the
+//! only the sending waits, or disabled, the composer off; light or dark.
+//! The composer's top edge can be dragged to make the text box taller.
+//! All of that is this app's: the
 //! library gets a table of names saying where each user's bubbles go
 //! and in what colors, a flag for the names, and the stylesheet gets a
 //! custom property for the text box.
@@ -95,6 +96,8 @@ fn App() -> impl IntoView {
     // The wait a host with a model has between a message and its reply.
     // Not a setting: every run starts with nothing in flight.
     let busy = RwSignal::new(false);
+    // And the composer off altogether, as for a host with no key.
+    let disabled = RwSignal::new(false);
     // The setting the app's own stylesheet reads as a custom property.
     let style = move || {
         settings
@@ -163,7 +166,7 @@ fn App() -> impl IntoView {
             on:pointerup=release
             on:pointercancel=release
         >
-            <Controls settings=settings theme=theme busy=busy />
+            <Controls settings=settings theme=theme busy=busy disabled=disabled />
             <Chat
                 messages=messages
                 on_send=send
@@ -171,6 +174,7 @@ fn App() -> impl IntoView {
                 preview_name=sender
                 show_names=show_names
                 busy=busy
+                disabled=disabled
             />
         </main>
     }
