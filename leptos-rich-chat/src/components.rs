@@ -312,16 +312,25 @@ fn hint_text(hint: Option<String>) -> String {
     hint.unwrap_or_else(|| DEFAULT_HINT.to_string())
 }
 
+/// Whether nothing may be sent: the composer is off, `disabled`, or the
+/// host is waiting on a reply, `busy`. The two differ in everything else:
+/// off, the text box is disabled and there is no preview; busy, the
+/// reader goes on writing the next message and only the send waits.
+fn sending_blocked(disabled: bool, busy: bool) -> bool {
+    disabled || busy
+}
+
 /// Sends the draft and leaves the box empty, with the caret back in it
-/// for the next message; not while sending is disabled, and never a
-/// blank one, which stays as it is.
+/// for the next message; not while sending is blocked (see
+/// [`sending_blocked`]), when the draft is kept, and never a blank one,
+/// which stays as it is.
 fn send_draft(
-    disabled: bool,
+    blocked: bool,
     draft: RwSignal<String>,
     on_send: Callback<String>,
     input: NodeRef<html::Textarea>,
 ) {
-    if disabled || draft.read_untracked().trim().is_empty() {
+    if blocked || draft.read_untracked().trim().is_empty() {
         return;
     }
     // Taken, not copied: the signal is left empty by the same write.
@@ -369,6 +378,18 @@ fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
 /// Sending clears it either way, and puts the caret back in the box,
 /// ready for the next message.
 ///
+/// Two states keep a message from being sent, and they are not each
+/// other. `disabled` is the composer off, for a host with nothing to send
+/// with: the text box is disabled, there is no preview, and nothing can
+/// be sent. `busy` is a wait, for a host whose last message is still
+/// being answered: the reader goes on writing the next one, preview and
+/// all, and only the sending waits, Enter and the button both. Enter
+/// still does not break a line while busy; Shift+Enter does. Neither
+/// state touches the draft, and nothing is sent on its own when either
+/// ends: the draft waits for Enter or the button. `.rc-composer` has the
+/// class `rc-busy` for the length of the wait, which the theme leaves
+/// alone; it is there for a host that wants the wait to show.
+///
 /// Attributes passed to the component go on the text box, not on the
 /// wrapper: `attr:id` for a label elsewhere on the page to point at,
 /// `attr:maxlength`, `attr:data-*`, `class:mine=true` to add a class, and
@@ -388,9 +409,16 @@ pub fn Composer(
     /// The text box's placeholder.
     #[prop(default = "Write a message…".to_string(), into)]
     placeholder: String,
-    /// Blocks sending while true; the draft is kept.
+    /// The composer is off while true: the text box is disabled, so there
+    /// is no draft to preview, and nothing can be sent. The draft signal
+    /// is kept.
     #[prop(optional, into)]
     disabled: Signal<bool>,
+    /// A reply is in flight while true: the text box stays open and its
+    /// draft is previewed as ever, but neither Enter nor the button
+    /// sends. When it falls back to false nothing is sent on its own.
+    #[prop(optional, into)]
+    busy: Signal<bool>,
     /// Show the live preview.
     #[prop(default = true)]
     preview: bool,
@@ -427,7 +455,10 @@ pub fn Composer(
             let _ = style.set_property("height", &format!("{}px", element.scroll_height()));
         }
     };
-    let submit = move || send_draft(disabled.get_untracked(), draft, on_send, input);
+    let submit = move || {
+        let blocked = sending_blocked(disabled.get_untracked(), busy.get_untracked());
+        send_draft(blocked, draft, on_send, input);
+    };
     // The height follows the text however it changes: sent, or put in
     // by the host, at the start or later. Browser only, as the frame is.
     #[cfg(target_arch = "wasm32")]
@@ -456,8 +487,10 @@ pub fn Composer(
     // that passes one of them has its way.
     view! {
         <AttributeInterceptor let:attrs>
-            <div class="rc-composer">
-                <Show when=move || preview && has_draft()>
+            <div class="rc-composer" class:rc-busy=move || busy.get()>
+                // Off, the composer previews nothing, even a draft the
+                // host put in the box; busy, it previews as ever.
+                <Show when=move || preview && !disabled.get() && has_draft()>
                     <div
                         class="rc-composer-preview"
                         class:rc-collapsed=move || !expanded.get()
@@ -516,7 +549,9 @@ pub fn Composer(
                         type="button"
                         class="rc-send"
                         aria-label="Send"
-                        disabled=move || disabled.get() || !has_draft()
+                        disabled=move || {
+                            sending_blocked(disabled.get(), busy.get()) || !has_draft()
+                        }
                         on:click=move |_| submit()
                     >
                         {send.run()}
@@ -582,9 +617,16 @@ pub fn Chat(
     /// The text box's placeholder.
     #[prop(default = "Write a message…".to_string(), into)]
     placeholder: String,
-    /// Blocks sending while true.
+    /// The composer is off while true: the text box is disabled, so there
+    /// is no draft to preview, and nothing can be sent. The draft signal
+    /// is kept. See [`Composer`].
     #[prop(optional, into)]
     disabled: Signal<bool>,
+    /// A reply is in flight while true: the text box stays open and its
+    /// draft is previewed as ever, but neither Enter nor the button
+    /// sends. See [`Composer`].
+    #[prop(optional, into)]
+    busy: Signal<bool>,
     /// Show the live preview in the composer.
     #[prop(default = true)]
     preview: bool,
@@ -662,6 +704,7 @@ pub fn Chat(
                 draft=draft
                 placeholder=placeholder
                 disabled=disabled
+                busy=busy
                 preview=preview
                 preview_label=preview_label
                 preview_name=preview_name
@@ -1057,7 +1100,8 @@ mod tests {
         assert!(button.contains(" disabled"), "nothing to press: {button}");
 
         // Not busy, the class is gone and the button is back.
-        let idle = html(|| view! { <Composer on_send=|_text: String| {} draft=draft busy=false /> });
+        let idle =
+            html(|| view! { <Composer on_send=|_text: String| {} draft=draft busy=false /> });
         assert!(idle.starts_with("<div class=\"rc-composer\">"), "{idle}");
         assert!(!idle.contains("rc-busy"), "{idle}");
         assert!(!send_button(&idle).contains("disabled"), "{idle}");
