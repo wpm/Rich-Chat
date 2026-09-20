@@ -410,12 +410,16 @@ fn focus_within(_node: NodeRef<html::Div>) -> bool {
 }
 
 /// Arranges that when the view being built goes, the focus goes with it
-/// to the text box if it was in `going`, rather than falling to the body.
-/// The owner's cleanup runs before its view leaves the DOM, so the
-/// element still holds the focus then.
-fn return_focus_when_gone(going: NodeRef<html::Div>, input: NodeRef<html::Textarea>) {
+/// to the text box if `holds_focus` says the view had it, rather than
+/// falling to the body. The owner's cleanup runs before its view leaves
+/// the DOM, so the element still holds the focus then, and that is when
+/// the question is asked.
+fn refocus_when_gone(
+    holds_focus: impl Fn() -> bool + Send + Sync + 'static,
+    input: NodeRef<html::Textarea>,
+) {
     on_cleanup(move || {
-        if focus_within(going) {
+        if holds_focus() {
             focus(input);
         }
     });
@@ -430,60 +434,113 @@ fn read_preview(shown: bool, expanded: RwSignal<bool>, preview: NodeRef<html::Di
     }
 }
 
-/// A key pressed in the text box: Enter sends, by `submit`, and
-/// Alt+Shift+P goes to the preview, by `read`; either key is consumed.
-/// The rules are [`enter_sends`] and [`preview_key`], tested off the
-/// browser; this reads them off the browser's event, which exists only
-/// there.
+/// The composer's keys, as rules on a [`Press`]: read off the browser's
+/// event by the handlers below, and checked off the browser by the tests,
+/// which are the only two places a press comes from.
+#[cfg(any(target_arch = "wasm32", test))]
+mod keys {
+    /// A key press as the rules see it.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct Press {
+        /// What the key produces, `event.key`: a character, or a name
+        /// such as `Enter`.
+        pub key: String,
+        /// The physical key, `event.code`, such as `KeyP`.
+        pub code: String,
+        pub alt: bool,
+        pub shift: bool,
+        /// Control or Command.
+        pub control: bool,
+        /// In the middle of an IME composition.
+        pub composing: bool,
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    impl From<&leptos::ev::KeyboardEvent> for Press {
+        fn from(event: &leptos::ev::KeyboardEvent) -> Self {
+            Self {
+                key: event.key(),
+                code: event.code(),
+                alt: event.alt_key(),
+                shift: event.shift_key(),
+                control: event.ctrl_key() || event.meta_key(),
+                composing: event.is_composing(),
+            }
+        }
+    }
+
+    /// Whether a press in the text box sends: Enter on its own, not
+    /// Shift+Enter, and never in the middle of an IME composition.
+    pub fn enter_sends(press: &Press) -> bool {
+        press.key == "Enter" && !press.shift && !press.composing
+    }
+
+    /// Whether a press in the text box moves to the preview: Alt+Shift+P,
+    /// with neither Control nor Command held, which would make it another
+    /// chord (AltGr, on Windows, is Control and Alt). The physical key
+    /// counts as well as the character, since with Alt held macOS reports
+    /// the character the Option key makes, ∏, and other layouts other
+    /// things.
+    pub fn preview_key(press: &Press) -> bool {
+        press.alt
+            && press.shift
+            && !press.control
+            && (press.code == "KeyP" || press.key.eq_ignore_ascii_case("p"))
+    }
+
+    /// Whether a press in the preview goes back to the text box: Escape.
+    pub fn escape_returns(press: &Press) -> bool {
+        press.key == "Escape"
+    }
+}
+
+/// The text box's key handler: Enter sends, by `submit`, and Alt+Shift+P
+/// goes to the preview, by `read`; either key is consumed. This is the
+/// browser's side of [`keys`]: the event read into a [`Press`](keys::Press)
+/// and the rules' answer acted on.
 #[cfg(target_arch = "wasm32")]
-fn box_keydown(event: &ev::KeyboardEvent, submit: impl FnOnce(), read: impl FnOnce()) {
-    let key = event.key();
-    let (alt, shift) = (event.alt_key(), event.shift_key());
-    let control = event.ctrl_key() || event.meta_key();
-    if enter_sends(&key, shift, event.is_composing()) {
-        event.prevent_default();
-        submit();
-    } else if preview_key(&key, &event.code(), alt, shift, control) {
-        event.prevent_default();
-        read();
+fn box_keys(
+    submit: impl Fn() + 'static,
+    read: impl Fn() + 'static,
+) -> impl FnMut(ev::KeyboardEvent) {
+    move |event| {
+        let press = keys::Press::from(&event);
+        if keys::enter_sends(&press) {
+            event.prevent_default();
+            submit();
+        } else if keys::preview_key(&press) {
+            event.prevent_default();
+            read();
+        }
     }
 }
 
 /// Off the browser no key is pressed.
 #[cfg(not(target_arch = "wasm32"))]
-fn box_keydown(_event: &ev::KeyboardEvent, _submit: impl FnOnce(), _read: impl FnOnce()) {}
+fn box_keys(
+    _submit: impl Fn() + 'static,
+    _read: impl Fn() + 'static,
+) -> impl FnMut(ev::KeyboardEvent) {
+    |_| {}
+}
 
-/// A key pressed in the preview: Escape puts the caret back in the text
-/// box, where it was, and is consumed.
+/// The preview's key handler: Escape puts the caret back in the text box,
+/// where it was, and is consumed. The browser's side of [`keys`], as
+/// [`box_keys`] is.
 #[cfg(target_arch = "wasm32")]
-fn preview_keydown(event: &ev::KeyboardEvent, input: NodeRef<html::Textarea>) {
-    if event.key() == "Escape" {
-        event.prevent_default();
-        focus(input);
+fn preview_keys(input: NodeRef<html::Textarea>) -> impl FnMut(ev::KeyboardEvent) {
+    move |event| {
+        if keys::escape_returns(&keys::Press::from(&event)) {
+            event.prevent_default();
+            focus(input);
+        }
     }
 }
 
 /// Off the browser no key is pressed.
 #[cfg(not(target_arch = "wasm32"))]
-fn preview_keydown(_event: &ev::KeyboardEvent, _input: NodeRef<html::Textarea>) {}
-
-/// Whether a key press in the text box sends: Enter on its own, not
-/// Shift+Enter, and never in the middle of an IME composition. Read by
-/// the browser's handler, [`box_keydown`], and checked by the tests.
-#[cfg(any(target_arch = "wasm32", test))]
-fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
-    key == "Enter" && !shift && !composing
-}
-
-/// Whether a key press in the text box moves to the preview: Alt+Shift+P,
-/// with neither Control nor Command held, which would make it another
-/// chord (AltGr, on Windows, is Control and Alt). The physical key counts
-/// as well as the character, since with Alt held macOS reports the
-/// character the Option key makes, ∏, and other layouts other things.
-/// Read by [`box_keydown`] and checked by the tests, as [`enter_sends`] is.
-#[cfg(any(target_arch = "wasm32", test))]
-fn preview_key(key: &str, code: &str, alt: bool, shift: bool, control: bool) -> bool {
-    alt && shift && !control && (code == "KeyP" || key.eq_ignore_ascii_case("p"))
+fn preview_keys(_input: NodeRef<html::Textarea>) -> impl FnMut(ev::KeyboardEvent) {
+    |_| {}
 }
 
 /// The input: a growing text box with a live preview above it.
@@ -642,7 +699,7 @@ pub fn Composer(
                 <Show when=shown>
                     // A send clears the draft, or `disabled` rises, with
                     // the reader in the preview.
-                    {return_focus_when_gone(preview_ref, input)}
+                    {refocus_when_gone(move || focus_within(preview_ref), input)}
                     <div
                         class="rc-composer-preview"
                         class:rc-collapsed=move || !expanded.get()
@@ -651,7 +708,7 @@ pub fn Composer(
                         aria-label=preview_label.get_value()
                         tabindex="-1"
                         node_ref=preview_ref
-                        on:keydown=move |event| preview_keydown(&event, input)
+                        on:keydown=preview_keys(input)
                     >
                         <div class="rc-composer-preview-label">
                             <span>{preview_label.get_value()}</span>
@@ -671,7 +728,7 @@ pub fn Composer(
                             // The preview collapsed with the reader on a
                             // link in its body; the heading, and the
                             // region itself, stay.
-                            {return_focus_when_gone(body_ref, input)}
+                            {refocus_when_gone(move || focus_within(body_ref), input)}
                             <RichText
                                 content=draft
                                 draft=true
@@ -699,9 +756,7 @@ pub fn Composer(
                             draft.set(event_target_value(&event));
                             fit();
                         }
-                        on:keydown=move |event| {
-                            box_keydown(&event, submit, || read_preview(shown(), expanded, preview_ref))
-                        }
+                        on:keydown=box_keys(submit, move || read_preview(shown(), expanded, preview_ref))
                         {..attrs}
                     ></textarea>
                     <button
@@ -995,6 +1050,9 @@ impl Follow {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use super::keys::{Press, enter_sends, escape_returns, preview_key};
     use super::*;
     use crate::names::{Look, Position};
 
@@ -1755,36 +1813,94 @@ mod tests {
         });
     }
 
+    /// A press of the key, unmodified; `Press { shift: true, ..press("Enter") }`
+    /// adds a modifier. The code is the key's for a name, and `KeyX` for
+    /// a letter, as a US keyboard reports them.
+    fn press(key: &str) -> Press {
+        let code = match key.len() {
+            1 => format!("Key{}", key.to_ascii_uppercase()),
+            _ => key.to_string(),
+        };
+        Press {
+            key: key.to_string(),
+            code,
+            ..Press::default()
+        }
+    }
+
     #[test]
     fn enter_sends_but_not_with_shift_or_mid_composition() {
-        assert!(enter_sends("Enter", false, false));
-        assert!(!enter_sends("Enter", true, false));
-        assert!(!enter_sends("Enter", false, true));
-        assert!(!enter_sends("a", false, false));
-        assert!(!enter_sends("NumpadEnter", false, false));
+        assert!(enter_sends(&press("Enter")));
+        assert!(!enter_sends(&Press {
+            shift: true,
+            ..press("Enter")
+        }));
+        assert!(!enter_sends(&Press {
+            composing: true,
+            ..press("Enter")
+        }));
+        assert!(!enter_sends(&press("a")));
+        assert!(!enter_sends(&press("NumpadEnter")));
     }
 
     #[test]
     fn alt_shift_p_reads_the_preview() {
+        let chord = |key: &str| Press {
+            alt: true,
+            shift: true,
+            ..press(key)
+        };
         // Windows and Linux report the letter; macOS the character Option
         // makes of it, and the physical key stands in.
-        assert!(preview_key("P", "KeyP", true, true, false));
-        assert!(preview_key("∏", "KeyP", true, true, false));
+        assert!(preview_key(&chord("P")));
+        assert!(preview_key(&Press {
+            code: "KeyP".into(),
+            ..chord("∏")
+        }));
         assert!(
-            preview_key("p", "", true, true, false),
+            preview_key(&Press {
+                code: String::new(),
+                ..chord("p")
+            }),
             "the letter alone will do"
         );
-        assert!(!preview_key("P", "KeyP", false, true, false), "not Shift+P");
-        assert!(!preview_key("p", "KeyP", true, false, false), "not Alt+P");
         assert!(
-            !preview_key("P", "KeyP", true, true, true),
+            !preview_key(&Press {
+                alt: false,
+                ..chord("P")
+            }),
+            "not Shift+P"
+        );
+        assert!(
+            !preview_key(&Press {
+                shift: false,
+                ..chord("p")
+            }),
+            "not Alt+P"
+        );
+        assert!(
+            !preview_key(&Press {
+                control: true,
+                ..chord("P")
+            }),
             "not with Control or Command"
         );
+        assert!(!preview_key(&chord("O")), "not another letter");
+        assert!(!preview_key(&chord("Enter")));
+    }
+
+    #[test]
+    fn escape_returns_to_the_box() {
+        assert!(escape_returns(&press("Escape")));
         assert!(
-            !preview_key("O", "KeyO", true, true, false),
-            "not another letter"
+            escape_returns(&Press {
+                shift: true,
+                ..press("Escape")
+            }),
+            "however modified"
         );
-        assert!(!preview_key("Enter", "Enter", true, true, false));
+        assert!(!escape_returns(&press("Enter")));
+        assert!(!escape_returns(&press("p")));
     }
 
     #[test]
@@ -1804,13 +1920,32 @@ mod tests {
     #[test]
     fn the_focus_is_returned_when_the_element_holding_it_goes() {
         let _ = any_spawner::Executor::init_futures_executor();
-        // Off the browser nothing holds the focus, so the cleanup finds
-        // it elsewhere and leaves it; what is checked is that it runs on
-        // the owner's cleanup and not before.
+        // The question is asked on the owner's cleanup and not before,
+        // and answered yes, the focus goes to the box (off the browser,
+        // to nothing).
+        let asked = Arc::new(AtomicUsize::new(0));
         let owner = Owner::new();
-        owner.with(|| return_focus_when_gone(NodeRef::new(), NodeRef::new()));
-        assert!(!focus_within(NodeRef::new()));
+        let count = Arc::clone(&asked);
+        owner.with(|| {
+            refocus_when_gone(
+                move || {
+                    count.fetch_add(1, Ordering::Relaxed);
+                    true
+                },
+                NodeRef::new(),
+            )
+        });
+        assert_eq!(
+            asked.load(Ordering::Relaxed),
+            0,
+            "not while the view is there"
+        );
         owner.cleanup();
+        assert_eq!(asked.load(Ordering::Relaxed), 1, "once, as it goes");
+        assert!(
+            !focus_within(NodeRef::new()),
+            "and off the browser nothing holds the focus"
+        );
     }
 
     #[test]
