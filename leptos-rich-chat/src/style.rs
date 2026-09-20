@@ -428,10 +428,14 @@ mod tests {
     #[test]
     fn the_theme_declares_its_list_markers() {
         for rule in [
-            ".rc-rich ul {\n  list-style: disc;\n}",
-            ".rc-rich ol {\n  list-style: decimal;\n}",
-            ".rc-rich :is(ul, ol) ul {\n  list-style: circle;\n}",
-            ".rc-rich :is(ul, ol) :is(ul, ol) ul {\n  list-style: square;\n}",
+            ".rc-rich ul {\n  list-style-type: disc;\n}",
+            ".rc-rich ol {\n  list-style-type: decimal;\n}",
+            ".rc-rich :is(ul, ol) ul {\n  list-style-type: circle;\n}",
+            ".rc-rich :is(ul, ol) :is(ul, ol) ul {\n  list-style-type: square;\n}",
+            // On the item too, so that a reset of `li` itself, which would
+            // beat a marker that only reaches the item by inheritance,
+            // loses to the theme as one of `ul` and `ol` does.
+            ".rc-rich li {\n  list-style-type: inherit;\n}",
         ] {
             assert!(THEME.contains(rule), "the theme lacks: {rule}");
         }

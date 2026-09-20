@@ -208,7 +208,7 @@ try {
     await page.evaluate(() => {
       const reset = document.createElement('style');
       reset.id = 'host-reset';
-      reset.textContent = '@layer base { ol, ul, menu { list-style: none; } }';
+      reset.textContent = '@layer base { ol, ul, menu, li { list-style: none; } }';
       document.head.prepend(reset);
     });
     check((await markers()) === expected, "and keep them under a host's reset");
