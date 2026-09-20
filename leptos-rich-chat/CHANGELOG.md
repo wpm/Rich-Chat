@@ -53,8 +53,34 @@ version is 0, a minor release may change the API.
   markup and hidden from sight by the structure stylesheet. The phrase
   stays until the wait ends; repeated presses within one wait announce
   it once, and the wait beginning announces nothing.
+- Alt+Shift+P in the composer's text box puts the focus in the preview,
+  expanding it first if it is collapsed, and does nothing while there is
+  no preview; Escape in the preview puts the caret back in the box where
+  it was. The preview is the fair copy of a draft whose source the text
+  box holds, and for a reader who does not see the screen it is the one
+  place to find out what they wrote; it was not reachable. If the
+  preview goes while the focus is in it (a send clears the draft,
+  `disabled` rises) the focus goes to the text box rather than falling
+  to the body.
+- The composer's hint line has an `id`, `rc-composer-hint-{n}` with a
+  number of the composer's own, and the text box's `aria-describedby`
+  names it, so the line is spoken once when the box takes focus. The
+  default hint names the key: "Enter to send, Shift+Enter for a new
+  line, Alt+Shift+P to read the preview. Markdown, $math$ and ```code```
+  render as you type." A host that passes `hint=""` gets neither the
+  line nor the attribute.
+- `RichText` takes `node_ref`, a reference to its container, as
+  `MessageView` does.
 
 ### Changed
+
+- `.rc-composer-preview` is a landmark the reader goes to rather than a
+  voice: it has `role="region"`, an `aria-label` of the `preview_label`
+  its heading shows, and `tabindex="-1"` so that it can take the focus;
+  and it no longer has `aria-live="polite"`, which read the block being
+  edited back from its start at every pause in typing, and again with
+  the new words on the end at the next. The theme gives it the text
+  box's focus look while it has the focus.
 
 - The composer's text box has `spellcheck="true"`,
   `autocapitalize="sentences"` and `autocorrect="on"`, the attributes

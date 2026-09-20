@@ -44,6 +44,7 @@ web-sys = { workspace = true, features = [
     "KeyboardEvent",
     "MouseEvent",
     "Navigator",
+    "Node",
     "ResizeObserver",
     "Window",
 ] }

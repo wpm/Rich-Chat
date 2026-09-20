@@ -324,6 +324,24 @@ turning it off takes the focus with it, as the browser does to any
 control that becomes disabled; the composer restores it when it comes
 back on, caret where it was, if the reader has not moved in the meantime.
 
+The preview is the fair copy, and for a reader who does not see the
+screen it is the one place to find out what they wrote: the text box
+holds Markdown source, which a screen reader echoes as written, `**bold**`
+as asterisks. So the preview is a place the reader goes rather than a
+voice that talks at them. It is a `region` landmark named by
+`preview_label`, and it is not live: typing announces nothing. In the
+text box, Alt+Shift+P puts the focus in the preview, expanding it first
+if it was collapsed, and the reader reads the fair copy with the reading
+keys they already use; Escape puts the caret back in the box, where it
+was. With no draft there is no preview, and the key does nothing. If the
+preview goes while the focus is in it (a send, say) the focus goes to
+the text box rather than falling to the body. The hint line under the
+box is how the reader learns of the key: the text box's
+`aria-describedby` names it, so it is spoken once when the box takes
+focus. A host that passes its own `hint` says what its keys are; one
+that passes `hint=""` leaves the line out, and takes the key's
+discoverability with it.
+
 The text box is set up for prose, with `spellcheck="true"`,
 `autocapitalize="sentences"` and `autocorrect="on"`. Anything else it
 should carry, an `id` for a label elsewhere on the page to point at, a
