@@ -151,7 +151,7 @@ pub fn Controls(
             </div>
             <button
                 type="button"
-                class="control-button control-names"
+                class="control-button control-toggle control-names"
                 role="switch"
                 aria-checked=move || show_names().to_string()
                 title="Write the user's name over every bubble"
@@ -161,7 +161,7 @@ pub fn Controls(
             </button>
             <button
                 type="button"
-                class="control-button control-busy"
+                class="control-button control-toggle control-busy"
                 role="switch"
                 aria-checked=move || busy.get().to_string()
                 title="Hold what is sent, as a host waiting on a reply does; the text box stays open"
@@ -171,7 +171,7 @@ pub fn Controls(
             </button>
             <button
                 type="button"
-                class="control-button control-disabled"
+                class="control-button control-toggle control-disabled"
                 role="switch"
                 aria-checked=move || disabled.get().to_string()
                 title="Turn the composer off, as a host with nothing to send with does"

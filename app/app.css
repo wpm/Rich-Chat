@@ -174,9 +174,7 @@ body {
 }
 
 .control-segment[aria-pressed="true"]:not(:disabled),
-.control-names[aria-checked="true"]:not(:disabled),
-.control-busy[aria-checked="true"]:not(:disabled),
-.control-disabled[aria-checked="true"]:not(:disabled) {
+.control-toggle[aria-checked="true"]:not(:disabled) {
   position: relative;
   border-color: var(--app-accent);
   background: var(--app-accent);
