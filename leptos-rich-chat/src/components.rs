@@ -7,6 +7,7 @@
 //! [`RichChatStyle`] injects; see [`style`](crate::style) for what a host
 //! can replace.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use leptos::attribute_interceptor::AttributeInterceptor;
@@ -110,6 +111,9 @@ impl Default for CodeLabels {
 /// intercept them instead: it receives the destination and the default
 /// is suppressed, which is how a Tauri app hands links to the system
 /// browser. Pass it as `on_link=Callback::new(move |url: String| …)`.
+///
+/// `node_ref` is a reference to the container, for a host that measures
+/// it or asks whether the focus is in it.
 #[component]
 pub fn RichText(
     /// The Markdown source.
@@ -127,6 +131,9 @@ pub fn RichText(
     /// Extra classes for the container, which always has `rc-rich`.
     #[prop(optional, into)]
     class: String,
+    /// A reference to the container.
+    #[prop(optional)]
+    node_ref: NodeRef<html::Div>,
 ) -> impl IntoView {
     let mut options = options;
     options.draft |= draft;
@@ -137,7 +144,7 @@ pub fn RichText(
         format!("rc-rich {class}")
     };
     view! {
-        <div class=class on:click=move |event| intercept_link(&event, on_link)>
+        <div class=class node_ref=node_ref on:click=move |event| intercept_link(&event, on_link)>
             <For each=move || blocks.get() key=|block| block.key.clone() children=render_block />
         </div>
     }
@@ -300,7 +307,22 @@ pub fn MessageView(
 }
 
 /// The text under the composer unless a host gives its own.
-const DEFAULT_HINT: &str = "Enter to send, Shift+Enter for a new line. Markdown, $math$ and ```code``` render as you type.";
+const DEFAULT_HINT: &str = "Enter to send, Shift+Enter for a new line, Alt+Shift+P to read the preview. Markdown, $math$ and ```code``` render as you type.";
+
+/// How many composers have been built, so that each one's hint has an
+/// `id` of its own for its text box's `aria-describedby` to name, in a
+/// page with more than one.
+static COMPOSERS: AtomicUsize = AtomicUsize::new(0);
+
+/// The `id` of the hint line, `rc-composer-hint-{n}` with the number of
+/// the composer being built; none when there is no line, since a text
+/// box must not be described by an element that is not there.
+fn hint_id(hint: &str) -> Option<String> {
+    (!hint.is_empty()).then(|| {
+        let n = COMPOSERS.fetch_add(1, Ordering::Relaxed);
+        format!("rc-composer-hint-{n}")
+    })
+}
 
 /// The send button's content: the host's, or the word.
 fn send_content(send: Option<ViewFn>) -> ViewFn {
@@ -369,22 +391,180 @@ fn send_draft(
     focus(input);
 }
 
-/// Puts the caret in the text box.
+/// Puts the focus on an element: the caret in the text box, or the
+/// reader in the preview.
 #[cfg(target_arch = "wasm32")]
-fn focus(input: NodeRef<html::Textarea>) {
-    if let Some(element) = input.get_untracked() {
-        let _ = web_sys::HtmlElement::focus(&element);
+fn focus<E>(node: NodeRef<E>)
+where
+    E: html::ElementType,
+    E::Output: JsCast + Clone + AsRef<web_sys::HtmlElement> + 'static,
+{
+    if let Some(element) = node.get_untracked() {
+        let element: &web_sys::HtmlElement = element.as_ref();
+        let _ = element.focus();
     }
 }
 
-/// Off the browser there is no box to put the caret in.
+/// Off the browser there is nothing to put the focus on.
 #[cfg(not(target_arch = "wasm32"))]
-fn focus(_input: NodeRef<html::Textarea>) {}
+fn focus<E>(_node: NodeRef<E>)
+where
+    E: html::ElementType,
+    E::Output: 'static,
+{
+}
 
-/// Whether a key press in the text box sends: Enter on its own, not
-/// Shift+Enter, and never in the middle of an IME composition.
-fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
-    key == "Enter" && !shift && !composing
+/// Whether the document's focus is in the element, on it or inside it.
+/// False before the element is mounted.
+#[cfg(target_arch = "wasm32")]
+fn focus_within(node: NodeRef<html::Div>) -> bool {
+    let Some(element) = node.get_untracked() else {
+        return false;
+    };
+    let active = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.active_element());
+    element.contains(active.as_deref())
+}
+
+/// Off the browser nothing has the focus.
+#[cfg(not(target_arch = "wasm32"))]
+fn focus_within(_node: NodeRef<html::Div>) -> bool {
+    false
+}
+
+/// Arranges that when the view being built goes, the focus goes with it
+/// to the text box if `holds_focus` says the view had it, rather than
+/// falling to the body. The owner's cleanup runs before its view leaves
+/// the DOM, so the element still holds the focus then, and that is when
+/// the question is asked.
+fn refocus_when_gone(
+    holds_focus: impl Fn() -> bool + Send + Sync + 'static,
+    input: NodeRef<html::Textarea>,
+) {
+    on_cleanup(move || {
+        if holds_focus() {
+            focus(input);
+        }
+    });
+}
+
+/// Alt+Shift+P: the reader goes to the preview, expanded first if it was
+/// collapsed, and nowhere while there is none (`shown`).
+fn read_preview(shown: bool, expanded: RwSignal<bool>, preview: NodeRef<html::Div>) {
+    if shown {
+        expanded.set(true);
+        focus(preview);
+    }
+}
+
+/// The composer's keys, as rules on a [`Press`]: read off the browser's
+/// event by the handlers below, and checked off the browser by the tests,
+/// which are the only two places a press comes from.
+#[cfg(any(target_arch = "wasm32", test))]
+mod keys {
+    /// A key press as the rules see it.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct Press {
+        /// What the key produces, `event.key`: a character, or a name
+        /// such as `Enter`.
+        pub key: String,
+        /// The physical key, `event.code`, such as `KeyP`.
+        pub code: String,
+        pub alt: bool,
+        pub shift: bool,
+        /// Control or Command.
+        pub control: bool,
+        /// In the middle of an IME composition.
+        pub composing: bool,
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    impl From<&leptos::ev::KeyboardEvent> for Press {
+        fn from(event: &leptos::ev::KeyboardEvent) -> Self {
+            Self {
+                key: event.key(),
+                code: event.code(),
+                alt: event.alt_key(),
+                shift: event.shift_key(),
+                control: event.ctrl_key() || event.meta_key(),
+                composing: event.is_composing(),
+            }
+        }
+    }
+
+    /// Whether a press in the text box sends: Enter on its own, not
+    /// Shift+Enter, and never in the middle of an IME composition.
+    pub fn enter_sends(press: &Press) -> bool {
+        press.key == "Enter" && !press.shift && !press.composing
+    }
+
+    /// Whether a press in the text box moves to the preview: Alt+Shift+P,
+    /// with neither Control nor Command held, which would make it another
+    /// chord (AltGr, on Windows, is Control and Alt). The physical key
+    /// counts as well as the character, since with Alt held macOS reports
+    /// the character the Option key makes, ∏, and other layouts other
+    /// things.
+    pub fn preview_key(press: &Press) -> bool {
+        press.alt
+            && press.shift
+            && !press.control
+            && (press.code == "KeyP" || press.key.eq_ignore_ascii_case("p"))
+    }
+
+    /// Whether a press in the preview goes back to the text box: Escape.
+    pub fn escape_returns(press: &Press) -> bool {
+        press.key == "Escape"
+    }
+}
+
+/// The text box's key handler: Enter sends, by `submit`, and Alt+Shift+P
+/// goes to the preview, by `read`; either key is consumed. This is the
+/// browser's side of [`keys`]: the event read into a [`Press`](keys::Press)
+/// and the rules' answer acted on.
+#[cfg(target_arch = "wasm32")]
+fn box_keys(
+    submit: impl Fn() + 'static,
+    read: impl Fn() + 'static,
+) -> impl FnMut(ev::KeyboardEvent) {
+    move |event| {
+        let press = keys::Press::from(&event);
+        if keys::enter_sends(&press) {
+            event.prevent_default();
+            submit();
+        } else if keys::preview_key(&press) {
+            event.prevent_default();
+            read();
+        }
+    }
+}
+
+/// Off the browser no key is pressed.
+#[cfg(not(target_arch = "wasm32"))]
+fn box_keys(
+    _submit: impl Fn() + 'static,
+    _read: impl Fn() + 'static,
+) -> impl FnMut(ev::KeyboardEvent) {
+    |_| {}
+}
+
+/// The preview's key handler: Escape puts the caret back in the text box,
+/// where it was, and is consumed. The browser's side of [`keys`], as
+/// [`box_keys`] is.
+#[cfg(target_arch = "wasm32")]
+fn preview_keys(input: NodeRef<html::Textarea>) -> impl FnMut(ev::KeyboardEvent) {
+    move |event| {
+        if keys::escape_returns(&keys::Press::from(&event)) {
+            event.prevent_default();
+            focus(input);
+        }
+    }
+}
+
+/// Off the browser no key is pressed.
+#[cfg(not(target_arch = "wasm32"))]
+fn preview_keys(_input: NodeRef<html::Textarea>) -> impl FnMut(ev::KeyboardEvent) {
+    |_| {}
 }
 
 /// The input: a growing text box with a live preview above it.
@@ -396,6 +576,25 @@ fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
 /// heading, for a draft whose preview (a long run of equations, say)
 /// would crowd the window; it opens expanded, and the choice holds until
 /// the composer is unmounted.
+///
+/// The preview is the fair copy, and for a reader who does not see the
+/// screen it is the one place to find out what they wrote: the text box
+/// holds Markdown source, which a screen reader echoes as written. So it
+/// is a place the reader goes rather than a voice: `div.rc-composer-preview`
+/// is a `region` named by `preview_label`, focusable by script, and not
+/// live, so typing announces nothing. In the text box, Alt+Shift+P puts
+/// the focus in the preview, expanding it first if it is collapsed, and
+/// does nothing while there is no preview; in the preview, Escape puts
+/// the caret back in the box where it was. If the preview goes while the
+/// focus is in it (a send clears the draft, `disabled` rises) the focus
+/// goes to the text box rather than falling to the body.
+///
+/// The line under the box, `hint`, is how the reader learns of the key:
+/// it has an `id` and the text box's `aria-describedby` names it, so it
+/// is spoken once when the box takes focus. A host that passes its own
+/// hint says what its keys are; one that passes `""` leaves the line
+/// out, the description with it, and takes the key's discoverability
+/// with them.
 ///
 /// The text box grows with its draft: on every input its inline height
 /// is set to its scroll height. The structure stylesheet gives it the box
@@ -496,6 +695,8 @@ pub fn Composer(
     on_link: Option<Callback<String>>,
 ) -> impl IntoView {
     let input = NodeRef::<html::Textarea>::new();
+    let preview_ref = NodeRef::<html::Div>::new();
+    let body_ref = NodeRef::<html::Div>::new();
 
     let fit = move || {
         if let Some(element) = input.get_untracked() {
@@ -530,6 +731,7 @@ pub fn Composer(
     let held = Memo::new(move |_| busy_refusal(disabled.get(), busy.get(), !has_draft()));
     let send = send_content(send);
     let hint = hint_text(hint);
+    let hint_id = hint_id(&hint);
     let preview_name = move || {
         let name = preview_name.get();
         (!name.is_empty()).then_some(name)
@@ -543,6 +745,9 @@ pub fn Composer(
     let status = move || {
         busy_label.with_value(|label| busy_status(refused.get(), busy.get(), label).to_string())
     };
+    // Off, the composer previews nothing, even a draft the host put in
+    // the box; busy, it previews as ever.
+    let shown = move || preview && !disabled.get() && has_draft();
 
     // The attributes passed to the component go on the text box, not on
     // the wrapper Leptos would put them on: `id`, `maxlength`, `data-*`
@@ -557,14 +762,19 @@ pub fn Composer(
                 // announced only for what is put into it after it is
                 // there. Hidden from sight by the structure stylesheet.
                 <div class="rc-composer-status" role="status">{status}</div>
-                // Off, the composer previews nothing, even a draft the
-                // host put in the box; busy, it previews as ever.
-                <Show when=move || preview && !disabled.get() && has_draft()>
+                <Show when=shown>
+                    // A send clears the draft, or `disabled` rises, with
+                    // the reader in the preview.
+                    {refocus_when_gone(move || focus_within(preview_ref), input)}
                     <div
                         class="rc-composer-preview"
                         class:rc-collapsed=move || !expanded.get()
                         data-name=preview_name
-                        aria-live="polite"
+                        role="region"
+                        aria-label=preview_label.get_value()
+                        tabindex="-1"
+                        node_ref=preview_ref
+                        on:keydown=preview_keys(input)
                     >
                         <div class="rc-composer-preview-label">
                             <span>{preview_label.get_value()}</span>
@@ -581,11 +791,16 @@ pub fn Composer(
                             </button>
                         </div>
                         <Show when=move || expanded.get()>
+                            // The preview collapsed with the reader on a
+                            // link in its body; the heading, and the
+                            // region itself, stay.
+                            {refocus_when_gone(move || focus_within(body_ref), input)}
                             <RichText
                                 content=draft
                                 draft=true
                                 options=options.get_value()
                                 on_link=on_link
+                                node_ref=body_ref
                             />
                         </Show>
                     </div>
@@ -597,6 +812,7 @@ pub fn Composer(
                         rows="1"
                         placeholder=placeholder.clone()
                         aria-label="Message"
+                        aria-describedby=hint_id.clone()
                         spellcheck="true"
                         autocapitalize="sentences"
                         {..custom_attribute("autocorrect", "on")}
@@ -606,12 +822,7 @@ pub fn Composer(
                             draft.set(event_target_value(&event));
                             fit();
                         }
-                        on:keydown=move |event: ev::KeyboardEvent| {
-                            if enter_sends(&event.key(), event.shift_key(), event.is_composing()) {
-                                event.prevent_default();
-                                submit();
-                            }
-                        }
+                        on:keydown=box_keys(submit, move || read_preview(shown(), expanded, preview_ref))
                         {..attrs}
                     ></textarea>
                     // Held by the wait alone, the button says so and stays
@@ -635,7 +846,7 @@ pub fn Composer(
                         {send.run()}
                     </button>
                 </div>
-                {(!hint.is_empty()).then(|| view! { <div class="rc-composer-hint">{hint.clone()}</div> })}
+                {hint_id.clone().map(|id| view! { <div class="rc-composer-hint" id=id>{hint.clone()}</div> })}
             </div>
         </AttributeInterceptor>
     }
@@ -920,6 +1131,9 @@ impl Follow {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use super::keys::{Press, enter_sends, escape_returns, preview_key};
     use super::*;
     use crate::names::{Look, Position};
 
@@ -1107,9 +1321,14 @@ mod tests {
         });
         assert!(
             out.contains(
-                "<div data-name=\"me\" aria-live=\"polite\" class=\"rc-composer-preview\">"
+                "<div data-name=\"me\" role=\"region\" aria-label=\"Draft\" tabindex=\"-1\" \
+                 class=\"rc-composer-preview\">"
             ),
-            "{out}"
+            "a named region the reader can go to: {out}"
+        );
+        assert!(
+            !out.contains("aria-live"),
+            "and it says nothing on its own: {out}"
         );
         assert!(out.contains("<span>Draft</span>"), "{out}");
         assert!(
@@ -1130,7 +1349,10 @@ mod tests {
         // preview and nothing to send.
         let plain = html(|| view! { <Composer on_send=|_text: String| {} draft=draft /> });
         assert!(
-            plain.contains("<div aria-live=\"polite\" class=\"rc-composer-preview\">"),
+            plain.contains(
+                "<div role=\"region\" aria-label=\"Preview\" tabindex=\"-1\" \
+                 class=\"rc-composer-preview\">"
+            ),
             "{plain}"
         );
         draft.set(String::from("  \n"));
@@ -1180,6 +1402,32 @@ mod tests {
     fn send_button(out: &str) -> &str {
         let class = out.find("class=\"rc-send\"").expect(out);
         opening_tag(&out[out[..class].rfind("<button").expect(out)..], "button")
+    }
+
+    /// The values of an attribute, in order of appearance.
+    fn attribute_values<'a>(out: &'a str, attribute: &str) -> Vec<&'a str> {
+        let prefix = format!("{attribute}=\"");
+        out.match_indices(&prefix)
+            .map(|(at, _)| {
+                let value = &out[at + prefix.len()..];
+                &value[..value.find('"').expect(out)]
+            })
+            .collect()
+    }
+
+    /// The `id`s of the hint lines, in order.
+    fn hint_ids(out: &str) -> Vec<&str> {
+        attribute_values(out, "id")
+            .into_iter()
+            .filter(|id| id.starts_with("rc-composer-hint-"))
+            .collect()
+    }
+
+    /// The `id` of the one hint line.
+    fn hint_id_of(out: &str) -> &str {
+        let ids = hint_ids(out);
+        assert_eq!(ids.len(), 1, "one hint: {out}");
+        ids[0]
     }
 
     #[test]
@@ -1362,14 +1610,39 @@ mod tests {
     #[test]
     fn composer_text_box_is_set_up_for_prose() {
         let out = html(|| view! { <Composer on_send=|_text: String| {} /> });
+        let hint = hint_id_of(&out);
         assert!(
-            out.contains(
+            out.contains(&format!(
                 "<textarea rows=\"1\" placeholder=\"Write a message…\" aria-label=\"Message\" \
-                 spellcheck=\"true\" autocapitalize=\"sentences\" autocorrect=\"on\" \
-                 class=\"rc-composer-input\">"
-            ),
+                 aria-describedby=\"{hint}\" spellcheck=\"true\" autocapitalize=\"sentences\" \
+                 autocorrect=\"on\" class=\"rc-composer-input\">"
+            )),
             "{out}"
         );
+    }
+
+    #[test]
+    fn the_hint_describes_the_text_box_and_names_the_key() {
+        let out = html(|| view! { <Composer on_send=|_text: String| {} /> });
+        let hint = hint_id_of(&out);
+        assert!(
+            out.contains(&format!(
+                "<div id=\"{hint}\" class=\"rc-composer-hint\">{DEFAULT_HINT}</div>"
+            )),
+            "{out}"
+        );
+
+        // Two composers in one page describe their boxes by different lines.
+        let two = html(|| {
+            view! {
+                <Composer on_send=|_text: String| {} />
+                <Composer on_send=|_text: String| {} />
+            }
+        });
+        let ids = hint_ids(&two);
+        assert_eq!(ids.len(), 2, "{two}");
+        assert_ne!(ids[0], ids[1], "{two}");
+        assert_eq!(attribute_values(&two, "aria-describedby"), ids, "{two}");
     }
 
     #[test]
@@ -1452,12 +1725,19 @@ mod tests {
             "{out}"
         );
         assert!(!out.contains(">Send<"), "{out}");
+        let hint = hint_id_of(&out);
         assert!(
-            out.contains("<div class=\"rc-composer-hint\">Ctrl+Enter sends</div>"),
+            out.contains(&format!(
+                "<div id=\"{hint}\" class=\"rc-composer-hint\">Ctrl+Enter sends</div>"
+            )),
             "{out}"
         );
+        assert_eq!(attribute_values(&out, "aria-describedby"), [hint], "{out}");
+
+        // No line, and no description pointing at where it would be.
         let bare = html(|| view! { <Composer on_send=|_text: String| {} hint="" /> });
         assert!(!bare.contains("rc-composer-hint"), "{bare}");
+        assert!(!bare.contains("aria-describedby"), "{bare}");
     }
 
     #[test]
@@ -1754,13 +2034,139 @@ mod tests {
         });
     }
 
+    /// A press of the key, unmodified; `Press { shift: true, ..press("Enter") }`
+    /// adds a modifier. The code is the key's for a name, and `KeyX` for
+    /// a letter, as a US keyboard reports them.
+    fn press(key: &str) -> Press {
+        let code = match key.len() {
+            1 => format!("Key{}", key.to_ascii_uppercase()),
+            _ => key.to_string(),
+        };
+        Press {
+            key: key.to_string(),
+            code,
+            ..Press::default()
+        }
+    }
+
     #[test]
     fn enter_sends_but_not_with_shift_or_mid_composition() {
-        assert!(enter_sends("Enter", false, false));
-        assert!(!enter_sends("Enter", true, false));
-        assert!(!enter_sends("Enter", false, true));
-        assert!(!enter_sends("a", false, false));
-        assert!(!enter_sends("NumpadEnter", false, false));
+        assert!(enter_sends(&press("Enter")));
+        assert!(!enter_sends(&Press {
+            shift: true,
+            ..press("Enter")
+        }));
+        assert!(!enter_sends(&Press {
+            composing: true,
+            ..press("Enter")
+        }));
+        assert!(!enter_sends(&press("a")));
+        assert!(!enter_sends(&press("NumpadEnter")));
+    }
+
+    #[test]
+    fn alt_shift_p_reads_the_preview() {
+        let chord = |key: &str| Press {
+            alt: true,
+            shift: true,
+            ..press(key)
+        };
+        // Windows and Linux report the letter; macOS the character Option
+        // makes of it, and the physical key stands in.
+        assert!(preview_key(&chord("P")));
+        assert!(preview_key(&Press {
+            code: "KeyP".into(),
+            ..chord("∏")
+        }));
+        assert!(
+            preview_key(&Press {
+                code: String::new(),
+                ..chord("p")
+            }),
+            "the letter alone will do"
+        );
+        assert!(
+            !preview_key(&Press {
+                alt: false,
+                ..chord("P")
+            }),
+            "not Shift+P"
+        );
+        assert!(
+            !preview_key(&Press {
+                shift: false,
+                ..chord("p")
+            }),
+            "not Alt+P"
+        );
+        assert!(
+            !preview_key(&Press {
+                control: true,
+                ..chord("P")
+            }),
+            "not with Control or Command"
+        );
+        assert!(!preview_key(&chord("O")), "not another letter");
+        assert!(!preview_key(&chord("Enter")));
+    }
+
+    #[test]
+    fn escape_returns_to_the_box() {
+        assert!(escape_returns(&press("Escape")));
+        assert!(
+            escape_returns(&Press {
+                shift: true,
+                ..press("Escape")
+            }),
+            "however modified"
+        );
+        assert!(!escape_returns(&press("Enter")));
+        assert!(!escape_returns(&press("p")));
+    }
+
+    #[test]
+    fn the_key_expands_the_preview_it_goes_to_when_there_is_one() {
+        Owner::new().with(|| {
+            let expanded = RwSignal::new(false);
+            let preview = NodeRef::new();
+            read_preview(false, expanded, preview);
+            assert!(!expanded.get_untracked(), "no preview, nothing to expand");
+            read_preview(true, expanded, preview);
+            assert!(expanded.get_untracked(), "collapsed, it expands first");
+            read_preview(true, expanded, preview);
+            assert!(expanded.get_untracked(), "and stays expanded");
+        });
+    }
+
+    #[test]
+    fn the_focus_is_returned_when_the_element_holding_it_goes() {
+        let _ = any_spawner::Executor::init_futures_executor();
+        // The question is asked on the owner's cleanup and not before,
+        // and answered yes, the focus goes to the box (off the browser,
+        // to nothing).
+        let asked = Arc::new(AtomicUsize::new(0));
+        let owner = Owner::new();
+        let count = Arc::clone(&asked);
+        owner.with(|| {
+            refocus_when_gone(
+                move || {
+                    count.fetch_add(1, Ordering::Relaxed);
+                    true
+                },
+                NodeRef::new(),
+            )
+        });
+        assert_eq!(
+            asked.load(Ordering::Relaxed),
+            0,
+            "not while the view is there"
+        );
+        owner.cleanup();
+        assert_eq!(asked.load(Ordering::Relaxed), 1, "once, as it goes");
+        assert!(
+            !focus_within(NodeRef::new()),
+            "and off the browser nothing holds the focus"
+        );
     }
 
     #[test]

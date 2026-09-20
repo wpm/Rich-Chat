@@ -517,6 +517,7 @@ pre.rc-code code {
   border-radius: var(--rc-radius);
   background: var(--rc-tint-bg);
   color: var(--rc-tint-fg);
+  outline: none;
 }
 
 .rc-composer-preview-label {
@@ -577,7 +578,10 @@ pre.rc-code code {
   color: var(--rc-muted);
 }
 
-.rc-composer-input:focus {
+/* The preview has the box's focus look while the reader is in it, sent
+ * there by Alt+Shift+P, so that a sighted keyboard user sees the move. */
+.rc-composer-input:focus,
+.rc-composer-preview:focus-visible {
   border-color: var(--rc-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--rc-accent) 22%, transparent);
 }

@@ -37,12 +37,14 @@ wasm-bindgen-futures.workspace = true
 web-sys = { workspace = true, features = [
     "Clipboard",
     "CssStyleDeclaration",
+    "Document",
     "Element",
     "HtmlElement",
     "HtmlTextAreaElement",
     "KeyboardEvent",
     "MouseEvent",
     "Navigator",
+    "Node",
     "ResizeObserver",
     "Window",
 ] }
