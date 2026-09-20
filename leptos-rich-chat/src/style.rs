@@ -31,7 +31,12 @@
 //! second pair, `--rc-tint-*`, which the default table uses for `user`
 //! and the composer's preview takes. The name written over a bubble,
 //! `.rc-sender`, is the theme's: small, in `--rc-muted`, whatever the
-//! bubble's colors.
+//! bubble's colors. So is the widest a bubble gets,
+//! `--rc-bubble-max-width`, `min(85%, 76ch)` by default: one value for
+//! the whole chat rather than a name's, which `.rc-bubble` reads, so a
+//! host's own body that takes that class gets the maximum with the
+//! padding and the background. The crate does not clamp it: a host that
+//! sets `20ch` gets `20ch`.
 //!
 //! [`STYLESHEET`] is all three. The [`RichChatStyle`](crate::RichChatStyle)
 //! component injects them, each part switchable, or a consumer can serve
@@ -420,6 +425,33 @@ mod tests {
                 ".rc-message {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-start;"
             ),
             "a message is a column the names rules align"
+        );
+    }
+
+    /// The widest a bubble gets is a token of the theme's, declared on
+    /// the root with the rest so that a host takes it over from any
+    /// ancestor, and read by the bubble's rule, so that a host's own body
+    /// with the bubble's class gets it too. The default is the one value
+    /// that was in the rule before it was a token.
+    #[test]
+    fn the_theme_declares_the_bubbles_maximum_width_and_the_bubble_reads_it() {
+        assert!(
+            THEME.contains("  --rc-bubble-max-width: min(85%, 76ch);\n"),
+            "the theme declares the token with today's value as its default"
+        );
+        assert!(
+            THEME.contains(".rc-bubble {\n  max-width: var(--rc-bubble-max-width);\n"),
+            "the bubble reads the token"
+        );
+        assert_eq!(
+            THEME.matches("--rc-bubble-max-width:").count(),
+            1,
+            "declared once, on the root, so an override anywhere above the chat wins"
+        );
+        assert!(
+            !STRUCTURE.contains(".rc-bubble {\n  max-width")
+                && !STRUCTURE.contains("--rc-bubble-max-width"),
+            "the width is the theme's to give, not the structure's"
         );
     }
 

@@ -9,6 +9,15 @@ version is 0, a minor release may change the API.
 
 ### Added
 
+- `--rc-bubble-max-width`, the widest a bubble gets, is a custom
+  property of the theme's, declared on the document root with the rest
+  and read by `.rc-bubble`. Its default is the value the rule had,
+  `min(85%, 76ch)`, so a host that sets nothing sees no change; a host
+  that sets it, on `:root`, `.rc-chat` or any ancestor between, gets
+  exactly what it set, `20ch` or `100%`, since the crate does not clamp
+  it. It is one value for the whole chat, inherited, and never part of
+  a name's look: every user's bubbles stop at the same width, and so
+  does a `Body::View` whose root element takes `class="rc-bubble"`.
 - `Chat` and `MessageView` take `show_names`, which writes each
   message's name over its bubble in a `div.rc-sender`, on the bubble's
   side, in the theme's muted color. Off by default; may be a signal.

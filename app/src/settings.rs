@@ -11,6 +11,7 @@ const THEME_KEY: &str = "rich-chat.theme";
 const USERS_KEY: &str = "rich-chat.users";
 const INPUT_HEIGHT_KEY: &str = "rich-chat.input-height";
 const SHOW_NAMES_KEY: &str = "rich-chat.show-names";
+const BUBBLE_WIDTH_KEY: &str = "rich-chat.bubble-width";
 
 /// Light or dark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,6 +77,111 @@ impl Side {
     }
 }
 
+/// The widest a message gets, for every user at once: the library's
+/// `--rc-bubble-max-width`, which the app writes above the chat.
+///
+/// The slider's track is a measure in characters, from the library's
+/// own [`FLOOR`](Self::FLOOR) up to [`CEILING`](Self::CEILING), and then
+/// one position more, `Full`. A measure keeps the library's `85%` beside
+/// it, so a narrow window keeps its gutter at every position but the
+/// last, which lifts it and lets a message span the transcript.
+///
+/// It only widens. A bubble that wraps is exactly as wide as its
+/// maximum, so the maximum is the width of every multi-line bubble, and
+/// the library's value is the narrowest a reader can choose; a bubble
+/// whose text fits on one line is as wide as the text and untouched by
+/// any of this. Above the ceiling the gutter has already taken over on
+/// a laptop display, so higher numbers would be inert.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BubbleWidth {
+    /// A measure, in characters: `min(85%, <n>ch)`.
+    Measure(u32),
+    /// The whole transcript, inside its padding: `100%`.
+    Full,
+}
+
+impl Default for BubbleWidth {
+    /// The library's own maximum.
+    fn default() -> Self {
+        BubbleWidth::Measure(Self::FLOOR)
+    }
+}
+
+impl BubbleWidth {
+    /// The narrowest measure, in characters, and the default: the
+    /// library's.
+    pub const FLOOR: u32 = LIBRARY_MEASURE;
+    /// The widest measure, in characters. The slider's one position past
+    /// it is `Full`.
+    pub const CEILING: u32 = 160;
+
+    /// The slider's value for this width: the measure, or one past the
+    /// ceiling for `Full`.
+    pub fn position(self) -> u32 {
+        match self {
+            BubbleWidth::Measure(measure) => measure,
+            BubbleWidth::Full => Self::CEILING + 1,
+        }
+    }
+
+    /// The width at a slider position: `None` off the track.
+    pub fn at(position: u32) -> Option<Self> {
+        if (Self::FLOOR..=Self::CEILING).contains(&position) {
+            Some(BubbleWidth::Measure(position))
+        } else if position == Self::CEILING + 1 {
+            Some(BubbleWidth::Full)
+        } else {
+            None
+        }
+    }
+
+    /// The value of `--rc-bubble-max-width`.
+    pub fn css(self) -> String {
+        match self {
+            BubbleWidth::Measure(measure) => format!("min(85%, {measure}ch)"),
+            BubbleWidth::Full => "100%".to_string(),
+        }
+    }
+
+    /// The readout beside the slider: the number, or "Full".
+    pub fn label(self) -> String {
+        match self {
+            BubbleWidth::Measure(measure) => measure.to_string(),
+            BubbleWidth::Full => "Full".to_string(),
+        }
+    }
+
+    /// What a screen reader says for the slider's value, since a bare
+    /// number on a range input tells it nothing.
+    pub fn description(self) -> String {
+        match self {
+            BubbleWidth::Measure(measure) => format!("{measure} characters"),
+            BubbleWidth::Full => "Full width".to_string(),
+        }
+    }
+
+    /// How the width is stored: the character count, or the word `full`.
+    fn as_stored(self) -> String {
+        match self {
+            BubbleWidth::Measure(measure) => measure.to_string(),
+            BubbleWidth::Full => "full".to_string(),
+        }
+    }
+
+    /// A stored width. `None` for anything but a count on the track or
+    /// the word `full`.
+    fn parse(text: &str) -> Option<Self> {
+        match text {
+            "full" => Some(BubbleWidth::Full),
+            count => count
+                .parse()
+                .ok()
+                .and_then(Self::at)
+                .filter(|width| *width != BubbleWidth::Full),
+        }
+    }
+}
+
 /// Someone in the chat. The name is the one their messages carry, and
 /// the side and color are how their bubbles look.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,6 +240,8 @@ pub struct Settings {
     pub input_height: Option<f64>,
     /// Whether every bubble has its user's name written over it.
     pub show_names: bool,
+    /// The widest a message gets, for every user.
+    pub bubble_width: BubbleWidth,
 }
 
 impl Default for Settings {
@@ -148,6 +256,7 @@ impl Default for Settings {
             selected: USER.to_string(),
             input_height: None,
             show_names: false,
+            bubble_width: BubbleWidth::default(),
         }
     }
 }
@@ -290,6 +399,10 @@ impl Settings {
             .and_then(|value| value.parse().ok())
             .filter(|height: &f64| height.is_finite() && *height > 0.0);
         settings.show_names = read(SHOW_NAMES_KEY).is_some_and(|value| value == "true");
+        settings.bubble_width = read(BUBBLE_WIDTH_KEY)
+            .as_deref()
+            .and_then(BubbleWidth::parse)
+            .unwrap_or_default();
         settings
     }
 
@@ -323,6 +436,7 @@ impl Settings {
             self.input_height.map(|height| height.to_string()),
         );
         write(SHOW_NAMES_KEY, Some(self.show_names.to_string()));
+        write(BUBBLE_WIDTH_KEY, Some(self.bubble_width.as_stored()));
     }
 }
 
@@ -346,6 +460,12 @@ pub fn system_prefers_dark() -> bool {
 /// theme) and on dark ones (the same in the dark theme).
 const DARK_TEXT: &str = "#1f2328";
 const LIGHT_TEXT: &str = "#e6edf3";
+/// The library's measure for a bubble, in characters: the `76ch` in the
+/// default of its `--rc-bubble-max-width`, `min(85%, 76ch)`. The width
+/// slider starts there and goes no lower, so that with nothing set the
+/// bubbles are exactly as wide as the library makes them. A test holds
+/// the two together.
+const LIBRARY_MEASURE: u32 = 76;
 
 /// The text color that reads best on `background`: the library's own
 /// ink for light backgrounds or its ink for dark ones, whichever has the
@@ -631,6 +751,112 @@ mod tests {
         }
     }
 
+    /// The slider's floor is the library's own measure, so that with
+    /// nothing set the bubbles are as wide as the library makes them.
+    /// Pinned against the theme itself, so that a change to either is a
+    /// change to both.
+    #[test]
+    fn the_default_width_is_the_librarys() {
+        let default = BubbleWidth::default();
+        assert_eq!(default, BubbleWidth::Measure(BubbleWidth::FLOOR));
+        assert_eq!(Settings::default().bubble_width, default);
+        assert!(
+            leptos_rich_chat::style::THEME
+                .contains(&format!("  --rc-bubble-max-width: {};\n", default.css())),
+            "the library's default is not {}",
+            default.css()
+        );
+    }
+
+    /// The token's value at the floor, in the middle of the track, and
+    /// at Full: a measure keeps the gutter, and only Full lifts it.
+    #[test]
+    fn the_width_is_a_measure_with_the_gutter_or_the_full_transcript() {
+        assert_eq!(BubbleWidth::Measure(76).css(), "min(85%, 76ch)");
+        assert_eq!(BubbleWidth::Measure(120).css(), "min(85%, 120ch)");
+        assert_eq!(BubbleWidth::Measure(160).css(), "min(85%, 160ch)");
+        assert_eq!(BubbleWidth::Full.css(), "100%");
+    }
+
+    #[test]
+    fn the_track_runs_from_the_floor_to_the_ceiling_and_one_past_it() {
+        assert_eq!(BubbleWidth::at(76), Some(BubbleWidth::Measure(76)));
+        assert_eq!(BubbleWidth::at(120), Some(BubbleWidth::Measure(120)));
+        assert_eq!(BubbleWidth::at(160), Some(BubbleWidth::Measure(160)));
+        assert_eq!(BubbleWidth::at(161), Some(BubbleWidth::Full));
+        for off in [0, 75, 162, 1000] {
+            assert_eq!(BubbleWidth::at(off), None, "{off}");
+        }
+        for position in BubbleWidth::FLOOR..=BubbleWidth::CEILING + 1 {
+            let width = BubbleWidth::at(position).unwrap();
+            assert_eq!(width.position(), position, "{width:?}");
+        }
+    }
+
+    #[test]
+    fn the_width_is_read_out_in_words_and_in_a_number() {
+        assert_eq!(BubbleWidth::Measure(76).label(), "76");
+        assert_eq!(BubbleWidth::Measure(76).description(), "76 characters");
+        assert_eq!(BubbleWidth::Full.label(), "Full");
+        assert_eq!(BubbleWidth::Full.description(), "Full width");
+    }
+
+    /// The stored width is the count or the word `full`; anything else,
+    /// or a count off the track, is the default.
+    #[test]
+    fn the_width_is_read_when_it_is_on_the_track() {
+        assert_eq!(
+            stored(&[(BUBBLE_WIDTH_KEY, "76")]).bubble_width,
+            BubbleWidth::Measure(76)
+        );
+        assert_eq!(
+            stored(&[(BUBBLE_WIDTH_KEY, "120")]).bubble_width,
+            BubbleWidth::Measure(120)
+        );
+        assert_eq!(
+            stored(&[(BUBBLE_WIDTH_KEY, "160")]).bubble_width,
+            BubbleWidth::Measure(160)
+        );
+        assert_eq!(
+            stored(&[(BUBBLE_WIDTH_KEY, "full")]).bubble_width,
+            BubbleWidth::Full
+        );
+        for bad in [
+            "75", "161", "1000", "0", "-5", "76.5", "Full", "wide", "", "76ch",
+        ] {
+            assert_eq!(
+                stored(&[(BUBBLE_WIDTH_KEY, bad)]).bubble_width,
+                BubbleWidth::default(),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_width_round_trips_through_storage() {
+        for width in [
+            BubbleWidth::Measure(76),
+            BubbleWidth::Measure(99),
+            BubbleWidth::Measure(160),
+            BubbleWidth::Full,
+        ] {
+            let settings = Settings {
+                bubble_width: width,
+                ..Settings::default()
+            };
+            let mut storage = std::collections::HashMap::new();
+            settings.store_with(|key, value| {
+                if let Some(value) = value {
+                    storage.insert(key.to_string(), value);
+                }
+            });
+            assert_eq!(
+                Settings::from_stored(|key| storage.get(key).cloned()).bubble_width,
+                width
+            );
+        }
+    }
+
     #[test]
     fn the_stored_users_and_selection_are_read() {
         let json = r##"{"users":[{"name":"Alice","side":"center","color":"#ff8800"},{"name":"Bob","side":"right","color":"#000000"}],"retired":[{"name":"Carol","side":"left","color":"#123456"}],"selected":"Bob"}"##;
@@ -705,7 +931,13 @@ mod tests {
         let keys: Vec<_> = written.iter().map(|(key, _)| key.as_str()).collect();
         assert_eq!(
             keys,
-            [THEME_KEY, USERS_KEY, INPUT_HEIGHT_KEY, SHOW_NAMES_KEY]
+            [
+                THEME_KEY,
+                USERS_KEY,
+                INPUT_HEIGHT_KEY,
+                SHOW_NAMES_KEY,
+                BUBBLE_WIDTH_KEY
+            ]
         );
         assert_eq!(written[0].1, None, "no theme chosen");
         assert!(
@@ -719,18 +951,21 @@ mod tests {
         );
         assert_eq!(written[2].1, None, "no height dragged");
         assert_eq!(written[3].1.as_deref(), Some("false"), "names off");
+        assert_eq!(written[4].1.as_deref(), Some("76"), "the library's width");
 
         let mut written = Vec::new();
         let settings = Settings {
             theme: Some(Theme::Dark),
             input_height: Some(120.0),
             show_names: true,
+            bubble_width: BubbleWidth::Full,
             ..Settings::default()
         };
         settings.store_with(|key, value| written.push((key.to_string(), value)));
         assert_eq!(written[0].1.as_deref(), Some("dark"));
         assert_eq!(written[2].1.as_deref(), Some("120"));
         assert_eq!(written[3].1.as_deref(), Some("true"));
+        assert_eq!(written[4].1.as_deref(), Some("full"));
     }
 
     #[test]
@@ -739,6 +974,7 @@ mod tests {
             theme: Some(Theme::Light),
             input_height: Some(96.5),
             show_names: true,
+            bubble_width: BubbleWidth::Measure(120),
             ..Settings::default()
         };
         settings.add_user("Alice");

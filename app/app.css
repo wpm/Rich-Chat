@@ -2,10 +2,13 @@
  *
  * The library paints the chat itself, and where each user's bubbles go
  * and what color they are reaches it as its table of names, not as CSS.
- * These rules paint the page around it and turn the one setting that is
- * a length, the text box's height, into an override of the library's
- * composer. The library's own CSS is in cascade layers, so these plain
- * rules win over it without matching its specificity.
+ * These rules paint the page around it and turn one of the two settings
+ * that are lengths, the text box's height, into an override of the
+ * library's composer; the other, the widest a message gets, is the
+ * library's own token, --rc-bubble-max-width, which the app sets on
+ * .app and needs no rule here. The library's own CSS is in cascade
+ * layers, so these plain rules win over it without matching its
+ * specificity.
  */
 
 :root {
@@ -194,6 +197,25 @@ body {
 
 .control-color:hover:not(:disabled) {
   border-color: var(--app-accent);
+}
+
+/* The width slider, with its readout beside it: the number, or Full,
+ * kept to a fixed measure so the switches after it do not shift as the
+ * value changes. */
+.control-width {
+  width: 120px;
+  margin: 0;
+  accent-color: var(--app-accent);
+}
+
+.control-width:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.control-width-readout {
+  min-width: 3ch;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- The resizable text box ------------------------------------------- */

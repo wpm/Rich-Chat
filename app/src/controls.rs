@@ -1,10 +1,10 @@
-//! The bar above the chat: the users, the selected user's bubbles,
-//! whether bubbles are named, whether the chat is busy or disabled, the
-//! theme.
+//! The bar above the chat: the users, the selected user's bubbles, the
+//! widest a message gets, whether bubbles are named, whether the chat is
+//! busy or disabled, the theme.
 //!
 //! Each control edits the app's [`Settings`]; the app root turns those
 //! into the library's table of names and its `show_names`, the root
-//! element's theme attribute, and a custom property for the stylesheet.
+//! element's theme attribute, and custom properties for the stylesheets.
 //! The Busy and Disabled switches are the exception: each is a state of
 //! the conversation, not a choice to keep, so it is a signal of its own
 //! and starts off.
@@ -12,7 +12,7 @@
 use leptos::ev;
 use leptos::prelude::*;
 
-use crate::settings::{Settings, Side, Theme, User};
+use crate::settings::{BubbleWidth, Settings, Side, Theme, User};
 
 /// The controls. `theme` is the one in effect, which is the chosen one
 /// or, until one is chosen, the system's. `busy` and `disabled` are the
@@ -83,6 +83,21 @@ pub fn Controls(
         settings.update(|settings| settings.selected_user_mut().color = value);
     };
 
+    // The widest a message gets, for every user at once: a slider along
+    // the measures, with Full one past the last of them. A position off
+    // the track, which the input's own bounds keep from the reader,
+    // changes nothing.
+    let width = move || settings.read().bubble_width;
+    let widen = move |event: ev::Event| {
+        if let Some(width) = event_target_value(&event)
+            .parse()
+            .ok()
+            .and_then(BubbleWidth::at)
+        {
+            settings.update(|settings| settings.bubble_width = width);
+        }
+    };
+
     let show_names = move || settings.read().show_names;
     let toggle_names =
         move |_| settings.update(|settings| settings.show_names = !settings.show_names);
@@ -148,6 +163,24 @@ pub fn Controls(
                     prop:value=color
                     on:input=recolor
                 />
+            </div>
+            <div class="control-group">
+                <label class="control-label" for="bubble-width">"Width"</label>
+                <input
+                    id="bubble-width"
+                    type="range"
+                    class="control-width"
+                    title="The widest a message gets, in characters, for every user; Full is the whole transcript"
+                    min=BubbleWidth::FLOOR.to_string()
+                    max=BubbleWidth::Full.position().to_string()
+                    step="1"
+                    prop:value=move || width().position().to_string()
+                    aria-valuetext=move || width().description()
+                    on:input=widen
+                />
+                <output class="control-width-readout" for="bubble-width">
+                    {move || width().label()}
+                </output>
             </div>
             <button
                 type="button"
