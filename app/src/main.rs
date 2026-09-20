@@ -7,18 +7,21 @@
 //! removed; where the selected user's bubbles land and their color,
 //! which changes every bubble of theirs; the widest a message gets, for
 //! every user at once; whether every bubble has its user's name over
-//! it; whether the chat is busy, as a host waiting on a model's reply
-//! sets it, so that the text box and the preview stay and only the
-//! sending waits, or disabled, the composer off; light or dark. The
-//! composer's top edge can be dragged to make the text box taller. All
-//! of that is this app's: the library gets a table of names saying where
-//! each user's bubbles go and in what colors, a flag for the names, and
-//! its `--rc-bubble-max-width` set above the chat, and the app's own
-//! stylesheet gets a custom property for the text box.
+//! it, and how big; whether the chat is busy, as a host waiting on a
+//! model's reply sets it, so that the text box and the preview stay and
+//! only the sending waits, or disabled, the composer off; light or dark.
+//! The composer's top edge can be dragged to make the text box taller.
+//! All of that is this app's: the library gets a table of names saying
+//! where each user's bubbles go and in what colors, a flag for the
+//! names, and its `--rc-bubble-max-width` set above the chat, and the
+//! app's own stylesheet gets custom properties for the text box and the
+//! names.
 
 mod controls;
 mod opener;
 mod settings;
+
+use std::fmt::Write;
 
 use leptos::ev;
 use leptos::prelude::*;
@@ -102,13 +105,16 @@ fn App() -> impl IntoView {
     // The settings that are lengths, as custom properties on the root:
     // the library's token for the widest a bubble gets, which reaches
     // every bubble by inheritance as its docs say a host's override on
-    // any ancestor does, and the app's own for the text box.
+    // any ancestor does, and the app's own for the text box and the
+    // names. The name's size is always set, whether or not the names
+    // are showing; the stylesheet reads it only when they are.
     let style = move || {
         let settings = settings.read();
-        let mut style = format!("--rc-bubble-max-width: {};", settings.bubble_width.css());
+        let mut style = format!("--rc-bubble-max-width: {}; ", settings.bubble_width.css());
         if let Some(height) = settings.input_height {
-            style.push_str(&format!(" --app-input-height: {height}px;"));
+            let _ = write!(style, "--app-input-height: {height}px; ");
         }
+        let _ = write!(style, "--app-sender-size: {}em;", settings.sender_size);
         style
     };
 

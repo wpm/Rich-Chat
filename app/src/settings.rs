@@ -12,6 +12,18 @@ const USERS_KEY: &str = "rich-chat.users";
 const INPUT_HEIGHT_KEY: &str = "rich-chat.input-height";
 const SHOW_NAMES_KEY: &str = "rich-chat.show-names";
 const BUBBLE_WIDTH_KEY: &str = "rich-chat.bubble-width";
+const SENDER_SIZE_KEY: &str = "rich-chat.sender-size";
+
+/// The smallest the name over a bubble can be set, in `em`: clearly
+/// subordinate to the text.
+pub const SENDER_SIZE_MIN: f64 = 0.7;
+/// And the largest: a shade past the tour's `##` headings.
+pub const SENDER_SIZE_MAX: f64 = 1.4;
+/// What the slider moves the name's size by.
+pub const SENDER_SIZE_STEP: f64 = 0.05;
+/// The name's size to begin with: just under the `1em` of a bold label
+/// in a bubble, and above the library's own `0.875em`.
+const DEFAULT_SENDER_SIZE: f64 = 0.95;
 
 /// Light or dark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -245,6 +257,10 @@ pub struct Settings {
     pub show_names: bool,
     /// The widest a message gets, for every user.
     pub bubble_width: BubbleWidth,
+    /// How big that name is, in `em` of the chat's text. Kept while the
+    /// names are off, when nothing reads it, so that they come back at
+    /// the size they had.
+    pub sender_size: f64,
 }
 
 impl Default for Settings {
@@ -260,6 +276,7 @@ impl Default for Settings {
             input_height: None,
             show_names: false,
             bubble_width: BubbleWidth::default(),
+            sender_size: DEFAULT_SENDER_SIZE,
         }
     }
 }
@@ -406,6 +423,10 @@ impl Settings {
             .as_deref()
             .and_then(BubbleWidth::parse)
             .unwrap_or_default();
+        settings.sender_size = read(SENDER_SIZE_KEY)
+            .as_deref()
+            .and_then(parse_sender_size)
+            .unwrap_or(DEFAULT_SENDER_SIZE);
         settings
     }
 
@@ -439,8 +460,19 @@ impl Settings {
             self.input_height.map(|height| height.to_string()),
         );
         write(SHOW_NAMES_KEY, Some(self.show_names.to_string()));
+        write(SENDER_SIZE_KEY, Some(self.sender_size.to_string()));
         write(BUBBLE_WIDTH_KEY, Some(self.bubble_width.as_stored()));
     }
+}
+
+/// The name's size `text` gives, if it is a number the slider could be
+/// at: finite, and within [`SENDER_SIZE_MIN`]`..=`[`SENDER_SIZE_MAX`].
+/// Anything else, which only a hand-edited key or a stray event could
+/// bring, is `None`.
+pub fn parse_sender_size(text: &str) -> Option<f64> {
+    text.parse()
+        .ok()
+        .filter(|size: &f64| size.is_finite() && (SENDER_SIZE_MIN..=SENDER_SIZE_MAX).contains(size))
 }
 
 fn storage() -> Option<web_sys::Storage> {
@@ -571,6 +603,10 @@ mod tests {
         assert!(
             !settings.show_names,
             "the bubbles are unnamed to begin with"
+        );
+        assert_eq!(
+            settings.sender_size, 0.95,
+            "and the names just under the text"
         );
         let names = settings.names();
         assert_eq!(names.get(ASSISTANT).unwrap().position, Position::Left);
@@ -828,6 +864,20 @@ mod tests {
     }
 
     #[test]
+    fn the_name_size_is_read_when_it_is_a_number_the_slider_could_be_at() {
+        assert_eq!(stored(&[(SENDER_SIZE_KEY, "1.2")]).sender_size, 1.2);
+        assert_eq!(stored(&[(SENDER_SIZE_KEY, "0.7")]).sender_size, 0.7);
+        assert_eq!(stored(&[(SENDER_SIZE_KEY, "1.4")]).sender_size, 1.4);
+        for bad in ["0.65", "1.45", "0", "-1", "NaN", "inf", "-inf", "big", ""] {
+            assert_eq!(
+                stored(&[(SENDER_SIZE_KEY, bad)]).sender_size,
+                0.95,
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
     fn the_stored_users_and_selection_are_read() {
         let json = r##"{"users":[{"name":"Alice","side":"center","color":"#ff8800"},{"name":"Bob","side":"right","color":"#000000"}],"retired":[{"name":"Carol","side":"left","color":"#123456"}],"selected":"Bob"}"##;
         let settings = stored(&[(USERS_KEY, json)]);
@@ -906,6 +956,7 @@ mod tests {
                 USERS_KEY,
                 INPUT_HEIGHT_KEY,
                 SHOW_NAMES_KEY,
+                SENDER_SIZE_KEY,
                 BUBBLE_WIDTH_KEY
             ]
         );
@@ -921,7 +972,12 @@ mod tests {
         );
         assert_eq!(written[2].1, None, "no height dragged");
         assert_eq!(written[3].1.as_deref(), Some("false"), "names off");
-        assert_eq!(written[4].1.as_deref(), Some("76"), "the library's width");
+        assert_eq!(
+            written[4].1.as_deref(),
+            Some("0.95"),
+            "but at their size, which is always set"
+        );
+        assert_eq!(written[5].1.as_deref(), Some("76"), "the library's width");
 
         let mut written = Vec::new();
         let settings = Settings {
@@ -929,13 +985,15 @@ mod tests {
             input_height: Some(120.0),
             show_names: true,
             bubble_width: BubbleWidth::Full,
+            sender_size: 1.25,
             ..Settings::default()
         };
         settings.store_with(|key, value| written.push((key.to_string(), value)));
         assert_eq!(written[0].1.as_deref(), Some("dark"));
         assert_eq!(written[2].1.as_deref(), Some("120"));
         assert_eq!(written[3].1.as_deref(), Some("true"));
-        assert_eq!(written[4].1.as_deref(), Some("full"));
+        assert_eq!(written[4].1.as_deref(), Some("1.25"));
+        assert_eq!(written[5].1.as_deref(), Some("full"));
     }
 
     #[test]
@@ -945,6 +1003,7 @@ mod tests {
             input_height: Some(96.5),
             show_names: true,
             bubble_width: BubbleWidth::Measure(120),
+            sender_size: 1.15,
             ..Settings::default()
         };
         settings.add_user("Alice");

@@ -2,13 +2,13 @@
  *
  * The library paints the chat itself, and where each user's bubbles go
  * and what color they are reaches it as its table of names, not as CSS.
- * These rules paint the page around it and turn one of the two settings
- * that are lengths, the text box's height, into an override of the
- * library's composer; the other, the widest a message gets, is the
- * library's own token, --rc-bubble-max-width, which the app sets on
- * .app and needs no rule here. The library's own CSS is in cascade
- * layers, so these plain rules win over it without matching its
- * specificity.
+ * These rules paint the page around it and turn two of the settings
+ * that are lengths, the text box's height and the size of the name over
+ * a bubble, into overrides of the library's composer and its name; the
+ * third, the widest a message gets, is the library's own token,
+ * --rc-bubble-max-width, which the app sets on .app and needs no rule
+ * here. The library's own CSS is in cascade layers, so these plain
+ * rules win over it without matching its specificity.
  */
 
 :root {
@@ -133,16 +133,28 @@ body {
 .control-users:focus-visible,
 .control-new-user:focus-visible,
 .control-color:focus-visible,
-.control-width:focus-visible {
+.control-width:focus-visible,
+.control-sender-size:focus-visible {
   outline: 2px solid var(--app-accent);
   outline-offset: 1px;
 }
 
 .control-button:disabled,
 .control-segment:disabled,
-.control-color:disabled {
+.control-color:disabled,
+.control-sender-size:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* The name-size slider stands at the height of the other controls. */
+.control-sender-size {
+  box-sizing: border-box;
+  width: 96px;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--app-accent);
+  cursor: pointer;
 }
 
 /* The theme switch sits at the far right, whatever else is in the bar. */
@@ -261,4 +273,14 @@ body {
 .app .rc-composer-input {
   min-height: var(--app-input-height, 42px);
   max-height: max(30vh, var(--app-input-height, 0px));
+}
+
+/* ---- The name over a bubble ------------------------------------------- */
+
+/* The library sets the name over a bubble smaller than this app wants
+ * it. The bar's slider moves it, through a property the app always
+ * sets; this rule is unlayered, so it wins over the library's theme
+ * layer. */
+.app .rc-sender {
+  font-size: var(--app-sender-size);
 }

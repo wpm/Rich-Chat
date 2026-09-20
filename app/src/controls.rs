@@ -1,6 +1,6 @@
 //! The bar above the chat: the users, the selected user's bubbles, the
-//! widest a message gets, whether bubbles are named, whether the chat is
-//! busy or disabled, the theme.
+//! widest a message gets, whether bubbles are named and how big the
+//! name is, whether the chat is busy or disabled, the theme.
 //!
 //! Each control edits the app's [`Settings`]; the app root turns those
 //! into the library's table of names and its `show_names`, the root
@@ -12,7 +12,10 @@
 use leptos::ev;
 use leptos::prelude::*;
 
-use crate::settings::{BubbleWidth, Settings, Side, Theme, User};
+use crate::settings::{
+    BubbleWidth, SENDER_SIZE_MAX, SENDER_SIZE_MIN, SENDER_SIZE_STEP, Settings, Side, Theme, User,
+    parse_sender_size,
+};
 
 /// The controls. `theme` is the one in effect, which is the chosen one
 /// or, until one is chosen, the system's. `busy` and `disabled` are the
@@ -99,9 +102,17 @@ pub fn Controls(
         }
     };
 
-    let show_names = move || settings.read().show_names;
+    // Whether the names are shown and how big they are. Memos, as above.
+    let show_names = Memo::new(move |_| settings.read().show_names);
     let toggle_names =
         move |_| settings.update(|settings| settings.show_names = !settings.show_names);
+    // The slider is live only while there is a name for it to size.
+    let sender_size = Memo::new(move |_| settings.read().sender_size);
+    let resize_names = move |event: ev::Event| {
+        if let Some(size) = parse_sender_size(&event_target_value(&event)) {
+            settings.update(|settings| settings.sender_size = size);
+        }
+    };
 
     view! {
         <header class="controls" aria-label="Appearance">
@@ -183,16 +194,31 @@ pub fn Controls(
                     {move || width.get().label()}
                 </output>
             </div>
-            <button
-                type="button"
-                class="control-button control-toggle control-names"
-                role="switch"
-                aria-checked=move || show_names().to_string()
-                title="Write the user's name over every bubble"
-                on:click=toggle_names
-            >
-                "Names"
-            </button>
+            <div class="control-group" role="group" aria-label="Names">
+                <button
+                    type="button"
+                    class="control-button control-toggle control-names"
+                    role="switch"
+                    aria-checked=move || show_names.get().to_string()
+                    title="Write the user's name over every bubble"
+                    on:click=toggle_names
+                >
+                    "Names"
+                </button>
+                <input
+                    type="range"
+                    class="control-sender-size"
+                    aria-label="Name size"
+                    title="How big the name over a bubble is"
+                    min=SENDER_SIZE_MIN
+                    max=SENDER_SIZE_MAX
+                    step=SENDER_SIZE_STEP
+                    prop:value=move || sender_size.get().to_string()
+                    aria-valuetext=move || format!("{} em", sender_size.get())
+                    disabled=move || !show_names.get()
+                    on:input=resize_names
+                />
+            </div>
             <button
                 type="button"
                 class="control-button control-toggle control-busy"
