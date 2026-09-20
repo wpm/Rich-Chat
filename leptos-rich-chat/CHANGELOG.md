@@ -80,6 +80,15 @@ version is 0, a minor release may change the API.
   placed bubbles with a rule on `.rc-bubble`'s margins sets
   `align-items` on `.rc-message` instead.
 
+### Fixed
+
+- The crate builds without warnings when the `highlight` feature is
+  off. `render::code::highlight` reads its `token` only when the
+  feature is on, and a host that set `default-features = false` saw an
+  unused-variable warning in its own build. The signature and behavior
+  are unchanged, and CI now runs clippy with `--no-default-features`
+  too.
+
 ## [0.1.0] - 2026-09-16
 
 The first release: `Chat`, `Message`, `RichChatStyle` and the rendering
