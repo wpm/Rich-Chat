@@ -90,6 +90,11 @@ function check(condition, label) {
   if (!condition) failures += 1;
 }
 
+/** Whether the focus is on the element `selector` finds. */
+function focusOn(page, selector) {
+  return page.evaluate((s) => document.activeElement === document.querySelector(s), selector);
+}
+
 /** Sets the composer's text the way typing does, through the input event. */
 async function type(page, text) {
   await page.evaluate((text) => {
@@ -249,7 +254,7 @@ try {
     await page.click('.rc-send');
     await page.waitForTimeout(200);
     check((await page.$$('.rc-message')).length === TOUR + 3, 'the Send button sends');
-    check(await page.evaluate(() => document.activeElement === document.querySelector('.rc-composer-input')), 'and the caret is back in the box');
+    check(await focusOn(page, '.rc-composer-input'), 'and the caret is back in the box');
 
     const background = await page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
     check(colorScheme === 'dark' ? background !== 'rgb(255, 255, 255)' : background === 'rgb(255, 255, 255)', `${colorScheme} palette applied`);
@@ -485,32 +490,28 @@ try {
     // composer puts the caret back if the reader has not moved. The switch
     // is worked by script here, as a host works the signal: a click on it
     // would take the focus to the switch itself.
-    const toggleDisabled = () => page.$eval('.control-disabled', (el) => el.click());
-    const focusOn = (selector) => page.evaluate((s) => document.activeElement === document.querySelector(s), selector);
-    const caret = () => page.$eval('.rc-composer-input', (el) => [el.selectionStart, el.selectionEnd]);
+    const toggleDisabled = async () => {
+      await page.$eval('.control-disabled', (el) => el.click());
+      await page.waitForTimeout(150);
+    };
+    const caret = () => page.$eval('.rc-composer-input', (el) => `${el.selectionStart}:${el.selectionEnd}`);
     await page.click('.rc-composer-input');
     await page.keyboard.type('Typing when the composer went off');
-    for (let i = 0; i < 'went off'.length; i++) await page.keyboard.press('ArrowLeft');
+    const middle = 'Typing when the composer '.length;
+    await page.$eval('.rc-composer-input', (el, at) => el.setSelectionRange(at, at), middle);
     const place = await caret();
-    check(place[0] === 'Typing when the composer '.length && place[1] === place[0], 'the caret is in the middle of the draft');
+    check(place === `${middle}:${middle}`, 'the caret is in the middle of the draft');
     await toggleDisabled();
-    await page.waitForTimeout(150);
-    check(await disabledOn() && await page.evaluate(() => document.activeElement === document.body), 'off, the browser drops the focus on the body');
+    check(await disabledOn() && await focusOn(page, 'body'), 'off, the browser drops the focus on the body');
     await toggleDisabled();
-    await page.waitForTimeout(150);
-    check(await focusOn('.rc-composer-input'), 'on again, the caret is back in the box');
-    check(JSON.stringify(await caret()) === JSON.stringify(place), 'where it was');
+    check(await focusOn(page, '.rc-composer-input'), 'on again, the caret is back in the box');
+    check((await caret()) === place, 'where it was');
     await toggleDisabled();
-    await page.waitForTimeout(150);
     await page.click('.control-new-user');
-    check(await focusOn('.control-new-user'), 'a reader can go elsewhere while it is off');
+    check(await focusOn(page, '.control-new-user'), 'a reader can go elsewhere while it is off');
     await toggleDisabled();
-    await page.waitForTimeout(150);
-    check(await focusOn('.control-new-user'), 'and stays there when it comes back on');
-    await page.click('.rc-composer-input');
-    await page.press('.rc-composer-input', 'Control+A');
-    await page.keyboard.press('Backspace');
-    check((await boxText()) === '', 'the box is emptied again');
+    check(await focusOn(page, '.control-new-user'), 'and stays there when it comes back on');
+    await type(page, '');
 
     // Adding a user.
     check(await page.$eval('.control-add', (el) => el.disabled), 'nothing to add until a name is typed');

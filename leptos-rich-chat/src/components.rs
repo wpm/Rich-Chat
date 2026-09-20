@@ -376,10 +376,9 @@ fn focus_on_body() -> bool {
     let Some(document) = web_sys::window().and_then(|window| window.document()) else {
         return false;
     };
-    match document.active_element() {
-        None => true,
-        Some(active) => document.body().is_some_and(|body| *body == active),
-    }
+    document
+        .active_element()
+        .is_none_or(|active| document.body().is_some_and(|body| *body == active))
 }
 
 /// Off the browser there is no focus to be anywhere.
@@ -390,26 +389,21 @@ fn focus_on_body() -> bool {
 
 /// Puts the caret back in the text box when the composer comes back on,
 /// if [`restores_focus`] says so: `had_focus` is whether the reader had
-/// it there when the composer went off. On the next frame, not at once:
-/// the attribute that re-enables the box is set by an effect of its own
-/// on the same change, and a disabled box cannot take the focus, so the
-/// rule is judged and the caret placed once the browser has taken the
-/// change in.
-#[cfg(target_arch = "wasm32")]
+/// it there when the composer went off. In the browser, on the next
+/// frame, not at once: the attribute that re-enables the box is set by
+/// an effect of its own on the same change, and a disabled box cannot
+/// take the focus, so the rule is judged and the caret placed once the
+/// browser has taken the change in.
 fn restore_focus(input: NodeRef<html::Textarea>, had_focus: bool) {
-    request_animation_frame(move || {
+    let place = move || {
         if restores_focus(had_focus, focus_on_body()) {
             focus(input);
         }
-    });
-}
-
-/// Off the browser there is no frame to wait for and no box to focus.
-#[cfg(not(target_arch = "wasm32"))]
-fn restore_focus(input: NodeRef<html::Textarea>, had_focus: bool) {
-    if restores_focus(had_focus, focus_on_body()) {
-        focus(input);
-    }
+    };
+    #[cfg(target_arch = "wasm32")]
+    request_animation_frame(place);
+    #[cfg(not(target_arch = "wasm32"))]
+    place();
 }
 
 /// Whether a key press in the text box sends: Enter on its own, not
