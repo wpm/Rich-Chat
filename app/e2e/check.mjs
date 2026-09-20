@@ -64,6 +64,12 @@ fn main() {
 - [x] tables
 - [ ] footnotes[^1]
 
+* bullets
+  * nested
+    * and nested again
+
+1. numbers
+
 > [!TIP]
 > Alerts render too.
 
@@ -190,6 +196,21 @@ try {
     check((await page.$$(`${sent} pre.rc-code span[class^="hl-"]`)).length > 20, 'the Rust block is highlighted');
     check(await page.$(`${sent} table`) !== null, 'the table rendered');
     check(await page.$(`${sent} input[type=checkbox]`) !== null, 'task list boxes rendered');
+
+    // List markers are the theme's own, so they outlast a host's reset in
+    // a layer beneath the crate's: Tailwind's preflight, say.
+    const markers = () => page.$$eval(`${sent} .rc-rich li:not(.rc-footnotes li)`, (items) => items.map((li) => getComputedStyle(li).listStyleType).join(' '));
+    const expected = 'none none disc circle square decimal';
+    check((await markers()) === expected, 'bullets, nested bullets and numbers have markers, task lists none');
+    await page.evaluate(() => {
+      const reset = document.createElement('style');
+      reset.id = 'host-reset';
+      reset.textContent = '@layer base { ol, ul, menu { list-style: none; } }';
+      document.head.prepend(reset);
+    });
+    check((await markers()) === expected, "and keep them under a host's reset");
+    await page.evaluate(() => document.getElementById('host-reset').remove());
+
     check(await page.$(`${sent} blockquote.markdown-alert-tip`) !== null, 'the alert rendered');
     check(await page.$(`${sent} .rc-footnotes`) !== null, 'footnotes collected at the end');
     check((await page.$$(`${sent} a[href="https://leptos.dev"]`)).length === 1, 'bare URL autolinked');
