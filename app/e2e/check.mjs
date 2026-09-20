@@ -9,7 +9,8 @@
 // bubble side and color changing every bubble of theirs, the names over
 // the bubbles, the Busy switch holding what is sent while the text box and
 // the preview carry on, the Disabled switch turning the composer off and
-// back with its draft and collapsed preview intact, adding and deleting
+// back with its draft and collapsed preview intact and the caret back in
+// the box where the reader left it, adding and deleting
 // a user, the theme switch, dragging the text box taller, and that all of
 // it survives a reload. Last, that the transcript keeps its end in view:
 // through a burst of messages, a growing composer, and
@@ -478,6 +479,38 @@ try {
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
     check((await messageCount()) === beforeOff + 1, 'which Enter sends');
+
+    // Off and back on, the reader keeps their place. The browser blurs a
+    // control that becomes disabled and leaves the focus on the body; the
+    // composer puts the caret back if the reader has not moved. The switch
+    // is worked by script here, as a host works the signal: a click on it
+    // would take the focus to the switch itself.
+    const toggleDisabled = () => page.$eval('.control-disabled', (el) => el.click());
+    const focusOn = (selector) => page.evaluate((s) => document.activeElement === document.querySelector(s), selector);
+    const caret = () => page.$eval('.rc-composer-input', (el) => [el.selectionStart, el.selectionEnd]);
+    await page.click('.rc-composer-input');
+    await page.keyboard.type('Typing when the composer went off');
+    for (let i = 0; i < 'went off'.length; i++) await page.keyboard.press('ArrowLeft');
+    const place = await caret();
+    check(place[0] === 'Typing when the composer '.length && place[1] === place[0], 'the caret is in the middle of the draft');
+    await toggleDisabled();
+    await page.waitForTimeout(150);
+    check(await disabledOn() && await page.evaluate(() => document.activeElement === document.body), 'off, the browser drops the focus on the body');
+    await toggleDisabled();
+    await page.waitForTimeout(150);
+    check(await focusOn('.rc-composer-input'), 'on again, the caret is back in the box');
+    check(JSON.stringify(await caret()) === JSON.stringify(place), 'where it was');
+    await toggleDisabled();
+    await page.waitForTimeout(150);
+    await page.click('.control-new-user');
+    check(await focusOn('.control-new-user'), 'a reader can go elsewhere while it is off');
+    await toggleDisabled();
+    await page.waitForTimeout(150);
+    check(await focusOn('.control-new-user'), 'and stays there when it comes back on');
+    await page.click('.rc-composer-input');
+    await page.press('.rc-composer-input', 'Control+A');
+    await page.keyboard.press('Backspace');
+    check((await boxText()) === '', 'the box is emptied again');
 
     // Adding a user.
     check(await page.$eval('.control-add', (el) => el.disabled), 'nothing to add until a name is typed');

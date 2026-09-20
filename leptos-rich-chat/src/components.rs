@@ -357,6 +357,61 @@ fn focus(input: NodeRef<html::Textarea>) {
 #[cfg(not(target_arch = "wasm32"))]
 fn focus(_input: NodeRef<html::Textarea>) {}
 
+/// Whether the caret goes back into the text box when the composer comes
+/// back on. HTML blurs a focused control that becomes disabled and puts
+/// the focus on `<body>`, and nothing puts it back when the control is
+/// enabled again: the reader who was typing has lost their place, and
+/// Tab starts over from the top of the page. So: the box had the focus
+/// when the composer went off, and the focus is still on the body, where
+/// the browser dropped it. A reader who went somewhere else while the
+/// composer was off stays where they put themselves.
+fn restores_focus(had_focus: bool, focus_on_body: bool) -> bool {
+    had_focus && focus_on_body
+}
+
+/// Whether the focus is on `<body>`, or nowhere, as it is after the
+/// browser blurs a control that became disabled.
+#[cfg(target_arch = "wasm32")]
+fn focus_on_body() -> bool {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return false;
+    };
+    match document.active_element() {
+        None => true,
+        Some(active) => document.body().is_some_and(|body| *body == active),
+    }
+}
+
+/// Off the browser there is no focus to be anywhere.
+#[cfg(not(target_arch = "wasm32"))]
+fn focus_on_body() -> bool {
+    false
+}
+
+/// Puts the caret back in the text box when the composer comes back on,
+/// if [`restores_focus`] says so: `had_focus` is whether the reader had
+/// it there when the composer went off. On the next frame, not at once:
+/// the attribute that re-enables the box is set by an effect of its own
+/// on the same change, and a disabled box cannot take the focus, so the
+/// rule is judged and the caret placed once the browser has taken the
+/// change in.
+#[cfg(target_arch = "wasm32")]
+fn restore_focus(input: NodeRef<html::Textarea>, had_focus: bool) {
+    request_animation_frame(move || {
+        if restores_focus(had_focus, focus_on_body()) {
+            focus(input);
+        }
+    });
+}
+
+/// Off the browser there is no frame to wait for and no box to focus.
+#[cfg(not(target_arch = "wasm32"))]
+fn restore_focus(input: NodeRef<html::Textarea>, had_focus: bool) {
+    if restores_focus(had_focus, focus_on_body()) {
+        focus(input);
+    }
+}
+
 /// Whether a key press in the text box sends: Enter on its own, not
 /// Shift+Enter, and never in the middle of an IME composition.
 fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
@@ -397,6 +452,14 @@ fn enter_sends(key: &str, shift: bool, composing: bool) -> bool {
 /// set the composer is off, and the class, which follows `busy` alone,
 /// is still there.
 ///
+/// A host waiting between turns wants `busy`: the text box stays open
+/// and the reader's caret stays in it. `disabled` is the composer off,
+/// and turning a focused control off takes the focus with it, to the
+/// page's body, where the browser leaves it. When the composer comes
+/// back on it puts the caret back in the box, with the draft and the
+/// reader's place in it, if the reader has not moved in the meantime;
+/// a reader who went elsewhere while it was off stays there.
+///
 /// Attributes passed to the component go on the text box, not on the
 /// wrapper: `attr:id` for a label elsewhere on the page to point at,
 /// `attr:maxlength`, `attr:data-*`, `class:mine=true` to add a class, and
@@ -418,6 +481,10 @@ pub fn Composer(
     placeholder: String,
     /// The composer is off while true: the text box is disabled, nothing
     /// is previewed, and nothing can be sent. The draft signal is kept.
+    /// Turning the composer off takes the focus out of the text box;
+    /// when it comes back on the caret is put back, where it was, unless
+    /// the reader has gone elsewhere. A host waiting on a reply wants
+    /// `busy`, which leaves the box open and the caret in it.
     #[prop(optional, into)]
     disabled: Signal<bool>,
     /// A reply is in flight while true: the text box stays open and its
@@ -468,6 +535,28 @@ pub fn Composer(
     Effect::new(move |_| {
         draft.track();
         request_animation_frame(fit);
+    });
+
+    // Whether the reader's caret is in the box, kept by the box's own
+    // focus and blur events rather than read when `disabled` rises: the
+    // browser blurs a control that becomes disabled, and when it does so
+    // (at once, a task later, or not at all) differs by browser, so that
+    // a look at `document.activeElement` from an effect could come
+    // before the blur or after it. A blur while the composer is off is
+    // the browser's doing, and does not count as the reader leaving.
+    let had_focus = StoredValue::new(false);
+    // When the composer comes back on, the caret goes back in the box if
+    // the reader had it there and has not gone elsewhere since (see
+    // [`restore_focus`]). The effect keeps `disabled`'s last value, so
+    // that only a fall from true to false restores, not the first run.
+    Effect::new(move |was_off: Option<bool>| {
+        let off = disabled.get();
+        if was_off == Some(true) && !off {
+            let had = had_focus.get_value();
+            had_focus.set_value(false);
+            restore_focus(input, had);
+        }
+        off
     });
     let has_draft = move || !draft.read().trim().is_empty();
     let send = send_content(send);
@@ -546,6 +635,15 @@ pub fn Composer(
                                 submit();
                             }
                         }
+                        on:focus=move |_| had_focus.set_value(true)
+                        // The reader leaving, unless the composer is off,
+                        // when it is the browser taking the focus from a
+                        // control it has just disabled.
+                        on:blur=move |_| {
+                            if !disabled.get_untracked() {
+                                had_focus.set_value(false);
+                            }
+                        }
                         {..attrs}
                     ></textarea>
                     <button
@@ -622,7 +720,11 @@ pub fn Chat(
     placeholder: String,
     /// The composer is off while true: the text box is disabled, nothing
     /// is previewed, and nothing can be sent. The draft signal is kept.
-    /// See [`Composer`].
+    /// Turning the composer off takes the focus out of the text box;
+    /// when it comes back on the caret is put back, where it was, unless
+    /// the reader has gone elsewhere. A host waiting on a reply wants
+    /// `busy`, which leaves the box open and the caret in it. See
+    /// [`Composer`].
     #[prop(optional, into)]
     disabled: Signal<bool>,
     /// A reply is in flight while true: the text box stays open and its
@@ -1162,6 +1264,20 @@ mod tests {
         let back = render();
         assert!(back.contains("<strong>typed</strong>"), "{back}");
         assert!(!send_button(&back).contains("disabled"), "{back}");
+    }
+
+    #[test]
+    fn the_caret_comes_back_if_the_reader_has_not_moved() {
+        // The reader was typing when the composer went off, and the
+        // browser dropped the focus on the body: put the caret back.
+        assert!(restores_focus(true, true));
+        // The reader had the caret in the box, then went elsewhere while
+        // the composer was off: they stay where they put themselves.
+        assert!(!restores_focus(true, false));
+        // The caret was never in the box: the composer coming back on is
+        // no reason to take the focus.
+        assert!(!restores_focus(false, true));
+        assert!(!restores_focus(false, false));
     }
 
     #[test]

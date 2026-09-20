@@ -105,6 +105,15 @@ version is 0, a minor release may change the API.
   is what makes "nothing previewed" true of a draft the host put in the
   box. Before, a draft already there was previewed beside a box that
   could not edit it.
+- A composer turned off and back on keeps the reader's place. The
+  browser blurs a focused control that becomes disabled and leaves the
+  focus on the page's body, so a reader typing when the host raised
+  `disabled` had to find the text box again, from the top of the page,
+  when it fell. Now the composer puts the caret back in the box, where
+  it was in the draft, when it comes back on, if the reader has not
+  moved in the meantime; a reader who went elsewhere while it was off
+  stays there. A host waiting between turns still wants `busy`, which
+  never takes the focus at all.
 
 ### Fixed
 
