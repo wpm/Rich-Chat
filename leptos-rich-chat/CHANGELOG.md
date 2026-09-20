@@ -72,15 +72,10 @@ version is 0, a minor release may change the API.
 - `RichText` takes `node_ref`, a reference to its container, as
   `MessageView` does.
 - The window's background is `--rc-chat-bg`, apart from the composer's.
-  `--rc-bg` had been the window, the composer strip, the text box and
-  two hover fills at once, so no host could color the ground behind the
-  bubbles alone. The window's rule is now
-  `var(--rc-chat-bg, var(--rc-bg))` and the theme declares
-  `--rc-chat-bg` nowhere, so a host that sets nothing gets the theme in
-  both modes as before, an override of `--rc-bg` still reaches the
-  window, and a host that sets `--rc-chat-bg`, in a stylesheet or as
-  `attr:style` on `Chat`, colors the window and nothing else. It is a
-  background, so a gradient or an image does as well as a color.
+  `--rc-bg` had been the window, the composer strip and the text box at
+  once, so no host could color the ground behind the bubbles alone. The
+  theme leaves `--rc-chat-bg` undeclared, falling back to `--rc-bg`, so
+  a host that sets nothing, or overrides `--rc-bg`, gets what it did.
 
 ### Changed
 

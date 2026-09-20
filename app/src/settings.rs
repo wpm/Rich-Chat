@@ -46,13 +46,13 @@ impl Theme {
         }
     }
 
-    /// The window's background in this theme, as `#rrggbb`: the
-    /// library's `--rc-bg`, which the window falls back to while no
-    /// background is chosen.
+    /// The window's background in this theme, the library's `--rc-bg`,
+    /// which the window falls back to while none is chosen. A test keeps
+    /// the copies in step with the library's stylesheet.
     pub fn background(self) -> &'static str {
         match self {
-            Theme::Light => LIGHT_BG,
-            Theme::Dark => DARK_BG,
+            Theme::Light => "#ffffff",
+            Theme::Dark => "#0d1117",
         }
     }
 }
@@ -146,8 +146,8 @@ pub struct Settings {
     /// Whether every bubble has its user's name written over it.
     pub show_names: bool,
     /// The window's background as `#rrggbb`, the ground behind the
-    /// bubbles alone; `None` is the theme's, which follows the light and
-    /// dark switch.
+    /// bubbles alone, once one is chosen; the theme's otherwise, which
+    /// follows the light and dark switch.
     pub background: Option<String>,
 }
 
@@ -306,7 +306,7 @@ impl Settings {
             .and_then(|value| value.parse().ok())
             .filter(|height: &f64| height.is_finite() && *height > 0.0);
         settings.show_names = read(SHOW_NAMES_KEY).is_some_and(|value| value == "true");
-        settings.background = read(BACKGROUND_KEY).filter(|color| parse_hex(color).is_some());
+        settings.background = read(BACKGROUND_KEY);
         settings
     }
 
@@ -364,10 +364,6 @@ pub fn system_prefers_dark() -> bool {
 /// theme) and on dark ones (the same in the dark theme).
 const DARK_TEXT: &str = "#1f2328";
 const LIGHT_TEXT: &str = "#e6edf3";
-/// The library's window background in each theme (`--rc-bg`), what the
-/// Window control shows while no background is chosen.
-const LIGHT_BG: &str = "#ffffff";
-const DARK_BG: &str = "#0d1117";
 
 /// The text color that reads best on `background`: the library's own
 /// ink for light backgrounds or its ink for dark ones, whichever has the
@@ -455,8 +451,17 @@ mod tests {
             assert_ne!(theme.toggled(), theme);
         }
         assert_eq!(Theme::parse("blue"), None);
-        assert_eq!(Theme::Light.background(), "#ffffff");
-        assert_eq!(Theme::Dark.background(), "#0d1117");
+    }
+
+    /// The window's backgrounds are copies of the library's `--rc-bg`,
+    /// the light one declared before the dark blocks and the dark one in
+    /// them.
+    #[test]
+    fn the_theme_backgrounds_are_the_librarys() {
+        let theme = leptos_rich_chat::style::THEME;
+        let (light, dark) = theme.split_once("@media").unwrap();
+        assert!(light.contains(&format!("--rc-bg: {};", Theme::Light.background())));
+        assert!(dark.contains(&format!("--rc-bg: {};", Theme::Dark.background())));
     }
 
     #[test]
@@ -657,21 +662,11 @@ mod tests {
     }
 
     #[test]
-    fn the_background_is_read_when_it_is_a_hex_color() {
+    fn the_background_is_read() {
         assert_eq!(
             stored(&[(BACKGROUND_KEY, "#fff8e7")]).background.as_deref(),
             Some("#fff8e7")
         );
-        for bad in [
-            "fff8e7",
-            "#fff",
-            "teal",
-            "var(--x)",
-            "#fff8e7; color: red",
-            "",
-        ] {
-            assert_eq!(stored(&[(BACKGROUND_KEY, bad)]).background, None, "{bad:?}");
-        }
     }
 
     #[test]

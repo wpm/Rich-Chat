@@ -20,6 +20,8 @@ mod controls;
 mod opener;
 mod settings;
 
+use std::fmt::Write;
+
 use leptos::ev;
 use leptos::prelude::*;
 use leptos_rich_chat::{Chat, Message, RichChatStyle};
@@ -108,10 +110,10 @@ fn App() -> impl IntoView {
         let settings = settings.read();
         let mut style = String::new();
         if let Some(height) = settings.input_height {
-            style.push_str(&format!("--app-input-height: {height}px;"));
+            let _ = write!(style, "--app-input-height: {height}px;");
         }
         if let Some(background) = &settings.background {
-            style.push_str(&format!("--rc-chat-bg: {background};"));
+            let _ = write!(style, "--rc-chat-bg: {background};");
         }
         style
     };

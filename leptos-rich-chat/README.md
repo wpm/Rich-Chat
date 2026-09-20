@@ -257,13 +257,12 @@ mode follows `prefers-color-scheme` unless the document sets
 `data-theme="light"` or `"dark"` on its root element.
 
 `--rc-chat-bg` is the window alone, the ground behind the bubbles, and
-leaves the composer and the text box as they are. The theme declares it
-nowhere, on purpose: the window's rule is
-`var(--rc-chat-bg, var(--rc-bg))`, so while you set nothing it is
-`--rc-bg`, in both themes, and an override of `--rc-bg` still reaches
-the window along with the composer. It is a
-background, not a color, so a gradient or an image does as well as a
-hex. In your stylesheet, or on `Chat` for a color chosen at runtime:
+leaves the composer and the text box as they are. The theme leaves it
+undeclared, falling back to `--rc-bg`, so while you set nothing the
+window is `--rc-bg` in both themes and an override of `--rc-bg` still
+reaches it along with the composer. It is a background, not a color,
+so a gradient or an image does as well as a hex. In your stylesheet,
+or on `Chat` for a color chosen at runtime:
 
 ```css
 .rc-chat { --rc-chat-bg: #fff8e7; }

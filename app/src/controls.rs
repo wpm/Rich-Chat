@@ -85,15 +85,15 @@ pub fn Controls(
 
     // The window's background: the chosen one, or the theme's while none
     // is chosen, which is what the window shows then. The button beside
-    // it puts the theme's back.
+    // it puts the theme's back. A memo, as the users are, so that a drag
+    // of the text box does not rewrite the input.
+    let chosen_background = Memo::new(move |_| settings.read().background.clone());
     let background = move || {
-        settings
-            .read()
-            .background
-            .clone()
+        chosen_background
+            .get()
             .unwrap_or_else(|| theme.get().background().to_string())
     };
-    let background_chosen = move || settings.read().background.is_some();
+    let background_chosen = move || chosen_background.read().is_some();
     let choose_background = move |event: ev::Event| {
         let value = event_target_value(&event);
         settings.update(|settings| settings.background = Some(value));
