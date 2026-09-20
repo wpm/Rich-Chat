@@ -34,8 +34,10 @@ Three crates:
   the center, or on the right, and sets their color, for every bubble
   of theirs; writes each user's name over their bubbles, or not; makes
   the chat busy, as a host waiting on a reply does, so that you can go
-  on writing and nothing sends; and switches between light and dark. Drag the top edge of the text box to
-  make it taller. The choices are kept between runs.
+  on writing and nothing sends, or disabled, the composer off; and
+  switches between light and dark.
+  Drag the top edge of the text box to make it taller. The choices are
+  kept between runs.
   This is what the site above serves.
 - [`app/src-tauri`](app/src-tauri/) — the Tauri shell that puts the same
   app in a desktop window.

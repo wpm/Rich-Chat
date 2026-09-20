@@ -8,9 +8,11 @@
 // the app's controls: the users, who send as whom, the selected user's
 // bubble side and color changing every bubble of theirs, the names over
 // the bubbles, the Busy switch holding what is sent while the text box and
-// the preview carry on, adding and deleting a user, the theme switch, dragging
-// the text box taller, and that all of it survives a reload. Last, that the transcript keeps
-// its end in view: through a burst of messages, a growing composer, and
+// the preview carry on, the Disabled switch turning the composer off and
+// back with its draft and collapsed preview intact, adding and deleting
+// a user, the theme switch, dragging the text box taller, and that all of
+// it survives a reload. Last, that the transcript keeps its end in view:
+// through a burst of messages, a growing composer, and
 // a shrinking window, but not for a reader who has scrolled up.
 // Screenshots land in ./screenshots for a human to look at.
 //
@@ -439,6 +441,35 @@ try {
     check((await messageCount()) === beforeBusy + 1, 'Enter sends it now');
     check((await page.$eval('.rc-message:last-child .rc-bubble', (el) => el.textContent)).includes('and after'), 'as it was written');
     check((await boxText()) === '', 'and the box is empty again');
+
+    // Disabled: the composer off. A draft already in the box is kept but
+    // not previewed, and comes back as it was, the preview still collapsed.
+    const disabledOn = () => page.$eval('.control-disabled', (el) => el.getAttribute('aria-checked') === 'true');
+    await page.click('.rc-composer-input');
+    await page.keyboard.type('Typed *before* the composer went off');
+    await page.waitForTimeout(150);
+    await page.click('.rc-preview-toggle');
+    check(await page.$('.rc-composer-preview.rc-collapsed') !== null, 'a draft is previewed, and its preview collapsed');
+    const beforeOff = await messageCount();
+    await page.click('.control-disabled');
+    await page.waitForTimeout(150);
+    check(await disabledOn(), 'the Disabled switch reports it is on');
+    check(await page.$eval('.rc-composer-input', (el) => el.disabled), 'the text box is disabled');
+    check(await page.$('.rc-composer-preview') === null, 'and the preview goes, draft or no draft');
+    check(await page.$eval('.rc-send', (el) => el.disabled), 'the send button is disabled');
+    check(!(await composerBusy()), 'off is not waiting: no rc-busy');
+    check((await boxText()) === 'Typed *before* the composer went off', 'the draft is kept');
+    await page.screenshot({ path: `${shots}/controls-0-disabled.png` });
+    await page.click('.control-disabled');
+    await page.waitForTimeout(150);
+    check(!(await disabledOn()) && !(await page.$eval('.rc-composer-input', (el) => el.disabled)), 'the switch turns the composer back on');
+    check((await messageCount()) === beforeOff, 'which sends nothing on its own');
+    check(await page.$('.rc-composer-preview.rc-collapsed') !== null, 'the preview is back, collapsed as it was left');
+    await page.click('.rc-preview-toggle');
+    check(await page.$('.rc-composer-preview em') !== null, 'and expands to the same draft');
+    await page.press('.rc-composer-input', 'Enter');
+    await page.waitForTimeout(200);
+    check((await messageCount()) === beforeOff + 1, 'which Enter sends');
 
     // Adding a user.
     check(await page.$eval('.control-add', (el) => el.disabled), 'nothing to add until a name is typed');
