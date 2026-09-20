@@ -86,12 +86,12 @@ pub fn Controls(
         settings.update(|settings| settings.selected_user_mut().color = value);
     };
 
-    let show_names = move || settings.read().show_names;
+    // Whether the names are shown and how big they are. Memos, as above.
+    let show_names = Memo::new(move |_| settings.read().show_names);
     let toggle_names =
         move |_| settings.update(|settings| settings.show_names = !settings.show_names);
-    // How big the name is, from a slider that is live only while there
-    // is a name for it to size.
-    let sender_size = move || settings.read().sender_size;
+    // The slider is live only while there is a name for it to size.
+    let sender_size = Memo::new(move |_| settings.read().sender_size);
     let resize_names = move |event: ev::Event| {
         if let Some(size) = parse_sender_size(&event_target_value(&event)) {
             settings.update(|settings| settings.sender_size = size);
@@ -165,7 +165,7 @@ pub fn Controls(
                     type="button"
                     class="control-button control-toggle control-names"
                     role="switch"
-                    aria-checked=move || show_names().to_string()
+                    aria-checked=move || show_names.get().to_string()
                     title="Write the user's name over every bubble"
                     on:click=toggle_names
                 >
@@ -179,9 +179,9 @@ pub fn Controls(
                     min=SENDER_SIZE_MIN
                     max=SENDER_SIZE_MAX
                     step=SENDER_SIZE_STEP
-                    prop:value=move || sender_size().to_string()
-                    aria-valuetext=move || format!("{} em", sender_size())
-                    disabled=move || !show_names()
+                    prop:value=move || sender_size.get().to_string()
+                    aria-valuetext=move || format!("{} em", sender_size.get())
+                    disabled=move || !show_names.get()
                     on:input=resize_names
                 />
             </div>

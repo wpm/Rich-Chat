@@ -20,6 +20,8 @@ mod controls;
 mod opener;
 mod settings;
 
+use std::fmt::Write;
+
 use leptos::ev;
 use leptos::prelude::*;
 use leptos_rich_chat::{Chat, Message, RichChatStyle};
@@ -104,11 +106,12 @@ fn App() -> impl IntoView {
     // showing; the stylesheet reads it only when they are.
     let style = move || {
         let settings = settings.read();
-        let height = settings
-            .input_height
-            .map(|height| format!("--app-input-height: {height}px; "))
-            .unwrap_or_default();
-        format!("{height}--app-sender-size: {}em;", settings.sender_size)
+        let mut style = String::new();
+        if let Some(height) = settings.input_height {
+            let _ = write!(style, "--app-input-height: {height}px; ");
+        }
+        let _ = write!(style, "--app-sender-size: {}em;", settings.sender_size);
+        style
     };
 
     // Dragging the composer's top edge sets the text box's height.

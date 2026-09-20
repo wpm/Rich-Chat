@@ -261,8 +261,9 @@ body {
 /* ---- The name over a bubble ------------------------------------------- */
 
 /* The library sets the name over a bubble smaller than this app wants
- * it. The bar's slider moves it; these rules are unlayered, so they
- * win over the library's theme layer. */
+ * it. The bar's slider moves it, through a property the app always
+ * sets; this rule is unlayered, so it wins over the library's theme
+ * layer. */
 .app .rc-sender {
-  font-size: var(--app-sender-size, 0.95em);
+  font-size: var(--app-sender-size);
 }
