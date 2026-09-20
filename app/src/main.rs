@@ -48,16 +48,19 @@ struct Drag {
     height: f64,
 }
 
-/// The first bubble, from the assistant. This and the other two prose
-/// bubbles each have a paragraph longer than the widest measure the
-/// Width slider offers, so that the slider is seen to move both users'
-/// bubbles alike, whatever the window; a test below holds them to it.
+/// The first bubble, from the assistant. Its paragraph is longer than
+/// the widest measure the Width slider offers, so that the bubble wraps
+/// at every position and the slider is seen to move it; the end-to-end
+/// check holds it to that.
 const WELCOME: &str = include_str!("../welcome.md");
-/// The second bubble, from the user: the Markdown.
+/// The second bubble, from the user: the Markdown. Its first paragraph
+/// is as long as the welcome's, for the same reason, so that the slider
+/// is seen to move both users' bubbles alike.
 const WELCOME_MARKDOWN: &str = include_str!("../welcome-markdown.md");
-/// The third, from the assistant again: the code.
+/// The third, from the assistant again: the code, which does not wrap.
 const WELCOME_CODE: &str = include_str!("../welcome-code.md");
-/// The fourth, from the user again: the math.
+/// The fourth, from the user again: the math, with a first paragraph as
+/// long as the welcome's, as the Markdown's is.
 const WELCOME_MATH: &str = include_str!("../welcome-math.md");
 
 #[component]
@@ -210,63 +213,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{WELCOME, WELCOME_CODE, WELCOME_MARKDOWN, WELCOME_MATH};
-    use crate::settings::BubbleWidth;
     use leptos_rich_chat::render::{RenderOptions, render_html};
-
-    /// The text of each paragraph of `html`, its tags stripped and any
-    /// math left out, which undercounts an equation's glyphs a little.
-    fn paragraphs(html: &str) -> Vec<String> {
-        html.split("<p>")
-            .skip(1)
-            .map(|rest| {
-                let paragraph = &rest[..rest.find("</p>").expect("a paragraph is closed")];
-                let mut text = String::new();
-                let mut rest = paragraph;
-                while let Some(start) = rest.find('<') {
-                    text.push_str(&rest[..start]);
-                    let tag = &rest[start..];
-                    let end = if tag.starts_with("<math") {
-                        tag.find("</math>").expect("math is closed") + "</math>".len()
-                    } else {
-                        tag.find('>').expect("a tag is closed") + 1
-                    };
-                    rest = &tag[end..];
-                }
-                text.push_str(rest);
-                text
-            })
-            .collect()
-    }
-
-    /// The Width slider is for every user at once, and the tour is where
-    /// a reader sees that. A bubble is as wide as its longest line up to
-    /// the maximum, so a bubble whose longest paragraph fits at some
-    /// measure stops there while another's goes on widening, and a wide
-    /// window then shows the slider moving one user's bubbles and not the
-    /// other's. So each prose bubble of the tour, the assistant's welcome
-    /// and the user's Markdown and math, has a paragraph longer than the
-    /// widest measure, with room for a letter of prose being narrower
-    /// than the digit a `ch` measures.
-    #[test]
-    fn every_prose_bubble_of_the_tour_wraps_at_the_widest_measure() {
-        let needed = BubbleWidth::CEILING as usize * 3 / 2;
-        for (bubble, source) in [
-            ("welcome", WELCOME),
-            ("markdown", WELCOME_MARKDOWN),
-            ("math", WELCOME_MATH),
-        ] {
-            let html = render_html(source, &RenderOptions::default());
-            let longest = paragraphs(&html)
-                .iter()
-                .map(|text| text.chars().count())
-                .max()
-                .unwrap_or(0);
-            assert!(
-                longest >= needed,
-                "the {bubble} bubble's longest paragraph is {longest} characters, under {needed}: {html}"
-            );
-        }
-    }
 
     /// The first bubble introduces the tour and leaves the showing off to
     /// the bubbles after it.
