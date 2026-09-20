@@ -62,8 +62,10 @@ version is 0, a minor release may change the API.
   nested in it, `decimal` for a numbered one. These are the browser's
   defaults, so a host without a CSS reset sees no change; a host with
   one in a layer beneath the crate's, such as Tailwind's preflight, gets
-  its markers back, where `list-style: none` used to go unanswered.
-  Task-list items still have none.
+  its markers back, where `list-style: none` used to go unanswered,
+  whether the reset names the list or the item. Only the marker's type
+  is declared, so a position or an image a host hands down still
+  arrives. Task-list items still have none.
 - The highlighter's classes are `hl-keyword`, `hl-string`, and so on,
   in place of `rc-keyword` and the rest: a prefix of their own, since
   every dotted atom of a scope became a class under the components'
