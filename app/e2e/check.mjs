@@ -73,6 +73,10 @@ fn main() {
 
 1. numbers
 
++ [x] loose
+
++ [ ] tasks
+
 > [!TIP]
 > Alerts render too.
 
@@ -200,11 +204,15 @@ try {
     check(await page.$(`${sent} table`) !== null, 'the table rendered');
     check(await page.$(`${sent} input[type=checkbox]`) !== null, 'task list boxes rendered');
 
+    // The loose task list, whose items blank lines separate, puts each
+    // checkbox in a paragraph rather than directly in the item.
+    check((await page.$$(`${sent} li > p:first-child > input[type=checkbox]`)).length === 2, 'the loose task list boxes are in paragraphs');
+
     // List markers are the theme's own, so they outlast a host's reset in
     // a layer beneath the crate's: Tailwind's preflight, say.
     const markers = () => page.$$eval(`${sent} .rc-rich li:not(.rc-footnotes li)`, (items) => items.map((li) => getComputedStyle(li).listStyleType).join(' '));
-    const expected = 'none none disc circle square decimal';
-    check((await markers()) === expected, 'bullets, nested bullets and numbers have markers, task lists none');
+    const expected = 'none none disc circle square decimal none none';
+    check((await markers()) === expected, 'bullets, nested bullets and numbers have markers, task lists tight and loose none');
     await page.evaluate(() => {
       const reset = document.createElement('style');
       reset.id = 'host-reset';

@@ -439,9 +439,19 @@ mod tests {
         ] {
             assert!(THEME.contains(rule), "the theme lacks: {rule}");
         }
+        // Both shapes of a task item: the checkbox is the item's first
+        // child in a tight list, and its first paragraph's in a loose one.
         assert!(
-            THEME.contains(".rc-rich li:has(> input[type=\"checkbox\"]) {\n  list-style: none;"),
-            "a task-list item has no marker"
+            THEME.contains(
+                ".rc-rich li:has(> input[type=\"checkbox\"], > p:first-child > input[type=\"checkbox\"]) {\n  list-style: none;"
+            ),
+            "a task-list item, tight or loose, has no marker"
+        );
+        assert!(
+            THEME.contains(
+                ".rc-rich li > input[type=\"checkbox\"],\n.rc-rich li > p:first-child > input[type=\"checkbox\"] {"
+            ),
+            "a task-list checkbox, tight or loose, is styled"
         );
     }
 }

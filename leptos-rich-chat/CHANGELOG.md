@@ -114,6 +114,12 @@ version is 0, a minor release may change the API.
   unused-variable warning in its own build. The signature and behavior
   are unchanged, and CI now runs clippy with `--no-default-features`
   too.
+- A loose task list, its items separated by blank lines, showed a
+  bullet beside each checkbox. A loose item wraps its checkbox in a
+  paragraph, and the theme's task-list rule matched only a checkbox
+  that is the item's own child, which is what a tight list renders.
+  The rule now matches both shapes, so a loose task item has no marker
+  and sits where a tight one does.
 
 ## [0.1.0] - 2026-09-16
 

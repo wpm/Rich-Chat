@@ -871,6 +871,14 @@ mod tests {
     fn task_lists_and_alerts() {
         let tasks = html("- [x] done\n- [ ] todo\n");
         assert!(tasks.contains("type=\"checkbox\" checked=\"\""), "{tasks}");
+        assert!(tasks.contains("<li><input "), "{tasks}");
+        // A loose task list, its items separated by blank lines, wraps
+        // each item in a paragraph, so the checkbox is the paragraph's
+        // first child rather than the item's. The theme's task-list rule
+        // matches both shapes.
+        let loose = html("- [x] one\n\n- [ ] two\n");
+        assert_eq!(loose.matches("<li>\n<p><input ").count(), 2, "{loose}");
+        assert!(!loose.contains("<li><input "), "{loose}");
         let alert = html("> [!NOTE]\n> Careful.\n");
         assert!(
             alert.contains("<blockquote class=\"markdown-alert-note\">"),
