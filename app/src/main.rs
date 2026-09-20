@@ -7,14 +7,16 @@
 //! removed; where the selected user's bubbles land and their color,
 //! which changes every bubble of theirs; the window's background, the
 //! ground behind the bubbles alone; whether every bubble has its
-//! user's name over it; whether the chat is busy, as a host waiting on a
-//! model's reply sets it, so that the text box and the preview stay and
-//! only the sending waits, or disabled, the composer off; light or dark.
+//! user's name over it, and how big; whether the chat is busy, as a
+//! host waiting on a model's reply sets it, so that the text box and
+//! the preview stay and only the sending waits, or disabled, the
+//! composer off; light or dark.
 //! The composer's top edge can be dragged to make the text box taller.
 //! All of that is this app's: the
 //! library gets a table of names saying where each user's bubbles go
-//! and in what colors, a flag for the names, and the stylesheet gets a
-//! custom property for the text box and one for the window.
+//! and in what colors, a flag for the names, and the stylesheet gets
+//! custom properties for the text box and the names, and the library's
+//! one for the window.
 
 mod controls;
 mod opener;
@@ -101,19 +103,21 @@ fn App() -> impl IntoView {
     let busy = RwSignal::new(false);
     // And the composer off altogether, as for a host with no key.
     let disabled = RwSignal::new(false);
-    // The settings the stylesheets read as custom properties: the app's
-    // own takes the text box's height, and the library's window takes
-    // --rc-chat-bg, inherited down to .rc-chat. Neither is emitted while
-    // unset, so the window follows the theme's light and dark switch
-    // until a background is chosen.
+    // The settings the stylesheets read as custom properties. The name's
+    // size is always set, whether or not the names are showing; the
+    // app's stylesheet reads it only when they are. The window's
+    // background is the library's --rc-chat-bg, inherited down to
+    // .rc-chat, and is not emitted while unset, so the window follows
+    // the theme's light and dark switch until a background is chosen.
     let style = move || {
         let settings = settings.read();
         let mut style = String::new();
         if let Some(height) = settings.input_height {
-            let _ = write!(style, "--app-input-height: {height}px;");
+            let _ = write!(style, "--app-input-height: {height}px; ");
         }
+        let _ = write!(style, "--app-sender-size: {}em;", settings.sender_size);
         if let Some(background) = &settings.background {
-            let _ = write!(style, "--rc-chat-bg: {background};");
+            let _ = write!(style, " --rc-chat-bg: {background};");
         }
         style
     };

@@ -11,6 +11,18 @@ const THEME_KEY: &str = "rich-chat.theme";
 const USERS_KEY: &str = "rich-chat.users";
 const INPUT_HEIGHT_KEY: &str = "rich-chat.input-height";
 const SHOW_NAMES_KEY: &str = "rich-chat.show-names";
+const SENDER_SIZE_KEY: &str = "rich-chat.sender-size";
+
+/// The smallest the name over a bubble can be set, in `em`: clearly
+/// subordinate to the text.
+pub const SENDER_SIZE_MIN: f64 = 0.7;
+/// And the largest: a shade past the tour's `##` headings.
+pub const SENDER_SIZE_MAX: f64 = 1.4;
+/// What the slider moves the name's size by.
+pub const SENDER_SIZE_STEP: f64 = 0.05;
+/// The name's size to begin with: just under the `1em` of a bold label
+/// in a bubble, and above the library's own `0.875em`.
+const DEFAULT_SENDER_SIZE: f64 = 0.95;
 const BACKGROUND_KEY: &str = "rich-chat.background";
 
 /// Light or dark.
@@ -145,6 +157,10 @@ pub struct Settings {
     pub input_height: Option<f64>,
     /// Whether every bubble has its user's name written over it.
     pub show_names: bool,
+    /// How big that name is, in `em` of the chat's text. Kept while the
+    /// names are off, when nothing reads it, so that they come back at
+    /// the size they had.
+    pub sender_size: f64,
     /// The window's background as `#rrggbb`, the ground behind the
     /// bubbles alone, once one is chosen; the theme's otherwise, which
     /// follows the light and dark switch.
@@ -163,6 +179,7 @@ impl Default for Settings {
             selected: USER.to_string(),
             input_height: None,
             show_names: false,
+            sender_size: DEFAULT_SENDER_SIZE,
             background: None,
         }
     }
@@ -306,6 +323,10 @@ impl Settings {
             .and_then(|value| value.parse().ok())
             .filter(|height: &f64| height.is_finite() && *height > 0.0);
         settings.show_names = read(SHOW_NAMES_KEY).is_some_and(|value| value == "true");
+        settings.sender_size = read(SENDER_SIZE_KEY)
+            .as_deref()
+            .and_then(parse_sender_size)
+            .unwrap_or(DEFAULT_SENDER_SIZE);
         settings.background = read(BACKGROUND_KEY);
         settings
     }
@@ -340,8 +361,19 @@ impl Settings {
             self.input_height.map(|height| height.to_string()),
         );
         write(SHOW_NAMES_KEY, Some(self.show_names.to_string()));
+        write(SENDER_SIZE_KEY, Some(self.sender_size.to_string()));
         write(BACKGROUND_KEY, self.background.clone());
     }
+}
+
+/// The name's size `text` gives, if it is a number the slider could be
+/// at: finite, and within [`SENDER_SIZE_MIN`]`..=`[`SENDER_SIZE_MAX`].
+/// Anything else, which only a hand-edited key or a stray event could
+/// bring, is `None`.
+pub fn parse_sender_size(text: &str) -> Option<f64> {
+    text.parse()
+        .ok()
+        .filter(|size: &f64| size.is_finite() && (SENDER_SIZE_MIN..=SENDER_SIZE_MAX).contains(size))
 }
 
 fn storage() -> Option<web_sys::Storage> {
@@ -477,6 +509,10 @@ mod tests {
         assert!(
             !settings.show_names,
             "the bubbles are unnamed to begin with"
+        );
+        assert_eq!(
+            settings.sender_size, 0.95,
+            "and the names just under the text"
         );
         assert_eq!(settings.background, None, "the window is the theme's");
         let names = settings.names();
@@ -662,6 +698,20 @@ mod tests {
     }
 
     #[test]
+    fn the_name_size_is_read_when_it_is_a_number_the_slider_could_be_at() {
+        assert_eq!(stored(&[(SENDER_SIZE_KEY, "1.2")]).sender_size, 1.2);
+        assert_eq!(stored(&[(SENDER_SIZE_KEY, "0.7")]).sender_size, 0.7);
+        assert_eq!(stored(&[(SENDER_SIZE_KEY, "1.4")]).sender_size, 1.4);
+        for bad in ["0.65", "1.45", "0", "-1", "NaN", "inf", "-inf", "big", ""] {
+            assert_eq!(
+                stored(&[(SENDER_SIZE_KEY, bad)]).sender_size,
+                0.95,
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
     fn the_background_is_read() {
         assert_eq!(
             stored(&[(BACKGROUND_KEY, "#fff8e7")]).background.as_deref(),
@@ -748,6 +798,7 @@ mod tests {
                 USERS_KEY,
                 INPUT_HEIGHT_KEY,
                 SHOW_NAMES_KEY,
+                SENDER_SIZE_KEY,
                 BACKGROUND_KEY
             ]
         );
@@ -763,13 +814,19 @@ mod tests {
         );
         assert_eq!(written[2].1, None, "no height dragged");
         assert_eq!(written[3].1.as_deref(), Some("false"), "names off");
-        assert_eq!(written[4].1, None, "no background chosen");
+        assert_eq!(
+            written[4].1.as_deref(),
+            Some("0.95"),
+            "but at their size, which is always set"
+        );
+        assert_eq!(written[5].1, None, "no background chosen");
 
         let mut written = Vec::new();
         let settings = Settings {
             theme: Some(Theme::Dark),
             input_height: Some(120.0),
             show_names: true,
+            sender_size: 1.25,
             background: Some("#fff8e7".to_string()),
             ..Settings::default()
         };
@@ -777,7 +834,8 @@ mod tests {
         assert_eq!(written[0].1.as_deref(), Some("dark"));
         assert_eq!(written[2].1.as_deref(), Some("120"));
         assert_eq!(written[3].1.as_deref(), Some("true"));
-        assert_eq!(written[4].1.as_deref(), Some("#fff8e7"));
+        assert_eq!(written[4].1.as_deref(), Some("1.25"));
+        assert_eq!(written[5].1.as_deref(), Some("#fff8e7"));
     }
 
     #[test]
@@ -786,6 +844,7 @@ mod tests {
             theme: Some(Theme::Light),
             input_height: Some(96.5),
             show_names: true,
+            sender_size: 1.15,
             background: Some("#fff8e7".to_string()),
             ..Settings::default()
         };
