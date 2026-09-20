@@ -150,7 +150,10 @@ small and in the theme's muted color so that it reads the same over a
 bubble of any color. It is the name as spelled, so a chat that shows
 names picks names meant to be read: `Alice`, not `alice`. A name that
 is nobody, the `notice` above, keeps its label off with a rule of yours:
-`.rc-message[data-name="notice"] > .rc-sender { display: none; }`.
+`.rc-message[data-name="notice"] > .rc-sender { display: none; }`; and
+the size is that element's `font-size`, so a name that should be bigger
+or smaller than the theme's `0.875em` is another rule of yours:
+`.rc-sender { font-size: 1em; }`.
 
 ### Links
 
