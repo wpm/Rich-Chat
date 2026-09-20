@@ -45,11 +45,17 @@
 //! whose own rules are in layers is subject to the order the layers are
 //! first declared in, and [`RichChatStyle`](crate::RichChatStyle) puts
 //! the crate's CSS in a `<style>` element in the body, after anything in
-//! the document's head: declare the order yourself, first, to put yours
-//! after them:
+//! the document's head: declare the order yourself, first, with the
+//! crate's layers after any layer that resets elements and before any
+//! layer whose rules should win over the theme. For Tailwind v4 that is
+//! between preflight, which is in `base`, and the utilities, and
+//! `rich-chat` places both of the crate's layers; the README's
+//! [Styling section](https://github.com/wpm/Rich-Chat/tree/main/leptos-rich-chat#styling)
+//! has the reasons:
 //!
 //! ```css
-//! @layer rich-chat.structure, rich-chat.theme, base, components, utilities;
+//! @layer theme, base, rich-chat, components, utilities;
+//! @import "tailwindcss";
 //! ```
 //!
 //! Dark mode in the theme follows `prefers-color-scheme` unless the
