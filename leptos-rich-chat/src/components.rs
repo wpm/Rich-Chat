@@ -1021,6 +1021,92 @@ mod tests {
         assert!(!off.contains("rc-composer-preview"), "{off}");
     }
 
+    /// The opening tag of the first element of that name, attributes and
+    /// all.
+    fn opening_tag<'a>(out: &'a str, element: &str) -> &'a str {
+        let start = out
+            .find(&format!("<{element}"))
+            .unwrap_or_else(|| panic!("no {element}: {out}"));
+        let end = out[start..].find('>').expect("an unclosed tag") + start;
+        &out[start..=end]
+    }
+
+    /// The opening tag of the send button.
+    fn send_button(out: &str) -> &str {
+        let class = out.find("class=\"rc-send\"").expect(out);
+        opening_tag(&out[out[..class].rfind("<button").expect(out)..], "button")
+    }
+
+    #[test]
+    fn a_busy_composer_keeps_the_box_and_the_preview_but_not_the_send() {
+        let draft = RwSignal::new(String::from("so $x^2"));
+        let out = html(|| view! { <Composer on_send=|_text: String| {} draft=draft busy=true /> });
+        assert!(
+            out.starts_with("<div class=\"rc-composer rc-busy\">"),
+            "the wait is there to style: {out}"
+        );
+        let text_box = opening_tag(&out, "textarea");
+        assert!(
+            !text_box.contains("disabled"),
+            "the box stays open: {text_box}"
+        );
+        assert!(out.contains("class=\"rc-composer-preview\""), "{out}");
+        assert!(out.contains("class=\"rc-preview-toggle\""), "{out}");
+        assert!(out.contains("<math"), "the draft renders as ever: {out}");
+        let button = send_button(&out);
+        assert!(button.contains(" disabled"), "nothing to press: {button}");
+
+        // Not busy, the class is gone and the button is back.
+        let idle = html(|| view! { <Composer on_send=|_text: String| {} draft=draft busy=false /> });
+        assert!(idle.starts_with("<div class=\"rc-composer\">"), "{idle}");
+        assert!(!idle.contains("rc-busy"), "{idle}");
+        assert!(!send_button(&idle).contains("disabled"), "{idle}");
+    }
+
+    #[test]
+    fn a_disabled_composer_is_off() {
+        // A draft the host holds, so that there is one to not preview.
+        let draft = RwSignal::new(String::from("so $x^2"));
+        let out =
+            html(|| view! { <Composer on_send=|_text: String| {} draft=draft disabled=true /> });
+        let text_box = opening_tag(&out, "textarea");
+        assert!(text_box.contains(" disabled"), "the box is off: {text_box}");
+        assert!(!out.contains("rc-composer-preview"), "no preview: {out}");
+        assert!(send_button(&out).contains(" disabled"), "{out}");
+        assert!(!out.contains("rc-busy"), "off is not waiting: {out}");
+        assert_eq!(draft.get_untracked(), "so $x^2", "the draft is kept");
+
+        // Off wins over waiting: the box is disabled all the same.
+        let both = html(|| {
+            view! { <Composer on_send=|_text: String| {} draft=draft disabled=true busy=true /> }
+        });
+        assert!(
+            opening_tag(&both, "textarea").contains(" disabled"),
+            "{both}"
+        );
+        assert!(!both.contains("rc-composer-preview"), "{both}");
+    }
+
+    #[test]
+    fn chat_hands_busy_and_disabled_to_the_composer() {
+        let draft = RwSignal::new(String::from("**bold**"));
+        let busy = RwSignal::new(true);
+        let none = Vec::<Message>::new();
+        let out =
+            html(|| view! { <Chat messages=none on_send=|_: String| {} draft=draft busy=busy /> });
+        assert!(out.contains("class=\"rc-composer rc-busy\""), "{out}");
+        assert!(!opening_tag(&out, "textarea").contains("disabled"), "{out}");
+        assert!(out.contains("<strong>bold</strong>"), "{out}");
+        assert!(send_button(&out).contains(" disabled"), "{out}");
+
+        let none = Vec::<Message>::new();
+        let off = html(
+            || view! { <Chat messages=none on_send=|_: String| {} draft=draft disabled=true /> },
+        );
+        assert!(opening_tag(&off, "textarea").contains(" disabled"), "{off}");
+        assert!(!off.contains("rc-busy"), "{off}");
+    }
+
     #[test]
     fn composer_text_box_is_set_up_for_prose() {
         let out = html(|| view! { <Composer on_send=|_text: String| {} /> });
@@ -1318,6 +1404,27 @@ mod tests {
                 assert_eq!(sent.get_untracked().len(), 2, "a blank draft is not sent");
                 assert_eq!(draft.get_untracked(), blank, "and is left as it is");
             }
+        });
+    }
+
+    #[test]
+    fn busy_blocks_the_send_and_keeps_the_draft() {
+        assert!(!sending_blocked(false, false));
+        assert!(sending_blocked(true, false), "off");
+        assert!(sending_blocked(false, true), "waiting");
+        assert!(sending_blocked(true, true));
+        Owner::new().with(|| {
+            let sent = RwSignal::new(Vec::<String>::new());
+            let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
+            let draft = RwSignal::new(String::from("the next one"));
+            let input = NodeRef::new();
+            send_draft(sending_blocked(false, true), draft, on_send, input);
+            assert!(sent.get_untracked().is_empty(), "nothing while busy");
+            assert_eq!(draft.get_untracked(), "the next one", "the draft waits");
+            // The wait over, the draft goes when it is sent, not before.
+            send_draft(sending_blocked(false, false), draft, on_send, input);
+            assert_eq!(sent.get_untracked(), ["the next one"]);
+            assert_eq!(draft.get_untracked(), "");
         });
     }
 
