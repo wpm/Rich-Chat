@@ -307,12 +307,22 @@ there is no preview, and nothing can be sent. `busy` is a wait, for a
 host whose reply is still in flight: the text box and the preview carry
 on, neither Enter nor the button sends, and `.rc-composer` has the class
 `rc-busy` for a host that wants the wait to show. Either way the draft
-is kept, and nothing is sent on its own when the state ends. A host
-waiting between turns wants `busy`, which leaves the text box open and
-the reader's caret in it. `disabled` is the composer off, and turning
-it off takes the focus with it, as the browser does to any control that
-becomes disabled; the composer restores it when it comes back on, caret
-where it was, if the reader has not moved in the meantime.
+is kept, and nothing is sent on its own when the state ends. Beside
+`busy` goes `busy_label`, the words a screen reader gets for the wait,
+"Sending is paused" unless the host says otherwise: while the wait alone
+holds a draft back the send button is named `Send, {busy_label}` and
+carries `aria-disabled` rather than `disabled`, so it stays in the tab
+order, and a press that the wait refuses, Enter or the button, puts the
+phrase in the composer's status line, a `role="status"` live region
+that the structure stylesheet hides from sight. `rc-busy` is a hook for
+the host's CSS and is not announced; a host showing a busy state of its
+own gives it a live region of its own.
+
+A host waiting between turns wants `busy`, which leaves the text box
+open and the reader's caret in it. `disabled` is the composer off, and
+turning it off takes the focus with it, as the browser does to any
+control that becomes disabled; the composer restores it when it comes
+back on, caret where it was, if the reader has not moved in the meantime.
 
 The text box is set up for prose, with `spellcheck="true"`,
 `autocapitalize="sentences"` and `autocorrect="on"`. Anything else it
