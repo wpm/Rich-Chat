@@ -265,12 +265,16 @@
   margin: 0.2em 0;
 }
 
-.rc-rich li:has(> input[type="checkbox"]) {
+/* A task item's checkbox is the item's first child in a tight list and
+ * the first child of its first paragraph in a loose one, whose items
+ * are separated by blank lines. */
+.rc-rich li:has(> input[type="checkbox"], > p:first-child > input[type="checkbox"]) {
   list-style: none;
   margin-left: -1.3em;
 }
 
-.rc-rich li > input[type="checkbox"] {
+.rc-rich li > input[type="checkbox"],
+.rc-rich li > p:first-child > input[type="checkbox"] {
   margin: 0 0.5em 0 0;
   vertical-align: -0.1em;
   accent-color: var(--rc-accent);
