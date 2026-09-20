@@ -49,7 +49,10 @@ pub struct Highlighted {
 /// `token` is the first word of the fence's info string, if any; an
 /// unknown or absent token yields escaped plain text. Highlighting never
 /// fails and never panics — the worst case is plain text.
-pub fn highlight(token: Option<&str>, code: &str) -> Highlighted {
+pub fn highlight(
+    #[cfg_attr(not(feature = "highlight"), expect(unused_variables))] token: Option<&str>,
+    code: &str,
+) -> Highlighted {
     #[cfg(feature = "highlight")]
     if let Some(highlighted) = syntect_impl::highlight(token, code) {
         return highlighted;
