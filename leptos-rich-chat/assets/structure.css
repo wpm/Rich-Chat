@@ -97,6 +97,23 @@ pre.rc-code code {
   flex: 0 0 auto;
 }
 
+/* The status line is for a screen reader: it says why a send during a
+ * wait went nowhere. Hidden the clip-rect way, so that it stays in the
+ * accessibility tree and a live region can announce it; display: none
+ * or visibility: hidden would take it out. */
+.rc-composer-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .rc-composer-preview {
   box-sizing: border-box;
   max-height: 40vh;
