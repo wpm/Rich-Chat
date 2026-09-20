@@ -6,7 +6,9 @@
 //! Above the chat is a bar of controls: the users, who can be added and
 //! removed; where the selected user's bubbles land and their color,
 //! which changes every bubble of theirs; whether every bubble has its
-//! user's name over it; light or dark. The composer's top edge can be
+//! user's name over it; whether the chat is busy, as a host waiting on a
+//! model's reply sets it, so that the text box and the preview stay and
+//! only the sending waits; light or dark. The composer's top edge can be
 //! dragged to make the text box taller. All of that is this app's: the
 //! library gets a table of names saying where each user's bubbles go
 //! and in what colors, a flag for the names, and the stylesheet gets a
@@ -90,6 +92,9 @@ fn App() -> impl IntoView {
     // stylesheet; and whether it writes their names over them.
     let names = Signal::derive(move || settings.read().names());
     let show_names = Signal::derive(move || settings.read().show_names);
+    // The wait a host with a model has between a message and its reply.
+    // Not a setting: every run starts with nothing in flight.
+    let busy = RwSignal::new(false);
     // The setting the app's own stylesheet reads as a custom property.
     let style = move || {
         settings
@@ -158,13 +163,14 @@ fn App() -> impl IntoView {
             on:pointerup=release
             on:pointercancel=release
         >
-            <Controls settings=settings theme=theme />
+            <Controls settings=settings theme=theme busy=busy />
             <Chat
                 messages=messages
                 on_send=send
                 on_link=Callback::new(opener::open_url)
                 preview_name=sender
                 show_names=show_names
+                busy=busy
             />
         </main>
     }
