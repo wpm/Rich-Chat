@@ -6,46 +6,185 @@
 A chat interface with rich formatting: Markdown, LaTeX math, and
 syntax-highlighted code in every language, rendered as you type.
 
-**Try it with nothing installed:** <https://wpm.github.io/Rich-Chat/>.
-Every push to `main` redeploys it from the [Pages workflow](.github/workflows/pages.yml),
-and every pull request gets its own copy at `https://wpm.github.io/Rich-Chat/pr/<number>/`
-from the [Preview workflow](.github/workflows/preview.yml): it is the
-deployment linked from the pull request, follows each push, and goes away
-when the pull request closes. The site is the `gh-pages` branch, which
-those workflows write with [`publish-site.sh`](.github/scripts/publish-site.sh)
-and which Pages must be set to serve (Settings > Pages > Source: Deploy
-from a branch); the workflows check that and say so when it is not.
+The interface is the [`leptos-rich-chat`](leptos-rich-chat/) crate, a set
+of [Leptos](https://leptos.dev) components published to crates.io. Its
+[README](leptos-rich-chat/README.md) is the full guide; this page is the
+short one. A live demo is at <https://wpm.github.io/Rich-Chat/>.
 
-Three crates:
+## Using the crate
 
-- [`leptos-rich-chat`](leptos-rich-chat/) — the Leptos components, published to
-  crates.io. See its [README](leptos-rich-chat/README.md) for the API.
-- [`app`](app/) — a browser app for trying them: a chat window with a
-  text box at the bottom. It opens on a tour of what renders, in four
-  bubbles: the introduction in [`app/welcome.md`](app/welcome.md) from
-  the Assistant, the Markdown in
-  [`app/welcome-markdown.md`](app/welcome-markdown.md) from the User, the
-  code in [`app/welcome-code.md`](app/welcome-code.md) from the
-  Assistant, then the math in
-  [`app/welcome-math.md`](app/welcome-math.md) from the User. What you
-  send appears as a bubble from the selected user. A bar above the chat
-  lists the users, an Assistant and a User to begin with, and lets you
-  add and delete them; puts the selected user's bubbles on the left, in
-  the center, or on the right, and sets their color, for every bubble
-  of theirs; sets the widest a message gets, for every user at once,
-  from the library's own measure up to the whole transcript; colors the
-  window, the ground behind the bubbles, and puts it back to the
-  theme's; writes each user's name over their bubbles, or not, and sets
-  how big that name is; makes the chat busy, as a host waiting on a
-  reply does, so that you can go on writing and nothing sends, or
-  disabled, the composer off; and switches between light and dark.
-  Drag the top edge of the text box to make it taller. The choices are
-  kept between runs.
-  This is what the site above serves.
-- [`app/src-tauri`](app/src-tauri/) — the Tauri shell that puts the same
-  app in a desktop window.
+```toml
+[dependencies]
+leptos = { version = "0.8", features = ["csr"] }
+leptos-rich-chat = "0.1"
+```
+
+```rust
+use leptos::prelude::*;
+use leptos_rich_chat::{Chat, Message, RichChatStyle};
+
+#[component]
+fn App() -> impl IntoView {
+    let messages = RwSignal::new(Vec::<Message>::new());
+    let send = move |text: String| {
+        let id = messages.read_untracked().len().to_string();
+        messages.update(|all| all.push(Message::new(id, "user", text)));
+    };
+    view! {
+        <RichChatStyle />
+        <Chat messages=messages on_send=send />
+    }
+}
+```
+
+`Chat` is the whole window, a scrolling transcript over a text box, and
+fills its container, so give the parent a height. `RichChatStyle`
+injects the stylesheets and fonts once; place it anywhere. A message is
+a `Message`: `Message::new(id, name, markdown)` for finished text,
+`Message::streaming(id, name, signal)` for text still arriving, which
+renders as a draft while it grows, and `Message::view(id, name, view)`
+for a body you draw yourself, in place of the bubble.
+
+Everything about the crate is set in one of four places: props on
+`Chat`, props on `RichChatStyle`, CSS custom properties, and Cargo
+features.
+
+### `Chat` props
+
+| Prop            | Type                     | Default                                  | Controls                                                                                                 |
+|-----------------|--------------------------|------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `messages`      | `Signal<Vec<Message>>`   | required                                 | The transcript, oldest first.                                                                            |
+| `on_send`       | `Callback<String>`       | required                                 | Receives the text of each message sent.                                                                  |
+| `draft`         | `RwSignal<String>`       | the composer's own                       | The text in the box, held by you: to prefill it, read it, or keep it across unmounting.                  |
+| `placeholder`   | `String`                 | `"Write a message…"`                     | The text box's placeholder.                                                                              |
+| `hint`          | `String`                 | explains the keys                        | The line under the text box. `""` leaves it out.                                                         |
+| `preview`       | `bool`                   | `true`                                   | Whether the composer shows a live preview of the draft.                                                  |
+| `preview_label` | `String`                 | `"Preview"`                              | The heading over the preview.                                                                            |
+| `preview_name`  | `Signal<String>`         | `""`, the theme's tint colors            | Whose bubble the preview looks like, by name.                                                            |
+| `send`          | view function            | the word "Send"                          | The send button's content, so it can be an icon.                                                         |
+| `empty`         | `String`                 | nothing                                  | Shown in the transcript while it has no messages.                                                        |
+| `show_names`    | `Signal<bool>`           | `false`                                  | Writes each message's name over its bubble, as a group chat does.                                        |
+| `disabled`      | `Signal<bool>`           | `false`                                  | The composer off: the text box is disabled, there is no preview, nothing sends. The draft is kept.       |
+| `busy`          | `Signal<bool>`           | `false`                                  | A reply in flight: the text box and preview carry on, but nothing sends until it clears. The draft is kept. |
+| `busy_label`    | `String`                 | `"Sending is paused"`                    | What a screen reader is told while `busy` holds a send back.                                             |
+| `options`       | `RenderOptions`          | everything on                            | What the Markdown renderer does; see below.                                                              |
+| `on_link`       | `Callback<String>`       | links open in a new browsing context     | Receives a link's destination instead of following it. A Tauri window hands this to its opener plugin.   |
+| `warm_up`       | `bool`                   | `true`                                   | Compiles the common languages' grammars in idle time after mount, so the first code block does not pause. |
+
+Signal-typed props take a plain value or a signal, so `busy=true` and
+`busy=is_waiting` both work. Attributes on `Chat` land on the window,
+`.rc-chat`; a host that needs an attribute on the text box itself
+composes the window from the pieces below.
+
+`RenderOptions` is a plain struct; build it with `..Default::default()`:
+
+| Field               | Default | Off                                                               |
+|---------------------|---------|-------------------------------------------------------------------|
+| `math`              | `true`  | `$…$` and `$$…$$` are text.                                       |
+| `highlight`         | `true`  | Fenced code is plain. Also needs the `highlight` feature.         |
+| `images`            | `true`  | Only the alt text shows. Off keeps remote images from revealing a reader's address. |
+| `smart_punctuation` | `false` | On, straight quotes, `--` and `...` become typographic characters. |
+| `draft`             | `false` | On, constructs left open at the end are closed for display.       |
+
+### `RichChatStyle` props
+
+| Prop        | Type            | Default              | Controls                                                                        |
+|-------------|-----------------|----------------------|---------------------------------------------------------------------------------|
+| `theme`     | `bool`          | `true`               | The default look: colors, fonts, spacing, radii. Off, you style the `rc-*` classes yourself. |
+| `highlight` | `bool`          | `true`               | The code colors. Off, serve your own; the crate's `highlight_css` example generates one from any syntect theme. |
+| `fonts`     | `bool`          | `true`               | The `@font-face` rules for the bundled math fonts.                              |
+| `names`     | `Signal<Names>` | `user` right, `assistant` left | Where each name's bubbles sit and what colors they have.              |
+
+A `Names` table gives every name a `Look`: a `Position` (`Left`,
+`Center`, `Right`) and, optionally, a background and a text color, both
+as CSS values, so `var(--…)` and `light-dark(…, …)` work:
+
+```rust
+use leptos_rich_chat::{Look, Names, Position};
+
+let names = Names::none()
+    .name("me", Look::at(Position::Right).background("#ddf4ff"))
+    .name("alice", Look::at(Position::Left).background("var(--alice)"))
+    .name("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
+
+view! { <RichChatStyle names=names /> }
+```
+
+A name with no entry gets the plain bubble on the left.
+
+The crate's stylesheets are in [cascade layers](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer),
+so any unlayered rule in your own stylesheet wins over it, whatever its
+specificity. `rich-chat.structure` is what the components need to work
+and is always injected; `rich-chat.theme` is the look, the code colors,
+and the names' rules, the parts the props above turn off.
+
+### CSS custom properties
+
+The theme declares these on `:root`. Override any of them on `:root`,
+on `.rc-chat`, or on anything between; the nearest declaration wins, and
+a token you take over is yours in both light and dark mode. Dark mode
+follows `prefers-color-scheme` unless the document sets
+`data-theme="light"` or `"dark"` on its root element.
+
+| Property                | Sets                                                                                          |
+|-------------------------|-----------------------------------------------------------------------------------------------|
+| `--rc-font`, `--rc-mono`, `--rc-math`, `--rc-math-text` | The prose, code, math, and math-text font stacks.                         |
+| `--rc-font-size`, `--rc-line-height` | The base type size (`15px`) and leading.                                         |
+| `--rc-radius`, `--rc-tail` | A bubble's corner radius, and the smaller radius of the corner on its side.                |
+| `--rc-bubble-max-width` | The widest a bubble gets, `min(85%, 76ch)`. One value for the whole chat; the crate does not clamp it. |
+| `--rc-bg`               | The neutral surface: the window, the composer strip and its text box, button hover fills.     |
+| `--rc-chat-bg`          | The window alone, the ground behind the bubbles. Undeclared by default, so it follows `--rc-bg`. A gradient or image works too. |
+| `--rc-fg`, `--rc-muted` | The text color, and the color of the name over a bubble and the empty transcript's message.   |
+| `--rc-bubble-bg`, `--rc-bubble-fg` | The plain bubble.                                                                  |
+| `--rc-tint-bg`, `--rc-tint-fg` | The tinted bubble the default names give `user`, and the composer's preview.           |
+| `--rc-surface`, `--rc-border` | Table headers and code block bars, and the edges of tables, code blocks, and the composer. |
+| `--rc-accent`, `--rc-accent-fg` | The send button, focus rings, and task-list checkboxes, and text on the accent.        |
+| `--rc-code-bg`, `--rc-inline-code-bg` | Fenced and inline code backgrounds.                                             |
+| `--rc-selection`        | The selection highlight.                                                                      |
+| `--rc-alert-note`, `-tip`, `-important`, `-warning`, `-caution` | The five GitHub alert colors.                                         |
+| `--rc-error`            | A math error, where an equation would not parse.                                              |
+
+```css
+.rc-chat { --rc-accent: #7c3aed; --rc-tint-bg: #ede9fe; --rc-chat-bg: #fff8e7; }
+```
+
+For a value chosen at runtime, set it as an attribute:
+`<Chat … attr:style="--rc-chat-bg: #fff8e7" />`. The size of the name
+over a bubble is a rule of yours: `.rc-sender { font-size: 1em; }`.
+
+### Cargo features
+
+| Feature         | Default | Costs                     | Without it                                                                        |
+|-----------------|---------|---------------------------|-----------------------------------------------------------------------------------|
+| `highlight`     | on      | about a megabyte of grammars | Code blocks are plain.                                                          |
+| `bundled-fonts` | on      | about half a megabyte of fonts | Serve `style::FONT_FILES` yourself and inject `style::font_faces_from("/fonts")`. |
+
+### The pieces
+
+`Chat` is built from parts that stand alone, with the same props where
+they share them:
+
+| Component     | Renders                                                                                    |
+|---------------|--------------------------------------------------------------------------------------------|
+| `Composer`    | The text box, its collapsible preview, and send button; attributes reach the box.          |
+| `MessageView` | One message, placed and colored by its name, and named on request.                         |
+| `RichText`    | Any Markdown, from a `Signal<String>`.                                                     |
+| `CodeBlock`   | One highlighted block with language label and copy button.                                 |
+
+The copy button's words are a `CodeLabels { copy, copied }` provided as
+context, so one `provide_context` changes them everywhere. The `render`
+module underneath (`render_html`, `render_blocks`, `complete_draft`) is
+plain Rust with no DOM dependency, for tests and for hosts that are not
+Leptos.
 
 ## Running the app
+
+The [`app`](app/) crate is just a demo of `leptos-rich-chat`: a chat
+window that opens on a tour of what renders, with a bar above it for
+trying its settings, and a [Tauri](https://tauri.app) shell in
+[`app/src-tauri`](app/src-tauri/) that puts the same page in a desktop
+window. The hosted copy at <https://wpm.github.io/Rich-Chat/> is this
+build.
 
 Requirements: Rust with the `wasm32-unknown-unknown` target,
 [Trunk](https://trunkrs.dev), [Tauri's CLI](https://tauri.app) and its
@@ -58,8 +197,7 @@ cd app && cargo tauri dev
 ```
 
 In the browser instead of a window: `cd app && trunk serve` and open
-<http://localhost:1420>. The hosted copy above is the same build, made
-with `trunk build --release --public-url /Rich-Chat/`.
+<http://localhost:1420>.
 
 ## Development
 
@@ -89,42 +227,6 @@ value. Without the secret the coverage job fails, and with it the CI
 check, on purpose: an upload that could not happen is a broken
 workflow, not a quiet gap in the graph. Pull requests from forks do not
 see the secret, and Codecov accepts their uploads without it.
-
-## Releasing
-
-The library and the app are released separately, each from its own kind
-of tag, and the version of each is what its manifest says: the tag has
-to match it or nothing is built.
-
-- **The library, to crates.io.** Set the version in
-  [`leptos-rich-chat/Cargo.toml`](leptos-rich-chat/Cargo.toml), add the
-  entry to its [changelog](leptos-rich-chat/CHANGELOG.md), and push a tag
-  `leptos-rich-chat-v<version>`. The
-  [Publish the crate workflow](.github/workflows/publish-crate.yml)
-  tests the crate, builds its documentation as docs.rs will, and
-  publishes it. The first version has to be published by hand
-  (`cargo publish -p leptos-rich-chat`), since trusted publishing is
-  set up on a crate that exists: on crates.io, under the crate's
-  Settings > Trusted Publishing, add GitHub, owner `wpm`, repository
-  `Rich-Chat`, workflow `publish-crate.yml`. No token is stored here.
-  Run by hand from the Actions tab, the workflow does everything but
-  the publishing.
-- **The app, as installers.** Set the version in
-  [`app/src-tauri/Cargo.toml`](app/src-tauri/Cargo.toml) and
-  [`app/Cargo.toml`](app/Cargo.toml) (the Tauri config takes it from
-  the former), and push a tag `app-v<version>`. The
-  [Release the app workflow](.github/workflows/release-app.yml) opens a
-  draft release, builds a `.dmg` for macOS (Apple silicon and Intel in
-  one), a setup `.exe` and an `.msi` for Windows, and a `.deb`, an
-  `.rpm` and an `.AppImage` for Linux, and publishes the release once
-  they are all on it. Run by hand, it builds them as workflow
-  artifacts and makes no release. The macOS build is signed and
-  notarized when the repository has the secrets `APPLE_CERTIFICATE`
-  (the Developer ID Application certificate, exported from Keychain
-  Access as a `.p12` and base64-encoded), `APPLE_CERTIFICATE_PASSWORD`,
-  `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and
-  `APPLE_TEAM_ID`; without them it is unsigned, and the release notes
-  say how to open it.
 
 ## License
 
