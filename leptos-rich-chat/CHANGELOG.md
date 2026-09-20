@@ -71,6 +71,11 @@ version is 0, a minor release may change the API.
   line nor the attribute.
 - `RichText` takes `node_ref`, a reference to its container, as
   `MessageView` does.
+- The window's background is `--rc-chat-bg`, apart from the composer's.
+  `--rc-bg` had been the window, the composer strip and the text box at
+  once, so no host could color the ground behind the bubbles alone. The
+  theme leaves `--rc-chat-bg` undeclared, falling back to `--rc-bg`, so
+  a host that sets nothing, or overrides `--rc-bg`, gets what it did.
 
 ### Changed
 

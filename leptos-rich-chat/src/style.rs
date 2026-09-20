@@ -423,6 +423,21 @@ mod tests {
         );
     }
 
+    /// The window's background is its own token, `--rc-chat-bg`, which
+    /// the theme leaves undeclared so that it falls back to whichever
+    /// `--rc-bg` is in force; theme.css says why beside the rule.
+    #[test]
+    fn the_window_background_is_its_own_undeclared_token() {
+        assert!(
+            THEME.contains("background: var(--rc-chat-bg, var(--rc-bg));"),
+            "the window reads --rc-chat-bg, falling back to --rc-bg"
+        );
+        assert!(
+            !THEME.contains("--rc-chat-bg:"),
+            "the theme declares --rc-chat-bg, which would cut it off from --rc-bg"
+        );
+    }
+
     /// A host's reset takes whatever list markers the theme leaves to the
     /// browser: layer order only arbitrates declarations both sides make.
     #[test]

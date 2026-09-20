@@ -1,10 +1,10 @@
-//! The bar above the chat: the users, the selected user's bubbles,
-//! whether bubbles are named and how big the name is, whether the chat
-//! is busy or disabled, the theme.
+//! The bar above the chat: the users, the selected user's bubbles, the
+//! window's background, whether bubbles are named and how big the name
+//! is, whether the chat is busy or disabled, the theme.
 //!
 //! Each control edits the app's [`Settings`]; the app root turns those
 //! into the library's table of names and its `show_names`, the root
-//! element's theme attribute, and custom properties for the stylesheet.
+//! element's theme attribute, and custom properties for the stylesheets.
 //! The Busy and Disabled switches are the exception: each is a state of
 //! the conversation, not a choice to keep, so it is a signal of its own
 //! and starts off.
@@ -86,6 +86,23 @@ pub fn Controls(
         settings.update(|settings| settings.selected_user_mut().color = value);
     };
 
+    // The window's background: the chosen one, or the theme's while none
+    // is chosen, which is what the window shows then. The button beside
+    // it puts the theme's back. A memo, as the users are, so that a drag
+    // of the text box does not rewrite the input.
+    let chosen_background = Memo::new(move |_| settings.read().background.clone());
+    let background = move || {
+        chosen_background
+            .get()
+            .unwrap_or_else(|| theme.get().background().to_string())
+    };
+    let background_chosen = move || chosen_background.read().is_some();
+    let choose_background = move |event: ev::Event| {
+        let value = event_target_value(&event);
+        settings.update(|settings| settings.background = Some(value));
+    };
+    let reset_background = move |_| settings.update(|settings| settings.background = None);
+
     // Whether the names are shown and how big they are. Memos, as above.
     let show_names = Memo::new(move |_| settings.read().show_names);
     let toggle_names =
@@ -159,6 +176,26 @@ pub fn Controls(
                     prop:value=color
                     on:input=recolor
                 />
+            </div>
+            <div class="control-group" role="group" aria-label="Window background">
+                <label class="control-label" for="window-background">"Window"</label>
+                <input
+                    id="window-background"
+                    type="color"
+                    class="control-color control-background"
+                    title="The window's background, behind the bubbles"
+                    prop:value=background
+                    on:input=choose_background
+                />
+                <button
+                    type="button"
+                    class="control-button control-background-reset"
+                    title="Put the window's background back to the theme's"
+                    disabled=move || !background_chosen()
+                    on:click=reset_background
+                >
+                    "Theme's"
+                </button>
             </div>
             <div class="control-group" role="group" aria-label="Names">
                 <button

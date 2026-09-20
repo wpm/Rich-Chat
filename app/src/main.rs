@@ -5,7 +5,8 @@
 //!
 //! Above the chat is a bar of controls: the users, who can be added and
 //! removed; where the selected user's bubbles land and their color,
-//! which changes every bubble of theirs; whether every bubble has its
+//! which changes every bubble of theirs; the window's background, the
+//! ground behind the bubbles alone; whether every bubble has its
 //! user's name over it, and how big; whether the chat is busy, as a
 //! host waiting on a model's reply sets it, so that the text box and
 //! the preview stay and only the sending waits, or disabled, the
@@ -14,7 +15,8 @@
 //! All of that is this app's: the
 //! library gets a table of names saying where each user's bubbles go
 //! and in what colors, a flag for the names, and the stylesheet gets
-//! custom properties for the text box and the names.
+//! custom properties for the text box and the names, and the library's
+//! one for the window.
 
 mod controls;
 mod opener;
@@ -101,9 +103,12 @@ fn App() -> impl IntoView {
     let busy = RwSignal::new(false);
     // And the composer off altogether, as for a host with no key.
     let disabled = RwSignal::new(false);
-    // The settings the app's own stylesheet reads as custom properties.
-    // The name's size is always set, whether or not the names are
-    // showing; the stylesheet reads it only when they are.
+    // The settings the stylesheets read as custom properties. The name's
+    // size is always set, whether or not the names are showing; the
+    // app's stylesheet reads it only when they are. The window's
+    // background is the library's --rc-chat-bg, inherited down to
+    // .rc-chat, and is not emitted while unset, so the window follows
+    // the theme's light and dark switch until a background is chosen.
     let style = move || {
         let settings = settings.read();
         let mut style = String::new();
@@ -111,6 +116,9 @@ fn App() -> impl IntoView {
             let _ = write!(style, "--app-input-height: {height}px; ");
         }
         let _ = write!(style, "--app-sender-size: {}em;", settings.sender_size);
+        if let Some(background) = &settings.background {
+            let _ = write!(style, " --rc-chat-bg: {background};");
+        }
         style
     };
 
