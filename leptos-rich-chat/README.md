@@ -318,6 +318,12 @@ that the structure stylesheet hides from sight. `rc-busy` is a hook for
 the host's CSS and is not announced; a host showing a busy state of its
 own gives it a live region of its own.
 
+A host waiting between turns wants `busy`, which leaves the text box
+open and the reader's caret in it. `disabled` is the composer off, and
+turning it off takes the focus with it, as the browser does to any
+control that becomes disabled; the composer restores it when it comes
+back on, caret where it was, if the reader has not moved in the meantime.
+
 The preview is the fair copy, and for a reader who does not see the
 screen it is the one place to find out what they wrote: the text box
 holds Markdown source, which a screen reader echoes as written, `**bold**`

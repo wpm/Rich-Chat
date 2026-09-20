@@ -10,7 +10,8 @@
 // bubble side and color changing every bubble of theirs, the names over
 // the bubbles, the Busy switch holding what is sent while the text box and
 // the preview carry on, the Disabled switch turning the composer off and
-// back with its draft and collapsed preview intact, adding and deleting
+// back with its draft and collapsed preview intact and the caret back in
+// the box where the reader left it, adding and deleting
 // a user, the theme switch, dragging the text box taller, and that all of
 // it survives a reload. Last, that the transcript keeps its end in view:
 // through a burst of messages, a growing composer, and
@@ -89,6 +90,9 @@ function check(condition, label) {
   console.log(`${condition ? 'ok  ' : 'FAIL'} ${label}`);
   if (!condition) failures += 1;
 }
+
+/** Whether the focus is on the element `selector` finds. */
+const focusIs = (page, selector) => page.evaluate((selector) => document.activeElement === document.querySelector(selector), selector);
 
 /** What is in the composer's text box. */
 const boxText = (page) => page.$eval('.rc-composer-input', (el) => el.value);
@@ -174,7 +178,6 @@ try {
     // the preview, a region named as its heading is, and Escape puts the
     // caret back where it was. The preview says nothing on its own; the
     // hint, which names the key, describes the box.
-    const focusIs = (selector) => page.evaluate((selector) => document.activeElement === document.querySelector(selector), selector);
     const caret = () => page.$eval('.rc-composer-input', (el) => el.selectionStart);
     check((await page.$eval('.rc-composer-preview', (el) => [el.getAttribute('role'), el.getAttribute('aria-label'), el.getAttribute('tabindex'), el.hasAttribute('aria-live')].join())) === 'region,Preview,-1,false', 'the preview is a named region, focusable, and not live');
     const hintId = await page.$eval('.rc-composer-hint', (el) => el.id);
@@ -183,23 +186,23 @@ try {
     await page.focus('.rc-composer-input');
     await page.evaluate(() => document.querySelector('.rc-composer-input').setSelectionRange(5, 5));
     await page.keyboard.press('Alt+Shift+P');
-    check(await focusIs('.rc-composer-preview'), 'Alt+Shift+P in the box puts the focus in the preview');
+    check(await focusIs(page, '.rc-composer-preview'), 'Alt+Shift+P in the box puts the focus in the preview');
     await page.keyboard.press('Escape');
-    check(await focusIs('.rc-composer-input'), 'Escape puts it back in the box');
+    check(await focusIs(page, '.rc-composer-input'), 'Escape puts it back in the box');
     check((await caret()) === 5, 'with the caret where it was');
     await page.click('.rc-preview-toggle');
     await page.focus('.rc-composer-input');
     await page.keyboard.press('Alt+Shift+P');
-    check(await focusIs('.rc-composer-preview') && await page.$('.rc-composer-preview math') !== null, 'collapsed, the key expands the preview and goes to it');
+    check(await focusIs(page, '.rc-composer-preview') && await page.$('.rc-composer-preview math') !== null, 'collapsed, the key expands the preview and goes to it');
     check((await page.$eval('.rc-preview-toggle', (el) => el.getAttribute('aria-expanded'))) === 'true', 'and the button says so');
     // The draft goes while the reader is in the preview (here by the
     // input event alone, which moves no focus, as a host clearing the
     // draft does): the preview goes, and the focus goes to the box.
     const draft = await boxText(page);
     await type(page, '');
-    check(await page.$('.rc-composer-preview') === null && await focusIs('.rc-composer-input'), 'the draft going takes the focus to the box, not the body');
+    check(await page.$('.rc-composer-preview') === null && await focusIs(page, '.rc-composer-input'), 'the draft going takes the focus to the box, not the body');
     await page.keyboard.press('Alt+Shift+P');
-    check(await focusIs('.rc-composer-input') && (await boxText(page)) === '', 'with no draft the key does nothing');
+    check(await focusIs(page, '.rc-composer-input') && (await boxText(page)) === '', 'with no draft the key does nothing');
     await type(page, draft);
 
     // An open fence is a code block already.
@@ -285,7 +288,7 @@ try {
     await page.click('.rc-send');
     await page.waitForTimeout(200);
     check((await page.$$('.rc-message')).length === TOUR + 3, 'the Send button sends');
-    check(await focusIs('.rc-composer-input'), 'and the caret is back in the box');
+    check(await focusIs(page, '.rc-composer-input'), 'and the caret is back in the box');
 
     // A send while the reader is in the preview: the preview goes, and
     // the focus goes to the box with it rather than to the body. The
@@ -293,11 +296,11 @@ try {
     await type(page, 'Sent from the preview');
     await page.focus('.rc-composer-input');
     await page.keyboard.press('Alt+Shift+P');
-    check(await focusIs('.rc-composer-preview'), 'the reader is in the preview');
+    check(await focusIs(page, '.rc-composer-preview'), 'the reader is in the preview');
     await page.$eval('.rc-send', (el) => el.click());
     await page.waitForTimeout(200);
     check((await page.$$('.rc-message')).length === TOUR + 4, 'a send from there sends');
-    check(await page.$('.rc-composer-preview') === null && await focusIs('.rc-composer-input'), 'and the focus lands in the box, not the body');
+    check(await page.$('.rc-composer-preview') === null && await focusIs(page, '.rc-composer-input'), 'and the focus lands in the box, not the body');
 
     const background = await page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
     check(colorScheme === 'dark' ? background !== 'rgb(255, 255, 255)' : background === 'rgb(255, 255, 255)', `${colorScheme} palette applied`);
@@ -546,6 +549,34 @@ try {
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
     check((await messageCount()) === beforeOff + 1, 'which Enter sends');
+
+    // Off and back on, the reader keeps their place. The browser blurs a
+    // control that becomes disabled and leaves the focus on the body; the
+    // composer puts the caret back if the reader has not moved. The switch
+    // is worked by script here, as a host works the signal: a click on it
+    // would take the focus to the switch itself.
+    const toggleDisabled = async () => {
+      await page.$eval('.control-disabled', (el) => el.click());
+      await page.waitForTimeout(150);
+    };
+    const caret = () => page.$eval('.rc-composer-input', (el) => `${el.selectionStart}:${el.selectionEnd}`);
+    await page.click('.rc-composer-input');
+    await page.keyboard.type('Typing when the composer went off');
+    const middle = 'Typing when the composer '.length;
+    await page.$eval('.rc-composer-input', (el, at) => el.setSelectionRange(at, at), middle);
+    const place = await caret();
+    check(place === `${middle}:${middle}`, 'the caret is in the middle of the draft');
+    await toggleDisabled();
+    check(await disabledOn() && await focusIs(page, 'body'), 'off, the browser drops the focus on the body');
+    await toggleDisabled();
+    check(await focusIs(page, '.rc-composer-input'), 'on again, the caret is back in the box');
+    check((await caret()) === place, 'where it was');
+    await toggleDisabled();
+    await page.click('.control-new-user');
+    check(await focusIs(page, '.control-new-user'), 'a reader can go elsewhere while it is off');
+    await toggleDisabled();
+    check(await focusIs(page, '.control-new-user'), 'and stays there when it comes back on');
+    await type(page, '');
 
     // Adding a user.
     check(await page.$eval('.control-add', (el) => el.disabled), 'nothing to add until a name is typed');
