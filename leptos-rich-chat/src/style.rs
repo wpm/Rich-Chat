@@ -422,4 +422,22 @@ mod tests {
             "a message is a column the names rules align"
         );
     }
+
+    /// A host's reset takes whatever list markers the theme leaves to the
+    /// browser: layer order only arbitrates declarations both sides make.
+    #[test]
+    fn the_theme_declares_its_list_markers() {
+        for rule in [
+            ".rc-rich ul {\n  list-style: disc;\n}",
+            ".rc-rich ol {\n  list-style: decimal;\n}",
+            ".rc-rich :is(ul, ol) ul {\n  list-style: circle;\n}",
+            ".rc-rich :is(ul, ol) :is(ul, ol) ul {\n  list-style: square;\n}",
+        ] {
+            assert!(THEME.contains(rule), "the theme lacks: {rule}");
+        }
+        assert!(
+            THEME.contains(".rc-rich li:has(> input[type=\"checkbox\"]) {\n  list-style: none;"),
+            "a task-list item has no marker"
+        );
+    }
 }
