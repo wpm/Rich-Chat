@@ -27,6 +27,15 @@ version is 0, a minor release may change the API.
   `class="rc-bubble"` on that root element; the name's colors and tail
   land on it, because the generated rules are
   `.rc-message[data-name="…"] > .rc-bubble`.
+- `Composer` and `Chat` take `busy`, a `Signal<bool>` for a host whose
+  reply is still in flight: nothing more may be sent until it lands, and
+  the reader can still write the next message. While it is true the text
+  box is editable and keeps its draft, the preview renders it as ever,
+  neither Enter nor the send button sends (Enter breaks no line either;
+  Shift+Enter does), and `.rc-composer` has the class `rc-busy`, a hook
+  for a host's styles that the theme leaves alone. When it falls back
+  to false nothing is sent on its own: the draft waits for Enter or the
+  button.
 
 ### Changed
 
@@ -79,6 +88,14 @@ version is 0, a minor release may change the API.
   the bubble, so that the name and the bubble share a side. A host that
   placed bubbles with a rule on `.rc-bubble`'s margins sets
   `align-items` on `.rc-message` instead.
+- `disabled`'s documentation, on `Composer` and `Chat`, says what it
+  does: the composer is off, the text box disabled, nothing previewed
+  and nothing sent, with the draft signal kept. It had said "Blocks
+  sending while true; the draft is kept", which describes `busy`. To
+  make "nothing previewed" true of a draft the host put in the box, a
+  disabled composer now shows no preview whatever the draft holds;
+  before, a draft already there was previewed beside a box that could
+  not edit it.
 
 ## [0.1.0] - 2026-09-16
 
