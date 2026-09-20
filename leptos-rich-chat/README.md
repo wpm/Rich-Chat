@@ -301,13 +301,13 @@ the composer's own unless `draft`, an `RwSignal<String>` the host holds,
 is given: to prefill it, read it, or keep it across unmounting.
 
 `Chat` and `Composer` also take two signals that keep a message from
-being sent, and they are not each other. `disabled` turns the composer off, for a host with
-nothing to send with: the text box is disabled, there is no preview, and
-nothing can be sent. `busy` is a wait, for a host whose reply is still in
-flight: the text box and the preview carry on, neither Enter nor the
-button sends, and `.rc-composer` has the class `rc-busy` for a host that
-wants the wait to show. Either way the draft is kept, and nothing is
-sent on its own when the state ends.
+being sent, and they are not each other. `disabled` turns the composer
+off, for a host with nothing to send with: the text box is disabled,
+there is no preview, and nothing can be sent. `busy` is a wait, for a
+host whose reply is still in flight: the text box and the preview carry
+on, neither Enter nor the button sends, and `.rc-composer` has the class
+`rc-busy` for a host that wants the wait to show. Either way the draft
+is kept, and nothing is sent on its own when the state ends.
 
 The text box is set up for prose, with `spellcheck="true"`,
 `autocapitalize="sentences"` and `autocorrect="on"`. Anything else it
