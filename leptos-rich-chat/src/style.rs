@@ -47,11 +47,9 @@
 //! the crate's CSS in a `<style>` element in the body, after anything in
 //! the document's head: declare the order yourself, first, with the
 //! crate's layers after any layer that resets elements and before any
-//! layer whose rules should win over the theme. For Tailwind v4 that is
-//! between preflight, which is in `base`, and the utilities, and
-//! `rich-chat` places both of the crate's layers; the README's
+//! layer whose rules should win over the theme, as the README's
 //! [Styling section](https://github.com/wpm/Rich-Chat/tree/main/leptos-rich-chat#styling)
-//! has the reasons:
+//! explains. For Tailwind v4, whose preflight is in `base`:
 //!
 //! ```css
 //! @layer theme, base, rich-chat, components, utilities;
