@@ -1,0 +1,286 @@
+/* The window is the chat, under a bar of controls.
+ *
+ * The library paints the chat itself, and where each user's bubbles go
+ * and what color they are reaches it as its table of names, not as CSS.
+ * These rules paint the page around it and turn two of the settings
+ * that are lengths, the text box's height and the size of the name over
+ * a bubble, into overrides of the library's composer and its name; the
+ * third, the widest a message gets, is the library's own token,
+ * --rc-bubble-max-width, which the app sets on .app and needs no rule
+ * here. The library's own CSS is in cascade layers, so these plain
+ * rules win over it without matching its specificity.
+ */
+
+:root {
+  --app-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --app-bg: #ffffff;
+  --app-fg: #1f2328;
+  --app-muted: #59636e;
+  --app-surface: #f6f8fa;
+  --app-border: #d1d9e0;
+  --app-accent: #0969da;
+  --app-accent-fg: #ffffff;
+  color-scheme: light;
+}
+
+/* Until the app has mounted and set data-theme, follow the system so the
+ * first paint is not a white flash in a dark room. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --app-bg: #0d1117;
+    --app-fg: #e6edf3;
+    --app-muted: #9198a1;
+    --app-surface: #161b22;
+    --app-border: #3d444d;
+    --app-accent: #4493f8;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --app-bg: #0d1117;
+  --app-fg: #e6edf3;
+  --app-muted: #9198a1;
+  --app-surface: #161b22;
+  --app-border: #3d444d;
+  --app-accent: #4493f8;
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-fg);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.app > .rc-chat {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* ---- The controls ----------------------------------------------------- */
+
+.controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  font: 13px / 1.4 var(--app-font);
+  user-select: none;
+}
+
+.control-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-label {
+  color: var(--app-muted);
+}
+
+.control-button,
+.control-segment,
+.control-users,
+.control-new-user {
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-bg);
+  color: var(--app-fg);
+  font: inherit;
+}
+
+.control-button,
+.control-segment,
+.control-users {
+  cursor: pointer;
+}
+
+.control-users {
+  min-width: 110px;
+}
+
+.control-new-user {
+  width: 110px;
+  padding: 0 8px;
+}
+
+.control-button:hover:not(:disabled),
+.control-segment:hover:not(:disabled),
+.control-users:hover,
+.control-new-user:hover {
+  border-color: var(--app-accent);
+}
+
+.control-button:focus-visible,
+.control-segment:focus-visible,
+.control-users:focus-visible,
+.control-new-user:focus-visible,
+.control-color:focus-visible,
+.control-width:focus-visible,
+.control-sender-size:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+.control-button:disabled,
+.control-segment:disabled,
+.control-color:disabled,
+.control-sender-size:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The name-size slider stands at the height of the other controls. */
+.control-sender-size {
+  box-sizing: border-box;
+  width: 96px;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--app-accent);
+  cursor: pointer;
+}
+
+/* The theme switch sits at the far right, whatever else is in the bar. */
+.control-theme {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 78px;
+  margin-left: auto;
+}
+
+.control-icon {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.control-segments {
+  display: inline-flex;
+}
+
+.control-segment {
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+.control-segment:first-child {
+  border-radius: 8px 0 0 8px;
+  margin-left: 0;
+}
+
+.control-segment:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.control-segment[aria-pressed="true"]:not(:disabled),
+.control-toggle[aria-checked="true"]:not(:disabled) {
+  position: relative;
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: var(--app-accent-fg);
+}
+
+.control-color {
+  box-sizing: border-box;
+  width: 40px;
+  height: 28px;
+  padding: 2px 3px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-bg);
+  cursor: pointer;
+}
+
+.control-color:hover:not(:disabled) {
+  border-color: var(--app-accent);
+}
+
+/* The width slider, with its readout beside it: the number, or Full,
+ * kept to a fixed measure so the switches after it do not shift as the
+ * value changes. */
+.control-width {
+  width: 120px;
+  margin: 0;
+  accent-color: var(--app-accent);
+}
+
+.control-width-readout {
+  min-width: 3ch;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The resizable text box ------------------------------------------- */
+
+/* The composer's top edge is the handle: a hit zone across its width,
+ * with a pill in the middle to show it is there. The app's pointer
+ * handlers turn a drag of it into --app-input-height. */
+.app .rc-composer {
+  position: relative;
+}
+
+.app .rc-composer::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  cursor: row-resize;
+}
+
+.app .rc-composer::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 44px;
+  height: 4px;
+  margin-left: -22px;
+  border-radius: 2px;
+  background: var(--rc-border);
+  pointer-events: none;
+  transition: background 0.15s;
+}
+
+.app.app-resizing .rc-composer::after {
+  background: var(--rc-accent);
+}
+
+.app.app-resizing {
+  cursor: row-resize;
+  user-select: none;
+}
+
+/* The library grows the box to fit its text and caps it at 30vh; the
+ * dragged height is a floor under that, and lifts the cap with it. */
+.app .rc-composer-input {
+  min-height: var(--app-input-height, 42px);
+  max-height: max(30vh, var(--app-input-height, 0px));
+}
+
+/* ---- The name over a bubble ------------------------------------------- */
+
+/* The library sets the name over a bubble smaller than this app wants
+ * it. The bar's slider moves it, through a property the app always
+ * sets; this rule is unlayered, so it wins over the library's theme
+ * layer. */
+.app .rc-sender {
+  font-size: var(--app-sender-size);
+}
