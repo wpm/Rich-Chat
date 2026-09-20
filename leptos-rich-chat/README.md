@@ -204,10 +204,35 @@ selectors:
 
 That cuts both ways: a global reset in your stylesheet, such as
 Tailwind 3's preflight, reaches inside the chat too, and you put back
-what you want by rule against the `rc-*` classes. If your own rules are
-in cascade layers, declare the layer order yourself, first, with the
-crate's layers before yours; the crate's CSS is a `<style>` element in
-the body, so its own declaration comes after anything in the head.
+what you want by rule against the `rc-*` classes. That is for a host
+whose CSS is unlayered.
+
+If your own rules are in cascade layers, the order the layers are first
+declared in decides, and the crate's CSS is a `<style>` element in the
+body, so its own declaration comes after anything in the head and would
+put its layers last, over all of yours. Declare the order yourself,
+first: the crate's layers go after any layer that resets elements and
+before any layer whose rules should win over the theme. `rich-chat`
+names the parent of `rich-chat.structure` and `rich-chat.theme`, so one
+name places both.
+
+For Tailwind v4 that is between its reset and its utilities:
+
+```css
+@layer theme, base, rich-chat, components, utilities;
+@import "tailwindcss";
+```
+
+`base` comes first because Tailwind's preflight is in it: beneath
+`rich-chat.theme` it loses to the theme, which styles the Markdown,
+where above it preflight would win and reset the margins of paragraphs
+and lists, the heading sizes, and the `pre` and `code` fonts, leaving
+the Markdown flat. `utilities` comes after, so a utility class on a body
+you draw or on a wrapper still wins. The order settles only what both
+sides declare: the theme leaves list markers to the browser, so
+preflight's `list-style: none` holds in any order, and you put the
+markers back by rule, `.rc-rich ul { list-style: disc; }` and
+`.rc-rich ol { list-style: decimal; }`.
 
 To adjust the theme, override its custom properties anywhere above the
 components. Every color is a `--rc-*` property, and so are the fonts
