@@ -341,32 +341,29 @@ fn busy_status(refused: bool, busy: bool, busy_label: &str) -> &str {
 /// What Enter and the send button do: send the draft and leave the box
 /// empty, with the caret back in it for the next message; not while
 /// sending is blocked (see [`sending_blocked`]), when the draft is kept,
-/// and never a blank one, which stays as it is. A press that only the
-/// wait refused (see [`busy_refusal`]) sets `refused`, which is what
-/// fills the status line. The signals are read when the key or the
-/// button is pressed, not when the composer is built, and untracked,
+/// and never a blank one, which stays as it is. Returns whether the
+/// wait alone refused the press (see [`busy_refusal`]), which is what
+/// the composer tells the reader. The signals are read when the key or
+/// the button is pressed, not when the composer is built, and untracked,
 /// since an event handler subscribes to nothing.
 fn send_draft(
     disabled: Signal<bool>,
     busy: Signal<bool>,
     draft: RwSignal<String>,
-    refused: RwSignal<bool>,
     on_send: Callback<String>,
     input: NodeRef<html::Textarea>,
-) {
+) -> bool {
     let (disabled, busy) = (disabled.get_untracked(), busy.get_untracked());
     let blank = draft.read_untracked().trim().is_empty();
-    if busy_refusal(disabled, busy, blank) {
-        refused.set(true);
-    }
     if sending_blocked(disabled, busy) || blank {
-        return;
+        return busy_refusal(disabled, busy, blank);
     }
     // Taken, not copied: the signal is left empty by the same write.
     on_send.run(std::mem::take(&mut *draft.write()));
     // The send came from the box, by Enter in it or the button beside
     // it, and a click on the button took the focus with it.
     focus(input);
+    false
 }
 
 /// Puts the caret in the text box.
@@ -504,12 +501,13 @@ pub fn Composer(
             let _ = style.set_property("height", &format!("{}px", element.scroll_height()));
         }
     };
-    // Held, not captured: `submit` is built once and used by both the
-    // keydown handler and the click handler, so it has to be `Copy`.
-    let busy_label = StoredValue::new(busy_label);
     // A press the wait alone refused, which is what the status line says.
     let refused = RwSignal::new(false);
-    let submit = move || send_draft(disabled, busy, draft, refused, on_send, input);
+    let submit = move || {
+        if send_draft(disabled, busy, draft, on_send, input) {
+            refused.set(true);
+        }
+    };
     // The flag lasts one wait: cleared when the wait ends, so that the
     // next wait begins quiet and only a press during it speaks. Not run
     // in a server render, where the status line is empty anyway.
@@ -527,11 +525,10 @@ pub fn Composer(
     });
     let has_draft = move || !draft.read().trim().is_empty();
     // Whether the wait alone holds the send back: then the button is
-    // named for it and kept in the tab order rather than disabled.
-    let held = move || busy_refusal(disabled.get(), busy.get(), !has_draft());
-    let status = move || {
-        busy_label.with_value(|label| busy_status(refused.get(), busy.get(), label).to_string())
-    };
+    // named for it and kept in the tab order rather than disabled. A
+    // memo, since it changes on a transition and is read on every
+    // keystroke by two attributes.
+    let held = Memo::new(move |_| busy_refusal(disabled.get(), busy.get(), !has_draft()));
     let send = send_content(send);
     let hint = hint_text(hint);
     let preview_name = move || {
@@ -543,6 +540,10 @@ pub fn Composer(
     // Stored, since the view is built once per set of attributes the host
     // passes and the preview's children are rebuilt every time it shows.
     let preview_label = StoredValue::new(preview_label);
+    let busy_label = StoredValue::new(busy_label);
+    let status = move || {
+        busy_label.with_value(|label| busy_status(refused.get(), busy.get(), label).to_string())
+    };
 
     // The attributes passed to the component go on the text box, not on
     // the wrapper Leptos would put them on: `id`, `maxlength`, `data-*`
@@ -622,13 +623,13 @@ pub fn Composer(
                         type="button"
                         class="rc-send"
                         aria-label=move || {
-                            if held() {
+                            if held.get() {
                                 busy_label.with_value(|label| format!("Send, {label}"))
                             } else {
                                 String::from("Send")
                             }
                         }
-                        aria-disabled=move || held().then_some("true")
+                        aria-disabled=move || held.get().then_some("true")
                         disabled=move || disabled.get() || !has_draft()
                         on:click=move |_| submit()
                     >
@@ -1158,15 +1159,17 @@ mod tests {
         &out[start..=end]
     }
 
-    /// The text of the status line, `div.rc-composer-status`. A server
-    /// render puts one space where a dynamic text is empty, the
-    /// placeholder that hydration finds the text node by.
+    /// The opening tag of the status line, `div.rc-composer-status`.
+    const STATUS_LINE: &str = "<div role=\"status\" class=\"rc-composer-status\">";
+
+    /// The text of the status line. A server render puts one space where
+    /// a dynamic text is empty, the placeholder that hydration finds the
+    /// text node by.
     fn status_line(out: &str) -> &str {
-        let open = "<div role=\"status\" class=\"rc-composer-status\">";
         let start = out
-            .find(open)
+            .find(STATUS_LINE)
             .unwrap_or_else(|| panic!("no status line: {out}"))
-            + open.len();
+            + STATUS_LINE.len();
         let end = out[start..]
             .find("</div>")
             .expect("an unclosed status line")
@@ -1208,10 +1211,6 @@ mod tests {
             "named for the wait: {button}"
         );
         assert!(!button.contains(" disabled"), "in the tab order: {button}");
-        assert!(
-            status_line(&out).trim().is_empty(),
-            "the status line is there and quiet: {out}"
-        );
 
         // Not busy, the class is gone and the button is back, under its
         // plain name.
@@ -1252,9 +1251,7 @@ mod tests {
         // render, where no press has been refused.
         let bare = html(|| view! { <Composer on_send=|_text: String| {} /> });
         assert!(
-            bare.starts_with(
-                "<div class=\"rc-composer\"><div role=\"status\" class=\"rc-composer-status\">"
-            ),
+            bare.starts_with(&format!("<div class=\"rc-composer\">{STATUS_LINE}")),
             "first child: {bare}"
         );
         assert!(status_line(&bare).trim().is_empty(), "{bare}");
@@ -1268,9 +1265,6 @@ mod tests {
                 "busy {busy}, disabled {disabled}: {out}"
             );
         }
-        let none = Vec::<Message>::new();
-        let chat = html(|| view! { <Chat messages=none on_send=|_: String| {} busy=true /> });
-        assert!(status_line(&chat).trim().is_empty(), "{chat}");
     }
 
     #[test]
@@ -1647,21 +1641,20 @@ mod tests {
             let sent = RwSignal::new(Vec::<String>::new());
             let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
             let draft = RwSignal::new(String::from("hi"));
-            let refused = RwSignal::new(false);
             let input = NodeRef::new();
             let (on, off) = (Signal::stored(true), Signal::stored(false));
-            send_draft(on, off, draft, refused, on_send, input);
+            send_draft(on, off, draft, on_send, input);
             assert!(sent.get_untracked().is_empty(), "nothing while disabled");
             assert_eq!(draft.get_untracked(), "hi", "and the draft is kept");
-            send_draft(off, off, draft, refused, on_send, input);
+            send_draft(off, off, draft, on_send, input);
             assert_eq!(sent.get_untracked(), ["hi"]);
             assert_eq!(draft.get_untracked(), "", "sent, the box is empty");
             draft.set(String::from("  hi \n"));
-            send_draft(off, off, draft, refused, on_send, input);
+            send_draft(off, off, draft, on_send, input);
             assert_eq!(sent.get_untracked()[1], "  hi \n", "sent as written");
             for blank in ["", " \n\t"] {
                 draft.set(blank.to_string());
-                send_draft(off, off, draft, refused, on_send, input);
+                send_draft(off, off, draft, on_send, input);
                 assert_eq!(sent.get_untracked().len(), 2, "a blank draft is not sent");
                 assert_eq!(draft.get_untracked(), blank, "and is left as it is");
             }
@@ -1713,12 +1706,20 @@ mod tests {
             let waiting = RwSignal::new(true);
             let off = RwSignal::new(false);
             let (busy, disabled) = (Signal::from(waiting), Signal::from(off));
-            let refused = RwSignal::new(false);
-            let press = || send_draft(disabled, busy, draft, refused, on_send, input);
+            // A press, and whether the wait alone refused it: the one
+            // refusal the composer says out loud.
+            let press = || send_draft(disabled, busy, draft, on_send, input);
 
-            press();
+            assert!(press(), "refused for the wait, and said so");
             assert!(sent.get_untracked().is_empty(), "nothing while busy");
             assert_eq!(draft.get_untracked(), "written during the wait");
+
+            // A blank draft is refused quietly, busy or not: nothing was
+            // held back.
+            let written = draft.get_untracked();
+            draft.set(String::from(" \n"));
+            assert!(!press(), "blank");
+            draft.set(written);
 
             // The reply lands. That alone sends nothing; the next press does.
             waiting.set(false);
@@ -1727,64 +1728,23 @@ mod tests {
                 "the wait ending is no send"
             );
             assert_eq!(draft.get_untracked(), "written during the wait");
-            press();
+            assert!(!press(), "sent, not refused");
             assert_eq!(sent.get_untracked(), ["written during the wait"]);
             assert_eq!(draft.get_untracked(), "");
 
-            // Off blocks a press as well, and lets it through once on again.
+            // Off blocks a press as well, quietly even while busy, and lets
+            // it through once on again.
             draft.set(String::from("next"));
             off.set(true);
-            press();
+            assert!(!press(), "off is refused quietly");
+            waiting.set(true);
+            assert!(!press(), "off wins over the wait");
+            waiting.set(false);
             assert_eq!(sent.get_untracked().len(), 1, "nothing while disabled");
             assert_eq!(draft.get_untracked(), "next", "and the draft is kept");
             off.set(false);
-            press();
+            assert!(!press());
             assert_eq!(sent.get_untracked()[1], "next");
-        });
-    }
-
-    #[test]
-    fn a_press_refused_for_the_wait_fills_the_status_line() {
-        Owner::new().with(|| {
-            let on_send = Callback::new(|_text: String| {});
-            let draft = RwSignal::new(String::from("written during the wait"));
-            let input = NodeRef::new();
-            let waiting = RwSignal::new(true);
-            let off = RwSignal::new(false);
-            let (busy, disabled) = (Signal::from(waiting), Signal::from(off));
-            let refused = RwSignal::new(false);
-            let press = || send_draft(disabled, busy, draft, refused, on_send, input);
-            // What the status line reads, as the composer derives it.
-            let status = || busy_status(refused.get_untracked(), busy.get_untracked(), "Paused");
-
-            assert_eq!(status(), "", "the wait beginning says nothing");
-            press();
-            assert_eq!(status(), "Paused", "a press during it says why");
-            press();
-            assert_eq!(
-                status(),
-                "Paused",
-                "and again says it once: the text is unchanged"
-            );
-
-            // The wait ends: the phrase leaves with it, before anything
-            // clears the flag (the composer's effect does that).
-            waiting.set(false);
-            assert_eq!(status(), "", "the wait is over");
-            refused.set(false);
-
-            // A press refused for a blank draft is quiet, busy or not.
-            waiting.set(true);
-            draft.set(String::from(" \n"));
-            press();
-            assert_eq!(status(), "", "nothing was held back");
-
-            // And one refused because the composer is off, even while busy.
-            draft.set(String::from("next"));
-            off.set(true);
-            press();
-            assert_eq!(status(), "", "off is refused quietly");
-            assert_eq!(draft.get_untracked(), "next", "and the draft is kept");
         });
     }
 

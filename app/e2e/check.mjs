@@ -432,12 +432,13 @@ try {
     const status = () => page.$eval('.rc-composer-status', (el) => el.textContent);
     const sendName = () => page.$eval('.rc-send', (el) => el.getAttribute('aria-label'));
     const sendHeld = () => page.$eval('.rc-send', (el) => !el.disabled && el.getAttribute('aria-disabled') === 'true');
+    const sendOpen = () => page.$eval('.rc-send', (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true');
     check((await page.$eval('.rc-composer-status', (el) => el.getAttribute('role'))) === 'status', 'the composer has a status line');
     check((await status()) === '', 'which the wait beginning leaves empty');
     check(await sendHeld(), 'the send button is held, not disabled');
     check((await sendName()) === 'Send, Sending is paused', 'and is named for the wait');
     await page.focus('.rc-send');
-    check((await page.evaluate(() => document.activeElement.classList.contains('rc-send'))), 'and can be reached');
+    check(await page.evaluate(() => document.activeElement === document.querySelector('.rc-send')), 'and can be reached');
     // Pressed from the keyboard: Playwright's click refuses a button that
     // says aria-disabled, and a reader on the button presses Enter.
     await page.keyboard.press('Enter');
@@ -460,7 +461,7 @@ try {
     check(!(await busyOn()) && !(await composerBusy()), 'the switch ends the wait');
     check((await messageCount()) === beforeBusy, 'which sends nothing on its own');
     check((await boxText()) === 'Written while **busy**\nand after', 'the draft is still in the box');
-    check(!(await page.$eval('.rc-send', (el) => el.disabled)) && !(await sendHeld()), 'and the send button is back');
+    check(await sendOpen(), 'and the send button is back');
     check((await sendName()) === 'Send', 'under its plain name');
     check((await status()) === '', 'and the status line is empty again');
     await page.press('.rc-composer-input', 'Enter');
