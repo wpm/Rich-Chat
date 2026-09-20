@@ -8,8 +8,9 @@
 // coming back, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
 // bubble side and color changing every bubble of theirs, the names over
-// the bubbles, the Busy switch holding what is sent while the text box and
-// the preview carry on, the Disabled switch turning the composer off and
+// the bubbles and the slider that sizes them, the Busy switch holding
+// what is sent while the text box and the preview carry on, the Disabled
+// switch turning the composer off and
 // back with its draft and collapsed preview intact and the caret back in
 // the box where the reader left it, adding and deleting
 // a user, the theme switch, dragging the text box taller, and that all of
@@ -343,6 +344,20 @@ try {
     const selected = () => page.$eval('.control-users', (el) => el.value);
     const pressedSide = () => page.$$eval('.control-side[aria-pressed="true"]', (els) => els.map((el) => el.value).join());
     const namesOn = () => page.$eval('.control-names', (el) => el.getAttribute('aria-checked') === 'true');
+    // The slider that sizes the names: whether it can be moved, where it
+    // is, and what a screen reader hears of that.
+    const sliderOff = () => page.$eval('.control-sender-size', (el) => el.disabled);
+    const sliderAt = () => page.$eval('.control-sender-size', (el) => el.value);
+    const sliderSays = () => page.$eval('.control-sender-size', (el) => el.getAttribute('aria-valuetext'));
+    const slide = async (to) => {
+      await page.$eval('.control-sender-size', (el, to) => {
+        el.value = to;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }, to);
+      await page.waitForTimeout(100);
+    };
+    // Whether every name over a bubble is `em` times the chat's text.
+    const namesAre = (labels, em, size) => labels.length > 0 && labels.every((label) => Math.abs(label.size - em * size) < 0.1);
     // The name written over each bubble, null where there is none: its
     // text against the name the bubble carries, and where it sits.
     const labels = () => page.$$eval('.rc-message', (rows) => rows.map((row) => {
@@ -433,6 +448,8 @@ try {
     // at once, each on its bubble's side.
     check(!(await namesOn()), 'the bubbles start unnamed');
     check((await page.$$('.rc-sender')).length === 0, 'and carry no name');
+    check(await sliderOff(), 'and the slider that sizes the names is off with them');
+    check((await sliderAt()) === '0.95', 'at its default');
     await page.click('.control-names');
     await page.waitForTimeout(100);
     check(await namesOn(), 'the Names switch reports it is on');
@@ -459,6 +476,26 @@ try {
     await page.click('.control-names');
     await page.waitForTimeout(100);
     check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'and back on');
+
+    // How big the names are: the slider beside the switch, live only while
+    // the names are on. It starts just under the text and runs past it.
+    check(!(await sliderOff()), 'the slider is live while the names are on');
+    check((await sliderAt()) === '0.95' && (await sliderSays()) === '0.95 em', 'at its default, which a screen reader hears in em');
+    check(namesAre(await labels(), 0.95, bubbleSize), 'and the names are that fraction of the text');
+    await slide(await page.$eval('.control-sender-size', (el) => el.max));
+    check((await sliderAt()) === '1.4' && (await sliderSays()) === '1.4 em', 'the slider goes up to 1.4em');
+    const grown = await labels();
+    check(namesAre(grown, 1.4, bubbleSize), 'and moving it to the top grows every name to that');
+    check(grown.every((label) => label.size > bubbleSize), 'past the text');
+    check(grown.every((label) => label.above && label.inside), 'still above the bubble, within its width');
+    await page.screenshot({ path: `${shots}/controls-0-names-large.png` });
+    await page.click('.control-names');
+    await page.waitForTimeout(100);
+    check((await page.$$('.rc-sender')).length === 0, 'the switch takes the names off whatever their size');
+    check(await sliderOff() && (await sliderAt()) === '1.4', 'and the slider goes off where it was left');
+    await page.click('.control-names');
+    await page.waitForTimeout(100);
+    check(namesAre(await labels(), 1.4, bubbleSize), 'and the names come back at that size');
 
     // Busy: a reply is in flight, so sending waits, and the reader goes on
     // writing the next message, preview and all.
@@ -649,6 +686,8 @@ try {
     check((await boxHeight()) === after, 'and the text box height');
     check(await namesOn(), 'and the names');
     check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'which every bubble still has');
+    check((await sliderAt()) === '1.4', 'and their size');
+    check(namesAre(await labels(), 1.4, bubbleSize), 'which they are written at');
     await page.click('.control-theme');
     await page.waitForTimeout(100);
     check((await theme()) === 'light', 'the switch turns the theme light again');

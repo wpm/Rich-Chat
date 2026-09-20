@@ -32,7 +32,8 @@ Three crates:
   lists the users, an Assistant and a User to begin with, and lets you
   add and delete them; puts the selected user's bubbles on the left, in
   the center, or on the right, and sets their color, for every bubble
-  of theirs; writes each user's name over their bubbles, or not; makes
+  of theirs; writes each user's name over their bubbles, or not, and
+  sets how big that name is; makes
   the chat busy, as a host waiting on a reply does, so that you can go
   on writing and nothing sends, or disabled, the composer off; and
   switches between light and dark.

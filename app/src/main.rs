@@ -6,14 +6,15 @@
 //! Above the chat is a bar of controls: the users, who can be added and
 //! removed; where the selected user's bubbles land and their color,
 //! which changes every bubble of theirs; whether every bubble has its
-//! user's name over it; whether the chat is busy, as a host waiting on a
-//! model's reply sets it, so that the text box and the preview stay and
-//! only the sending waits, or disabled, the composer off; light or dark.
+//! user's name over it, and how big; whether the chat is busy, as a
+//! host waiting on a model's reply sets it, so that the text box and
+//! the preview stay and only the sending waits, or disabled, the
+//! composer off; light or dark.
 //! The composer's top edge can be dragged to make the text box taller.
 //! All of that is this app's: the
 //! library gets a table of names saying where each user's bubbles go
-//! and in what colors, a flag for the names, and the stylesheet gets a
-//! custom property for the text box.
+//! and in what colors, a flag for the names, and the stylesheet gets
+//! custom properties for the text box and the names.
 
 mod controls;
 mod opener;
@@ -98,13 +99,16 @@ fn App() -> impl IntoView {
     let busy = RwSignal::new(false);
     // And the composer off altogether, as for a host with no key.
     let disabled = RwSignal::new(false);
-    // The setting the app's own stylesheet reads as a custom property.
+    // The settings the app's own stylesheet reads as custom properties.
+    // The name's size is always set, whether or not the names are
+    // showing; the stylesheet reads it only when they are.
     let style = move || {
-        settings
-            .read()
+        let settings = settings.read();
+        let height = settings
             .input_height
-            .map(|height| format!("--app-input-height: {height}px;"))
-            .unwrap_or_default()
+            .map(|height| format!("--app-input-height: {height}px; "))
+            .unwrap_or_default();
+        format!("{height}--app-sender-size: {}em;", settings.sender_size)
     };
 
     // Dragging the composer's top edge sets the text box's height.
