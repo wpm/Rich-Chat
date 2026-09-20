@@ -246,8 +246,15 @@ radius:
 `--rc-tint-bg` and `--rc-tint-fg` the tinted one the default names give
 `user` and the composer's preview; `--rc-tail` the radius of the corner
 a bubble has on its side; `--rc-muted` the color of the name over a
-bubble. `--rc-bg` is the neutral surface: the window, the composer strip
-and its text box, and the hover fills of the copy and preview buttons.
+bubble; `--rc-bubble-max-width` the widest a bubble gets,
+`min(85%, 76ch)` by default, so that a long message wraps at a measure
+and a narrow window keeps a gutter. It is one value for the whole chat,
+never a name's: every user's bubbles stop at the same width, and a
+`Body::View` whose root has `class="rc-bubble"` stops there too. Set it
+to what you want and that is what you get, `20ch` or `100%`; the crate
+does not clamp it. `--rc-bg` is the neutral surface: the window, the
+composer strip and its text box, and the hover fills of the copy and
+preview buttons.
 
 The theme declares them on the document root, `:root`, and no component
 declares anything, so an override reaches the chat from wherever you put

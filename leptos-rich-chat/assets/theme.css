@@ -24,6 +24,10 @@
   --rc-line-height: 1.55;
   --rc-radius: 16px;
   --rc-tail: 5px;
+  /* The widest a bubble gets. A measure, which is what binds on any
+   * window but a narrow one, and a share of the transcript for those.
+   * A host that sets it gets what it set: nothing here clamps it. */
+  --rc-bubble-max-width: min(85%, 76ch);
 
   --rc-fg: #1f2328;
   --rc-muted: #59636e;
@@ -136,9 +140,11 @@
  * come from the host's names, as rules keyed on the message's data-name
  * attribute that RichChatStyle generates; the tail they give a bubble on
  * its side is --rc-tail. A name the host has not declared gets this and
- * nothing more. */
+ * nothing more. The width is never a name's: it is one token for the
+ * whole chat, inherited, so every user's bubbles stop at the same
+ * measure. */
 .rc-bubble {
-  max-width: min(85%, 76ch);
+  max-width: var(--rc-bubble-max-width);
   padding: 10px 14px;
   border-radius: var(--rc-radius);
   background: var(--rc-bubble-bg);

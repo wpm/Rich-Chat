@@ -1,6 +1,7 @@
 //! The bar above the chat: the users, the selected user's bubbles, the
-//! window's background, whether bubbles are named and how big the name
-//! is, whether the chat is busy or disabled, the theme.
+//! widest a message gets, the window's background, whether bubbles are
+//! named and how big the name is, whether the chat is busy or disabled,
+//! the theme.
 //!
 //! Each control edits the app's [`Settings`]; the app root turns those
 //! into the library's table of names and its `show_names`, the root
@@ -13,7 +14,7 @@ use leptos::ev;
 use leptos::prelude::*;
 
 use crate::settings::{
-    SENDER_SIZE_MAX, SENDER_SIZE_MIN, SENDER_SIZE_STEP, Settings, Side, Theme, User,
+    BubbleWidth, SENDER_SIZE_MAX, SENDER_SIZE_MIN, SENDER_SIZE_STEP, Settings, Side, Theme, User,
     parse_sender_size,
 };
 
@@ -86,10 +87,25 @@ pub fn Controls(
         settings.update(|settings| settings.selected_user_mut().color = value);
     };
 
+    // The widest a message gets, for every user at once: a slider along
+    // the measures, with Full one past the last of them. A memo, as the
+    // users are, so a drag of the text box does not re-render it. A
+    // position off the track, which the input's own bounds keep from
+    // the reader, changes nothing.
+    let width = Memo::new(move |_| settings.read().bubble_width);
+    let widen = move |event: ev::Event| {
+        if let Some(width) = event_target_value(&event)
+            .parse()
+            .ok()
+            .and_then(BubbleWidth::at)
+        {
+            settings.update(|settings| settings.bubble_width = width);
+        }
+    };
+
     // The window's background: the chosen one, or the theme's while none
     // is chosen, which is what the window shows then. The button beside
-    // it puts the theme's back. A memo, as the users are, so that a drag
-    // of the text box does not rewrite the input.
+    // it puts the theme's back. A memo, as above.
     let chosen_background = Memo::new(move |_| settings.read().background.clone());
     let background = move || {
         chosen_background
@@ -176,6 +192,24 @@ pub fn Controls(
                     prop:value=color
                     on:input=recolor
                 />
+            </div>
+            <div class="control-group">
+                <label class="control-label" for="bubble-width">"Width"</label>
+                <input
+                    id="bubble-width"
+                    type="range"
+                    class="control-width"
+                    title="The widest a message gets, in characters, for every user; Full is the whole transcript"
+                    min=BubbleWidth::FLOOR.to_string()
+                    max=BubbleWidth::Full.position().to_string()
+                    step="1"
+                    prop:value=move || width.get().position().to_string()
+                    aria-valuetext=move || width.get().description()
+                    on:input=widen
+                />
+                <output class="control-width-readout" for="bubble-width">
+                    {move || width.get().label()}
+                </output>
             </div>
             <div class="control-group" role="group" aria-label="Window background">
                 <label class="control-label" for="window-background">"Window"</label>
