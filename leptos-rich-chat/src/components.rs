@@ -320,17 +320,22 @@ fn sending_blocked(disabled: bool, busy: bool) -> bool {
     disabled || busy
 }
 
-/// Sends the draft and leaves the box empty, with the caret back in it
-/// for the next message; not while sending is blocked (see
-/// [`sending_blocked`]), when the draft is kept, and never a blank one,
-/// which stays as it is.
+/// What Enter and the send button do: send the draft and leave the box
+/// empty, with the caret back in it for the next message; not while
+/// sending is blocked (see [`sending_blocked`]), when the draft is kept,
+/// and never a blank one, which stays as it is. The signals are read when
+/// the key or the button is pressed, not when the composer is built, and
+/// untracked, since an event handler subscribes to nothing.
 fn send_draft(
-    blocked: bool,
+    disabled: Signal<bool>,
+    busy: Signal<bool>,
     draft: RwSignal<String>,
     on_send: Callback<String>,
     input: NodeRef<html::Textarea>,
 ) {
-    if blocked || draft.read_untracked().trim().is_empty() {
+    if sending_blocked(disabled.get_untracked(), busy.get_untracked())
+        || draft.read_untracked().trim().is_empty()
+    {
         return;
     }
     // Taken, not copied: the signal is left empty by the same write.
@@ -338,21 +343,6 @@ fn send_draft(
     // The send came from the box, by Enter in it or the button beside
     // it, and a click on the button took the focus with it.
     focus(input);
-}
-
-/// What Enter and the send button do: send the draft, unless the composer
-/// is off or busy at that moment. The signals are read when the key or
-/// the button is pressed, not when the composer is built, and untracked,
-/// since an event handler subscribes to nothing.
-fn submit_draft(
-    disabled: Signal<bool>,
-    busy: Signal<bool>,
-    draft: RwSignal<String>,
-    on_send: Callback<String>,
-    input: NodeRef<html::Textarea>,
-) {
-    let blocked = sending_blocked(disabled.get_untracked(), busy.get_untracked());
-    send_draft(blocked, draft, on_send, input);
 }
 
 /// Puts the caret in the text box.
@@ -471,7 +461,7 @@ pub fn Composer(
             let _ = style.set_property("height", &format!("{}px", element.scroll_height()));
         }
     };
-    let submit = move || submit_draft(disabled, busy, draft, on_send, input);
+    let submit = move || send_draft(disabled, busy, draft, on_send, input);
     // The height follows the text however it changes: sent, or put in
     // by the host, at the start or later. Browser only, as the frame is.
     #[cfg(target_arch = "wasm32")]
@@ -1476,18 +1466,19 @@ mod tests {
             let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
             let draft = RwSignal::new(String::from("hi"));
             let input = NodeRef::new();
-            send_draft(true, draft, on_send, input);
+            let (on, off) = (Signal::stored(true), Signal::stored(false));
+            send_draft(on, off, draft, on_send, input);
             assert!(sent.get_untracked().is_empty(), "nothing while disabled");
             assert_eq!(draft.get_untracked(), "hi", "and the draft is kept");
-            send_draft(false, draft, on_send, input);
+            send_draft(off, off, draft, on_send, input);
             assert_eq!(sent.get_untracked(), ["hi"]);
             assert_eq!(draft.get_untracked(), "", "sent, the box is empty");
             draft.set(String::from("  hi \n"));
-            send_draft(false, draft, on_send, input);
+            send_draft(off, off, draft, on_send, input);
             assert_eq!(sent.get_untracked()[1], "  hi \n", "sent as written");
             for blank in ["", " \n\t"] {
                 draft.set(blank.to_string());
-                send_draft(false, draft, on_send, input);
+                send_draft(off, off, draft, on_send, input);
                 assert_eq!(sent.get_untracked().len(), 2, "a blank draft is not sent");
                 assert_eq!(draft.get_untracked(), blank, "and is left as it is");
             }
@@ -1495,28 +1486,15 @@ mod tests {
     }
 
     #[test]
-    fn busy_blocks_the_send_and_keeps_the_draft() {
+    fn sending_is_blocked_while_off_or_busy() {
         assert!(!sending_blocked(false, false));
         assert!(sending_blocked(true, false), "off");
         assert!(sending_blocked(false, true), "waiting");
         assert!(sending_blocked(true, true));
-        Owner::new().with(|| {
-            let sent = RwSignal::new(Vec::<String>::new());
-            let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
-            let draft = RwSignal::new(String::from("the next one"));
-            let input = NodeRef::new();
-            send_draft(sending_blocked(false, true), draft, on_send, input);
-            assert!(sent.get_untracked().is_empty(), "nothing while busy");
-            assert_eq!(draft.get_untracked(), "the next one", "the draft waits");
-            // The wait over, the draft goes when it is sent, not before.
-            send_draft(sending_blocked(false, false), draft, on_send, input);
-            assert_eq!(sent.get_untracked(), ["the next one"]);
-            assert_eq!(draft.get_untracked(), "");
-        });
     }
 
     #[test]
-    fn a_press_reads_busy_and_disabled_as_they_are_then() {
+    fn busy_blocks_the_send_and_keeps_the_draft() {
         Owner::new().with(|| {
             let sent = RwSignal::new(Vec::<String>::new());
             let on_send = Callback::new(move |text| sent.update(|all| all.push(text)));
@@ -1526,7 +1504,7 @@ mod tests {
             let waiting = RwSignal::new(true);
             let off = RwSignal::new(false);
             let (busy, disabled) = (Signal::from(waiting), Signal::from(off));
-            let press = || submit_draft(disabled, busy, draft, on_send, input);
+            let press = || send_draft(disabled, busy, draft, on_send, input);
 
             press();
             assert!(sent.get_untracked().is_empty(), "nothing while busy");
