@@ -331,16 +331,18 @@ try {
       const values = await page.$$eval(`.rc-message[data-name="${name}"] .rc-bubble`, (els, property) => els.map((el) => getComputedStyle(el)[property]), property);
       return values.every((value) => value === values[0]) ? values[0] : values;
     };
-    // The gaps between a name's bubbles and the transcript's edges say
-    // where they sit; the largest of each, so every bubble must agree.
-    const gaps = async (name) => {
-      const all = await page.$$eval(`.rc-message[data-name="${name}"]`, (els) => els.map((row) => {
+    // The gaps between the bubbles of the rows `selector` finds and the
+    // transcript's edges (a row spans it, inside its padding) say where
+    // they sit; the largest of each, so every bubble must agree.
+    const rowGaps = async (selector) => {
+      const all = await page.$$eval(selector, (els) => els.map((row) => {
         const bubble = row.querySelector('.rc-bubble').getBoundingClientRect();
         const pane = row.getBoundingClientRect();
         return { left: bubble.left - pane.left, right: pane.right - bubble.right };
       }));
       return { left: Math.max(...all.map((g) => g.left)), right: Math.max(...all.map((g) => g.right)), count: all.length };
     };
+    const gaps = (name) => rowGaps(`.rc-message[data-name="${name}"]`);
     const users = () => page.$$eval('.control-users option', (els) => els.map((el) => el.value));
     const selected = () => page.$eval('.control-users', (el) => el.value);
     const pressedSide = () => page.$$eval('.control-side[aria-pressed="true"]', (els) => els.map((el) => el.value).join());
@@ -648,20 +650,15 @@ try {
       await page.fill('.control-width', value);
       await page.waitForTimeout(100);
     };
-    const bubbleBox = (id) => page.$eval(`.rc-message[data-message-id="${id}"] .rc-bubble`, (el) => {
-      const box = el.getBoundingClientRect();
-      return { left: box.left, right: box.right, width: box.width };
-    });
-    const bubbleWidth = async (id) => (await bubbleBox(id)).width;
-    // The transcript inside its padding, which is what Full spans.
-    const transcript = () => page.$eval('.rc-messages', (el) => {
-      const box = el.getBoundingClientRect();
-      const style = getComputedStyle(el);
-      return { left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight) };
-    });
+    const bubbleWidth = (id) => page.$eval(`.rc-message[data-message-id="${id}"] .rc-bubble`, (el) => el.getBoundingClientRect().width);
+    const gapsOf = (id) => rowGaps(`.rc-message[data-message-id="${id}"]`);
     const wrapped = ['welcome', 'welcome-markdown'];
     const oneLine = `m${TOUR}`;
-    check((await page.$eval('.control-width', (el) => `${el.type}:${el.min}:${el.max}:${el.step}`)) === 'range:76:161:1', 'the width is a slider from 76 to one past 160');
+    const track = await page.$eval('.control-width', (el) => ({ type: el.type, min: el.min, max: el.max, step: el.step }));
+    check(track.type === 'range' && track.min === '76' && track.max === '161' && track.step === '1', 'the width is a slider from 76 to one past 160');
+    // The track's last position is Full, and the one before it the widest measure.
+    const fullPosition = track.max;
+    const ceiling = String(Number(track.max) - 1);
     check((await width()) === '76' && (await readout()) === '76' && (await spoken()) === '76 characters', 'which starts at 76, and says so in words');
     check((await page.$eval('.control-width', (el) => el.labels[0]?.textContent)) === 'Width', 'labelled Width');
     const order = await page.$$eval('.controls > *', (els) => els.map((el) => (el.querySelector('.control-color') ? 'color' : el.querySelector('.control-width') ? 'width' : el.classList.contains('control-names') ? 'names' : null)).filter(Boolean).join());
@@ -678,12 +675,11 @@ try {
     const atMiddle = await Promise.all(wrapped.map(bubbleWidth));
     check(atMiddle.every((now, i) => now > atFloor[i]), `and widens the wrapped bubbles of both users (${atFloor} to ${atMiddle})`);
     check((await bubbleWidth(oneLine)) === shortAtFloor, 'while the message that fits on a line does not move');
-    await setWidth('161');
-    check((await width()) === '161' && (await readout()) === 'Full' && (await spoken()) === 'Full width', 'one past 160 is Full');
-    const edges = await transcript();
-    const full = await bubbleBox('welcome');
-    check(Math.abs(full.left - edges.left) < 1 && Math.abs(full.right - edges.right) < 1, 'at which a long message spans the transcript from one padding edge to the other');
-    check(full.width > atMiddle[0], 'wider than any measure');
+    await setWidth(fullPosition);
+    check((await width()) === fullPosition && (await readout()) === 'Full' && (await spoken()) === 'Full width', 'one past 160 is Full');
+    const full = await gapsOf('welcome');
+    check(full.left < 1 && full.right < 1, 'at which a long message spans the transcript from one padding edge to the other');
+    check((await bubbleWidth('welcome')) > atMiddle[0], 'wider than any measure');
     check((await bubbleWidth(oneLine)) === shortAtFloor, 'and the one-line message still does not move');
     await page.screenshot({ path: `${shots}/controls-1-full-width.png` });
     // The floor: the slider cannot go below the library's measure.
@@ -698,14 +694,14 @@ try {
     // looks like the first: only Full lifts the gutter.
     await page.setViewportSize({ width: 600, height: 900 });
     await page.waitForTimeout(100);
-    const narrowAtFloor = await bubbleBox('welcome');
-    const narrowEdges = await transcript();
-    check(narrowAtFloor.width < narrowEdges.right - narrowEdges.left - 1, 'a narrow window keeps a gutter at 76');
-    await setWidth('160');
-    check((await bubbleWidth('welcome')) === narrowAtFloor.width, 'and looks the same at 160');
-    await setWidth('161');
-    const narrowFull = await bubbleBox('welcome');
-    check(Math.abs(narrowFull.left - narrowEdges.left) < 1 && Math.abs(narrowFull.right - narrowEdges.right) < 1, 'and Full still spans it');
+    const narrowAtFloor = await bubbleWidth('welcome');
+    const narrowGutter = await gapsOf('welcome');
+    check(narrowGutter.left + narrowGutter.right > 1, 'a narrow window keeps a gutter at 76');
+    await setWidth(ceiling);
+    check((await bubbleWidth('welcome')) === narrowAtFloor, 'and looks the same at 160');
+    await setWidth(fullPosition);
+    const narrowFull = await gapsOf('welcome');
+    check(narrowFull.left < 1 && narrowFull.right < 1, 'and Full still spans it');
     await page.setViewportSize({ width: 1000, height: 900 });
     await setWidth('120');
     check((await bubbleWidth('welcome')) === atMiddle[0], 'back at 120 in the wide window, the bubble is as it was');

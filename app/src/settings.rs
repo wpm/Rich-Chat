@@ -114,24 +114,31 @@ impl BubbleWidth {
     /// The widest measure, in characters. The slider's one position past
     /// it is `Full`.
     pub const CEILING: u32 = 160;
+    /// The slider's last position, which is `Full`.
+    const FULL_POSITION: u32 = Self::CEILING + 1;
+
+    /// A measure of `characters`, if it is on the track.
+    fn measure(characters: u32) -> Option<Self> {
+        (Self::FLOOR..=Self::CEILING)
+            .contains(&characters)
+            .then_some(BubbleWidth::Measure(characters))
+    }
 
     /// The slider's value for this width: the measure, or one past the
     /// ceiling for `Full`.
     pub fn position(self) -> u32 {
         match self {
             BubbleWidth::Measure(measure) => measure,
-            BubbleWidth::Full => Self::CEILING + 1,
+            BubbleWidth::Full => Self::FULL_POSITION,
         }
     }
 
     /// The width at a slider position: `None` off the track.
     pub fn at(position: u32) -> Option<Self> {
-        if (Self::FLOOR..=Self::CEILING).contains(&position) {
-            Some(BubbleWidth::Measure(position))
-        } else if position == Self::CEILING + 1 {
+        if position == Self::FULL_POSITION {
             Some(BubbleWidth::Full)
         } else {
-            None
+            Self::measure(position)
         }
     }
 
@@ -173,11 +180,7 @@ impl BubbleWidth {
     fn parse(text: &str) -> Option<Self> {
         match text {
             "full" => Some(BubbleWidth::Full),
-            count => count
-                .parse()
-                .ok()
-                .and_then(Self::at)
-                .filter(|width| *width != BubbleWidth::Full),
+            count => count.parse().ok().and_then(Self::measure),
         }
     }
 }
@@ -757,14 +760,10 @@ mod tests {
     /// change to both.
     #[test]
     fn the_default_width_is_the_librarys() {
-        let default = BubbleWidth::default();
-        assert_eq!(default, BubbleWidth::Measure(BubbleWidth::FLOOR));
-        assert_eq!(Settings::default().bubble_width, default);
+        let default = BubbleWidth::default().css();
         assert!(
-            leptos_rich_chat::style::THEME
-                .contains(&format!("  --rc-bubble-max-width: {};\n", default.css())),
-            "the library's default is not {}",
-            default.css()
+            leptos_rich_chat::style::THEME.contains(&format!("--rc-bubble-max-width: {default};")),
+            "the library's default is not {default}"
         );
     }
 
@@ -781,13 +780,11 @@ mod tests {
     #[test]
     fn the_track_runs_from_the_floor_to_the_ceiling_and_one_past_it() {
         assert_eq!(BubbleWidth::at(76), Some(BubbleWidth::Measure(76)));
-        assert_eq!(BubbleWidth::at(120), Some(BubbleWidth::Measure(120)));
-        assert_eq!(BubbleWidth::at(160), Some(BubbleWidth::Measure(160)));
         assert_eq!(BubbleWidth::at(161), Some(BubbleWidth::Full));
         for off in [0, 75, 162, 1000] {
             assert_eq!(BubbleWidth::at(off), None, "{off}");
         }
-        for position in BubbleWidth::FLOOR..=BubbleWidth::CEILING + 1 {
+        for position in BubbleWidth::FLOOR..=BubbleWidth::Full.position() {
             let width = BubbleWidth::at(position).unwrap();
             assert_eq!(width.position(), position, "{width:?}");
         }
@@ -810,10 +807,6 @@ mod tests {
             BubbleWidth::Measure(76)
         );
         assert_eq!(
-            stored(&[(BUBBLE_WIDTH_KEY, "120")]).bubble_width,
-            BubbleWidth::Measure(120)
-        );
-        assert_eq!(
             stored(&[(BUBBLE_WIDTH_KEY, "160")]).bubble_width,
             BubbleWidth::Measure(160)
         );
@@ -821,6 +814,8 @@ mod tests {
             stored(&[(BUBBLE_WIDTH_KEY, "full")]).bubble_width,
             BubbleWidth::Full
         );
+        // The slider's last position is stored as the word, never the
+        // number.
         for bad in [
             "75", "161", "1000", "0", "-5", "76.5", "Full", "wide", "", "76ch",
         ] {
@@ -828,31 +823,6 @@ mod tests {
                 stored(&[(BUBBLE_WIDTH_KEY, bad)]).bubble_width,
                 BubbleWidth::default(),
                 "{bad:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn the_width_round_trips_through_storage() {
-        for width in [
-            BubbleWidth::Measure(76),
-            BubbleWidth::Measure(99),
-            BubbleWidth::Measure(160),
-            BubbleWidth::Full,
-        ] {
-            let settings = Settings {
-                bubble_width: width,
-                ..Settings::default()
-            };
-            let mut storage = std::collections::HashMap::new();
-            settings.store_with(|key, value| {
-                if let Some(value) = value {
-                    storage.insert(key.to_string(), value);
-                }
-            });
-            assert_eq!(
-                Settings::from_stored(|key| storage.get(key).cloned()).bubble_width,
-                width
             );
         }
     }

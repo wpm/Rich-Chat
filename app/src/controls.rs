@@ -84,10 +84,11 @@ pub fn Controls(
     };
 
     // The widest a message gets, for every user at once: a slider along
-    // the measures, with Full one past the last of them. A position off
-    // the track, which the input's own bounds keep from the reader,
-    // changes nothing.
-    let width = move || settings.read().bubble_width;
+    // the measures, with Full one past the last of them. A memo, as the
+    // users are, so a drag of the text box does not re-render it. A
+    // position off the track, which the input's own bounds keep from
+    // the reader, changes nothing.
+    let width = Memo::new(move |_| settings.read().bubble_width);
     let widen = move |event: ev::Event| {
         if let Some(width) = event_target_value(&event)
             .parse()
@@ -174,12 +175,12 @@ pub fn Controls(
                     min=BubbleWidth::FLOOR.to_string()
                     max=BubbleWidth::Full.position().to_string()
                     step="1"
-                    prop:value=move || width().position().to_string()
-                    aria-valuetext=move || width().description()
+                    prop:value=move || width.get().position().to_string()
+                    aria-valuetext=move || width.get().description()
                     on:input=widen
                 />
                 <output class="control-width-readout" for="bubble-width">
-                    {move || width().label()}
+                    {move || width.get().label()}
                 </output>
             </div>
             <button

@@ -433,14 +433,24 @@ mod tests {
     /// ancestor, and read by the bubble's rule, so that a host's own body
     /// with the bubble's class gets it too. The default is the one value
     /// that was in the rule before it was a token.
+    /// The declarations of the rule for `selector` in `css`: what is
+    /// between its opening brace and the closing one.
+    fn rule<'a>(css: &'a str, selector: &str) -> &'a str {
+        let start = css
+            .find(&format!("\n{selector} {{"))
+            .unwrap_or_else(|| panic!("no rule for {selector}"));
+        let body = &css[start..];
+        &body[..body.find('}').expect("the rule is closed")]
+    }
+
     #[test]
     fn the_theme_declares_the_bubbles_maximum_width_and_the_bubble_reads_it() {
         assert!(
-            THEME.contains("  --rc-bubble-max-width: min(85%, 76ch);\n"),
-            "the theme declares the token with today's value as its default"
+            rule(THEME, ":root").contains("--rc-bubble-max-width: min(85%, 76ch);"),
+            "the root declares the token with today's value as its default"
         );
         assert!(
-            THEME.contains(".rc-bubble {\n  max-width: var(--rc-bubble-max-width);\n"),
+            rule(THEME, ".rc-bubble").contains("max-width: var(--rc-bubble-max-width);"),
             "the bubble reads the token"
         );
         assert_eq!(
@@ -449,7 +459,7 @@ mod tests {
             "declared once, on the root, so an override anywhere above the chat wins"
         );
         assert!(
-            !STRUCTURE.contains(".rc-bubble {\n  max-width")
+            !rule(STRUCTURE, ".rc-bubble").contains("max-width")
                 && !STRUCTURE.contains("--rc-bubble-max-width"),
             "the width is the theme's to give, not the structure's"
         );
