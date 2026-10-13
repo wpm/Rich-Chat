@@ -1,24 +1,33 @@
 name: Publish the crate
 
-# Publishes leptos-rich-chat to crates.io. Push a tag
-# leptos-rich-chat-v<version>, where <version> is what
-# leptos-rich-chat/Cargo.toml says, and the crate is tested, its
-# documentation built as docs.rs will build it, and published. Run by
-# hand instead, it does everything but the publishing.
+# Publishes leptos-rich-chat to crates.io when a release tagged
+# leptos-rich-chat-v<version> is published on GitHub, where <version> is
+# what leptos-rich-chat/Cargo.toml says: the crate is tested, its
+# documentation built as docs.rs will build it, and published. The
+# README's Releasing section says how to make the release. Run by hand
+# instead, it does everything but the publishing.
 #
-# The library's releases are separate from the app's: those come from
-# app-v<version> tags, see release-app.yml. The app depends on the
-# library by path, so it is never waiting on a crates.io release.
+# If the tests or the version check fail, nothing is published and the
+# release stands without a crate: fix the cause, then rerun the job, or
+# delete the release and its tag and publish it again. A version that is
+# on crates.io already is not published twice, so a rerun after the
+# upload went through, or the release for 0.1.0, which was published by
+# hand, succeeds without doing anything.
+#
+# The library's releases are separate from the app's: those are tagged
+# app-v<version>, see release-app.yml. The app depends on the library by
+# path, so it is never waiting on a crates.io release.
 #
 # Publishing uses crates.io's trusted publishing, so no token is stored
 # here: the job's OpenID Connect token is exchanged for a short-lived
 # crates.io one. That is set up on the crate's settings page on
 # crates.io (Trusted Publishing: GitHub, owner wpm, repository Rich-Chat,
 # workflow publish-crate.yml), which exists once the first version has
-# been published by hand with `cargo publish -p leptos-rich-chat`.
+# been published by hand with `cargo publish -p leptos-rich-chat`. So
+# this file keeps its name: renamed, it can no longer publish.
 on:
-  push:
-    tags: ["leptos-rich-chat-v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -31,27 +40,49 @@ concurrency:
 jobs:
   publish:
     name: Publish to crates.io
+    # Releases of the app come here too, and are skipped.
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'leptos-rich-chat-v')
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # The tag has to say what the manifest says, or nothing is published.
-      - run: |
-          if [ "$GITHUB_REF_TYPE" = tag ]; then set -- --tag "$GITHUB_REF_NAME"; fi
+      - id: version
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = release ]; then set -- --tag "$TAG"; fi
           .github/scripts/release-version.sh leptos-rich-chat-v leptos-rich-chat "$@"
+      # crates.io answers 200 for a version it has and 404 for one it has
+      # not. One it has is not tested or published again.
+      - id: published
+        if: github.event_name == 'release'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' -A 'Rich-Chat release workflow (github.com/wpm/Rich-Chat)' \
+            "https://crates.io/api/v1/crates/leptos-rich-chat/$VERSION")
+          case $status in
+            200) echo "::notice::leptos-rich-chat $VERSION is on crates.io already; nothing to publish."
+                 echo "publish=false" >> "$GITHUB_OUTPUT" ;;
+            404) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::crates.io answered $status for leptos-rich-chat $VERSION"; exit 1 ;;
+          esac
       # The runs ci.yml makes, from the same script.
-      - run: .github/scripts/library-tests.sh cargo test
+      - if: steps.published.outputs.publish != 'false'
+        run: .github/scripts/library-tests.sh cargo test
       # As docs.rs builds it, all features on.
-      - run: cargo doc -p leptos-rich-chat --no-deps --all-features
+      - if: steps.published.outputs.publish != 'false'
+        run: cargo doc -p leptos-rich-chat --no-deps --all-features
         env:
           RUSTDOCFLAGS: -D warnings
-      - if: github.event_name != 'push'
+      - if: github.event_name != 'release'
         run: cargo publish -p leptos-rich-chat --dry-run
       - id: auth
-        if: github.event_name == 'push'
+        if: steps.published.outputs.publish == 'true'
         uses: rust-lang/crates-io-auth-action@v1
-      - if: github.event_name == 'push'
+      - if: steps.published.outputs.publish == 'true'
         run: cargo publish -p leptos-rich-chat
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

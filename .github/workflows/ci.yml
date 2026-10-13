@@ -115,12 +115,20 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
+  # The tests of the release scripts, every .github/scripts/*-test.sh.
+  scripts:
+    name: Release scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: for test in .github/scripts/*-test.sh; do "$test"; done
+
   # One check for branch protection to require, so job names can change
   # without touching the ruleset. Green only when every job above is.
   ci:
     name: CI
     runs-on: ubuntu-latest
-    needs: [library, frontend, desktop, coverage]
+    needs: [library, frontend, desktop, coverage, scripts]
     if: always()
     steps:
       - run: |
@@ -128,7 +136,9 @@ jobs:
           echo "frontend: ${{ needs.frontend.result }}"
           echo "desktop: ${{ needs.desktop.result }}"
           echo "coverage: ${{ needs.coverage.result }}"
+          echo "scripts: ${{ needs.scripts.result }}"
           test "${{ needs.library.result }}" = success
           test "${{ needs.frontend.result }}" = success
           test "${{ needs.desktop.result }}" = success
           test "${{ needs.coverage.result }}" = success
+          test "${{ needs.scripts.result }}" = success
