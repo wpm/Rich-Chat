@@ -1,6 +1,6 @@
 [package]
 name = "rich-chat-app"
-version = "0.1.0"
+version.workspace = true
 description = "A chat window for trying leptos-rich-chat: what you type comes back as a bubble"
 edition.workspace = true
 license.workspace = true

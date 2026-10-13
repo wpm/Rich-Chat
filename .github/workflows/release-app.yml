@@ -1,48 +1,51 @@
 name: Release the app
 
-# Turns a tag into a GitHub release with an installer for every desktop
-# platform: a .dmg for macOS (one build for Apple silicon and Intel), a
-# setup .exe and an .msi for Windows, and a .deb, an .rpm and an
-# .AppImage for Linux. Push a tag app-v<version>, where <version> is what
-# app/src-tauri/Cargo.toml and app/Cargo.toml say, and the release
-# appears as a draft, fills up as the builds finish, and is published
-# when they all have; a failed build leaves the draft to look at, and
-# rerunning the failed jobs completes it. A tag whose release is already
-# published is refused, so a rerun never touches one. Run by hand
-# instead, it builds everything as workflow artifacts and makes no
-# release, for trying the pipeline out.
+# Puts an installer for every desktop platform on a GitHub release: a
+# .dmg for macOS (one build for Apple silicon and Intel), a setup .exe and
+# an .msi for Windows, and a .deb, an .rpm and an .AppImage for Linux.
+# It runs when a release tagged app-v<version> is published, where
+# <version> is the workspace's, which app/Cargo.toml and
+# app/src-tauri/Cargo.toml take; the README's Releasing section says how
+# to make the release. A tag that does not match fails the run before
+# anything is built. The release is the one that was published: this
+# puts the install instructions on top of its notes and the installers
+# on it as the builds finish, some fifteen to twenty minutes later. A
+# failed build leaves the release without its installers until the
+# failed job is rerun. Run by hand instead, it builds everything as
+# workflow artifacts and touches no release, for trying the pipeline out.
 #
-# The app's releases are separate from the library's: those come from
-# leptos-rich-chat-v<version> tags, see publish-crate.yml.
+# The app's releases are separate from the library's: those are tagged
+# leptos-rich-chat-v<version>, see publish-crate.yml.
 #
 # The macOS build is signed and notarized when the repository has the
 # secrets for it (see .github/scripts/apple-credentials.sh for their
 # names) and is an unsigned build otherwise, which the release notes say.
 on:
-  push:
-    tags: ["app-v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
-  contents: write # the release and its assets
+  contents: write # the release's notes and assets
 
 concurrency:
   group: release-app-${{ github.ref }}
 
 jobs:
-  open:
-    name: Open the release
+  check:
+    name: Check the version
+    # Releases of the library come here too, and are skipped.
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'app-v')
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      release: ${{ steps.release.outputs.id }}
+    env:
+      TAG: ${{ github.event.release.tag_name }}
     steps:
       - uses: actions/checkout@v4
       # The tag has to say what the manifests say, or nothing is built.
       # (The runner's own cargo serves: the script only reads metadata.)
       - id: version
         run: |
-          if [ "$GITHUB_REF_TYPE" = tag ]; then set -- --tag "$GITHUB_REF_NAME"; fi
+          if [ "$GITHUB_EVENT_NAME" = release ]; then set -- --tag "$TAG"; fi
           .github/scripts/release-version.sh app-v rich-chat-desktop rich-chat-app "$@"
       # Which mode the macOS build will be in, from the script that puts
       # it there, so that the notes and the build agree.
@@ -58,37 +61,21 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: ${{ secrets.APPLE_API_KEY_PATH }}
         run: .github/scripts/apple-credentials.sh
-      # A draft, so that the release is not seen until every installer is
-      # on it. Rerun for the same tag, the draft is picked up again; a
-      # published release is left alone. (`gh release view` finds a draft
-      # by its tag as well.)
-      - id: release
-        if: github.event_name == 'push'
+      # The install table and the signing status go above the notes the
+      # Generate release notes button wrote. A rerun finds them there.
+      - if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
           MACOS_SIGNED: ${{ steps.apple.outputs.signed }}
           MACOS_NOTARIZED: ${{ steps.apple.outputs.notarized }}
         run: |
-          version=${{ steps.version.outputs.version }}
-          if release=$(gh release view "$GITHUB_REF_NAME" --json databaseId,isDraft 2>/dev/null); then
-            if [ "$(jq -r .isDraft <<< "$release")" != true ]; then
-              echo "::error::$GITHUB_REF_NAME is already released; delete the release to make it again."
-              exit 1
-            fi
-            id=$(jq -r .databaseId <<< "$release")
-            echo "Draft release $id for $GITHUB_REF_NAME exists; its assets will be replaced."
-          else
-            .github/scripts/release-notes.sh "$version" > notes.md
-            gh release create "$GITHUB_REF_NAME" --draft --title "Rich Chat $version" \
-              --notes-file notes.md --generate-notes
-            id=$(gh release view "$GITHUB_REF_NAME" --json databaseId --jq .databaseId)
-            echo "Opened draft release $id for $GITHUB_REF_NAME."
-          fi
-          echo "id=$id" >> "$GITHUB_OUTPUT"
+          gh release view "$TAG" --json body --jq .body | .github/scripts/release-body.sh "$VERSION" > notes.md
+          gh release edit "$TAG" --notes-file notes.md
 
   build:
     name: Build for ${{ matrix.name }}
-    needs: open
+    needs: check
     strategy:
       fail-fast: false
       matrix:
@@ -133,25 +120,14 @@ jobs:
         run: .github/scripts/apple-credentials.sh
       # Runs `tauri build`, which runs Trunk for the frontend first (the
       # beforeBuildCommand in tauri.conf.json), then uploads the bundles
-      # to the draft release, or only as workflow artifacts on a trial run.
+      # to the release, or only as workflow artifacts on a trial run.
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           projectPath: app
-          releaseId: ${{ needs.open.outputs.release }}
+          releaseId: ${{ github.event.release.id }}
           uploadWorkflowArtifacts: true
           uploadUpdaterJson: false
           args: ${{ matrix.target != '' && format('--target {0}', matrix.target) || '' }}
 
-  publish:
-    name: Publish the release
-    needs: [open, build]
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          url=$(gh release edit "$GITHUB_REF_NAME" --draft=false)
-          echo "Released: $url" | tee -a "$GITHUB_STEP_SUMMARY"

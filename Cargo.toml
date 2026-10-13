@@ -3,6 +3,10 @@ resolver = "3"
 members = ["leptos-rich-chat", "app", "app/src-tauri"]
 
 [workspace.package]
+# The app's version: app/Cargo.toml and app/src-tauri/Cargo.toml take it
+# from here, and tauri.conf.json from them, so a release of the app is one
+# edit. The library keeps its own, in leptos-rich-chat/Cargo.toml.
+version = "0.1.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/wpm/Rich-Chat"

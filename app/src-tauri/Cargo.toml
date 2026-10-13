@@ -1,6 +1,6 @@
 [package]
 name = "rich-chat-desktop"
-version = "0.1.0"
+version.workspace = true
 description = "The Tauri shell around the rich-chat test window"
 edition.workspace = true
 license.workspace = true
