@@ -51,6 +51,17 @@
   overflow-wrap: anywhere;
 }
 
+/* The dots of a message that is thinking. One line of text tall, so a
+ * bubble keeps its height when the first word replaces them; at the top
+ * of the line, since on the baseline the line would also make room
+ * below it for descenders. */
+.rc-thinking {
+  display: inline-flex;
+  align-items: center;
+  height: 1lh;
+  vertical-align: top;
+}
+
 /* ---- Rendered Markdown ------------------------------------------------ */
 
 .rc-rich {

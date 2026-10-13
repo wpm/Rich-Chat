@@ -42,10 +42,22 @@
 //! half-typed `` `code` `` span) are closed for display, so the preview
 //! shows what the text is becoming rather than flickering.
 //!
+//! # Thinking
+//!
+//! A live message whose text is still empty is thinking: its bubble
+//! shows the [`Thinking`] dots until the first character arrives, and
+//! then the same bubble fills with text. Push a [`Message::streaming`]
+//! with an empty signal when the reply is asked for; nothing else marks
+//! it. The transcript keys on `(id, live)`, so the dots become text in
+//! place. Several speakers may think at once, each its own message. The
+//! dots sit where the reply will land; a host that wants them pinned to
+//! the bottom derives `transcript ++ thinkers` for `messages`.
+//!
 //! # Pieces
 //!
 //! [`Chat`] is the whole window; [`Composer`], [`MessageView`],
-//! [`RichText`], and [`CodeBlock`] are its parts, each usable alone. The
+//! [`RichText`], [`CodeBlock`], and [`Thinking`] are its parts, each
+//! usable alone. The
 //! [`render`] module is the pure Markdown-to-HTML core, with no DOM
 //! dependency, for tests and for hosts that are not Leptos.
 //!
@@ -84,7 +96,8 @@
 //!
 //! The words in the interface are props too: the composer's
 //! `placeholder`, `hint`, `preview_label`, and `send` content, the
-//! transcript's `empty` text, and the copy button's [`CodeLabels`].
+//! transcript's `empty` text and `thinking_label`, and the copy
+//! button's [`CodeLabels`].
 //! Whether the transcript writes names over its bubbles is `show_names`.
 //!
 //! # Features
@@ -104,7 +117,7 @@ pub mod render;
 pub mod style;
 
 pub use components::{
-    Chat, CodeBlock, CodeLabels, Composer, MessageView, RichChatStyle, RichText, warm_up,
+    Chat, CodeBlock, CodeLabels, Composer, MessageView, RichChatStyle, RichText, Thinking, warm_up,
 };
 pub use message::{Body, Message};
 pub use names::{Look, Names, Position};

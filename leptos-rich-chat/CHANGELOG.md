@@ -9,6 +9,26 @@ version is 0, a minor release may change the API.
 
 ### Added
 
+- A live message whose text is still empty is thinking: its bubble
+  shows three bobbing dots until the first character arrives, and then
+  the same bubble fills with text, in place, since the transcript's key,
+  `(id, live)`, does not change. There is no new field on `Message` and
+  no new prop to turn it on. Several speakers may think at once, each
+  its own message with its own side and colors; each set of dots starts
+  its cycle when it is inserted, so they bob out of step. The dots sit
+  where the reply will land; a host that wants them pinned to the bottom
+  derives `transcript ++ thinkers` for `messages`.
+- `Thinking`, the dots themselves: a `span.rc-thinking` with
+  `role="img"`, named by its `label` prop, around three `span`s. Public,
+  for a `Body::View` that wants them.
+- `MessageView` and `Chat` take `thinking_label`, what a screen reader
+  calls the dots, `"Thinking"` by default.
+- The structure stylesheet makes `.rc-thinking` one line of text tall,
+  `1lh`, so a bubble keeps its height when the first word lands. The
+  theme draws the dots in `currentColor`, staggered, with
+  `--rc-thinking-dot`, `--rc-thinking-gap` and `--rc-thinking-period`
+  on the root; under `prefers-reduced-motion: reduce` they fade instead
+  of bob. This is the crate's first animation.
 - `--rc-bubble-max-width`, the widest a bubble gets, is a custom
   property of the theme's, declared on the document root with the rest
   and read by `.rc-bubble`. Its default is the value the rule had,
