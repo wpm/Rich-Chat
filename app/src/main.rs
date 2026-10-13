@@ -4,7 +4,11 @@
 //! rendering.
 //!
 //! Above the chat is a bar of controls: the users, who can be added and
-//! removed; where the selected user's bubbles land and their color,
+//! removed, and whether the selected user is thinking, which puts their
+//! dancing dots in a bubble of their own at the end of the transcript
+//! until they send, when the dots become what they sent, dripped in a
+//! few characters at a time; where the selected user's bubbles land and
+//! their color,
 //! which changes every bubble of theirs; the widest a message gets, for
 //! every user at once; the window's background, the ground behind the
 //! bubbles alone; whether every bubble has its user's name over it, and
@@ -21,8 +25,10 @@
 mod controls;
 mod opener;
 mod settings;
+mod transcript;
 
 use std::fmt::Write;
+use std::time::Duration;
 
 use leptos::ev;
 use leptos::prelude::*;
@@ -31,6 +37,12 @@ use wasm_bindgen::JsCast;
 
 use crate::controls::Controls;
 use crate::settings::{ASSISTANT, Settings, Theme, USER};
+use crate::transcript::{Reply, Transcript, drip_end};
+
+/// How many characters of a reply are dripped into a thinking user's
+/// bubble at a time, and how often.
+const DRIP_STEP: usize = 6;
+const DRIP_EVERY: Duration = Duration::from_millis(30);
 
 /// How far below the composer's top edge a press still grabs it, in CSS
 /// pixels. The same as the hit zone the stylesheet draws.
@@ -86,18 +98,22 @@ fn App() -> impl IntoView {
         }
     });
 
-    // Every message sent is from the selected user.
-    let messages = RwSignal::new(vec![
+    // Every message sent is from the selected user: a bubble of its own,
+    // or, if they are thinking, into the bubble their dots are in.
+    let transcript = RwSignal::new(Transcript::new(vec![
         Message::new("welcome", ASSISTANT, WELCOME),
         Message::new("welcome-markdown", USER, WELCOME_MARKDOWN),
         Message::new("welcome-code", ASSISTANT, WELCOME_CODE),
         Message::new("welcome-math", USER, WELCOME_MATH),
-    ]);
+    ]));
+    let messages = Signal::derive(move || transcript.read().messages().to_vec());
     let sender = Signal::derive(move || settings.read().selected().to_string());
     let send = move |text: String| {
         let from = sender.get_untracked();
-        let id = format!("m{}", messages.read_untracked().len());
-        messages.update(|all| all.push(Message::new(id, from, text)));
+        let reply = transcript.try_update(|transcript| transcript.send(&from, text.clone()));
+        if let Some(reply) = reply.flatten() {
+            drip(transcript, reply, text, 0);
+        }
     };
 
     // Where each user's bubbles go and their colors, for the library's
@@ -191,7 +207,13 @@ fn App() -> impl IntoView {
             on:pointerup=release
             on:pointercancel=release
         >
-            <Controls settings=settings theme=theme busy=busy disabled=disabled />
+            <Controls
+                settings=settings
+                transcript=transcript
+                theme=theme
+                busy=busy
+                disabled=disabled
+            />
             <Chat
                 messages=messages
                 on_send=send
@@ -202,6 +224,19 @@ fn App() -> impl IntoView {
                 disabled=disabled
             />
         </main>
+    }
+}
+
+/// Writes `text` into a thinking user's bubble a few characters at a
+/// time from `from`, as a model's reply streams in, and makes the bubble
+/// final once it is all there.
+fn drip(transcript: RwSignal<Transcript>, reply: Reply, text: String, from: usize) {
+    let to = drip_end(&text, from, DRIP_STEP);
+    reply.text.set(text[..to].to_string());
+    if to == text.len() {
+        transcript.update(|transcript| transcript.finish(reply.id));
+    } else {
+        set_timeout(move || drip(transcript, reply, text, to), DRIP_EVERY);
     }
 }
 

@@ -75,6 +75,42 @@ messages.update(|all| {
 A live message is rendered as a draft, so an equation shows as math
 before its closing `$$` has arrived.
 
+### Thinking
+
+A live message whose text is still empty is thinking. Its bubble shows
+three bobbing dots until the first character arrives, and then the same
+bubble fills with text. There is no flag to set: push the
+`Message::streaming` with an empty signal as soon as the reply is
+asked for, and write to the signal when it starts. The transcript keys
+on `(id, live)`, which does not change when text arrives, so the dots
+become text in place, with no rebuild and no jump.
+
+Several speakers can think at once. Each is its own message, with its
+own name, so each gets its side and colors from `Names`, and each set
+of dots starts its cycle when it is inserted, so two thinkers bob out
+of step.
+
+The dots sit where the reply will land. A host that wants them pinned
+to the bottom instead, as a messaging app's "typing…" is, keeps its
+thinkers apart from its transcript and hands `Chat` both:
+
+```rust
+let shown = Signal::derive(move || {
+    let mut all = transcript.get();
+    all.extend(thinkers.get());
+    all
+});
+view! { <Chat messages=shown on_send=send /> }
+```
+
+The dots are a `span.rc-thinking` with `role="img"`, named
+`thinking_label`, "Thinking" unless the host says otherwise. They are
+drawn in `currentColor`, the ink of the bubble they sit in; their size,
+spacing and period are `--rc-thinking-dot`, `--rc-thinking-gap` and
+`--rc-thinking-period`; and a reader who prefers reduced motion sees
+them fade instead of bob. The `Thinking` component is public, for a
+`Body::View` that wants the same dots.
+
 ### Bodies
 
 A message's `body` is a `Body`: `Body::Text`, the Markdown above, which
@@ -178,6 +214,7 @@ Tauri's opener plugin.
 | `MessageView`   | one message, placed and colored by its name, and named on request                |
 | `RichText`      | any Markdown, from a `Signal<String>`                                            |
 | `CodeBlock`     | one highlighted block with label and copy button                                 |
+| `Thinking`      | the three bobbing dots of a message that is thinking                             |
 
 The `render` module underneath is plain Rust with no DOM dependency:
 `render_html(markdown, &options)` gives sanitized HTML,

@@ -1,4 +1,5 @@
-//! The bar above the chat: the users, the selected user's bubbles, the
+//! The bar above the chat: the users and whether the selected one is
+//! thinking, the selected user's bubbles, the
 //! widest a message gets, the window's background, whether bubbles are
 //! named and how big the name is, whether the chat is busy or disabled,
 //! the theme.
@@ -6,9 +7,9 @@
 //! Each control edits the app's [`Settings`]; the app root turns those
 //! into the library's table of names and its `show_names`, the root
 //! element's theme attribute, and custom properties for the stylesheets.
-//! The Busy and Disabled switches are the exception: each is a state of
-//! the conversation, not a choice to keep, so it is a signal of its own
-//! and starts off.
+//! The Thinking, Busy and Disabled switches are the exception: each is a
+//! state of the conversation, not a choice to keep, so it is kept apart
+//! from the settings and starts off. Thinking is the [`Transcript`]'s.
 
 use leptos::ev;
 use leptos::prelude::*;
@@ -17,6 +18,7 @@ use crate::settings::{
     BubbleWidth, SENDER_SIZE_MAX, SENDER_SIZE_MIN, SENDER_SIZE_STEP, Settings, Side, Theme, User,
     parse_sender_size,
 };
+use crate::transcript::Transcript;
 
 /// The controls. `theme` is the one in effect, which is the chosen one
 /// or, until one is chosen, the system's. `busy` and `disabled` are the
@@ -25,6 +27,7 @@ use crate::settings::{
 #[component]
 pub fn Controls(
     settings: RwSignal<Settings>,
+    transcript: RwSignal<Transcript>,
     theme: Signal<Theme>,
     busy: RwSignal<bool>,
     disabled: RwSignal<bool>,
@@ -45,7 +48,19 @@ pub fn Controls(
         settings.update(|settings| settings.select(&name));
     };
     let can_delete = move || settings.read().can_delete();
-    let delete = move |_| settings.update(|settings| settings.delete_selected());
+    // A deleted user who was thinking takes their dots with them.
+    let delete = move |_| {
+        let name = selected.get_untracked().name;
+        settings.update(|settings| settings.delete_selected());
+        transcript.update(|transcript| transcript.stop_thinking(&name));
+    };
+
+    // Whether the selected user is thinking, which follows the selection.
+    let thinking = move || transcript.read().is_thinking(&selected.read().name);
+    let toggle_thinking = move |_| {
+        let name = selected.get_untracked().name;
+        transcript.update(|transcript| transcript.toggle_thinking(&name));
+    };
 
     // A new user, typed then added with the button or Enter.
     let new_name = RwSignal::new(String::new());
@@ -172,6 +187,16 @@ pub fn Controls(
                     on:click=move |_| add()
                 >
                     "Add"
+                </button>
+                <button
+                    type="button"
+                    class="control-button control-toggle control-thinking"
+                    role="switch"
+                    aria-checked=move || thinking().to_string()
+                    title="Show the selected user thinking, in a bubble of their own until they send"
+                    on:click=toggle_thinking
+                >
+                    "Thinking"
                 </button>
             </div>
             <div class="control-group" role="group" aria-label="Bubble side">

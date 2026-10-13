@@ -43,7 +43,10 @@ injects the stylesheets and fonts once; place it anywhere. A message is
 a `Message`: `Message::new(id, name, markdown)` for finished text,
 `Message::streaming(id, name, signal)` for text still arriving, which
 renders as a draft while it grows, and `Message::view(id, name, view)`
-for a body you draw yourself, in place of the bubble.
+for a body you draw yourself, in place of the bubble. A streaming
+message whose text is still empty is thinking: its bubble shows three
+bobbing dots until the first character arrives, then fills with text in
+place.
 
 Everything about the crate is set in one of four places: props on
 `Chat`, props on `RichChatStyle`, CSS custom properties, and Cargo
@@ -67,6 +70,7 @@ features.
 | `disabled`      | `Signal<bool>`           | `false`                                  | The composer off: the text box is disabled, there is no preview, nothing sends. The draft is kept.       |
 | `busy`          | `Signal<bool>`           | `false`                                  | A reply in flight: the text box and preview carry on, but nothing sends until it clears. The draft is kept. |
 | `busy_label`    | `String`                 | `"Sending is paused"`                    | What a screen reader is told while `busy` holds a send back.                                             |
+| `thinking_label` | `String`                | `"Thinking"`                             | What a screen reader calls the dots of a message that is thinking: live, with no text yet.               |
 | `options`       | `RenderOptions`          | everything on                            | What the Markdown renderer does; see below.                                                              |
 | `on_link`       | `Callback<String>`       | links open in a new browsing context     | Receives a link's destination instead of following it. A Tauri window hands this to its opener plugin.   |
 | `warm_up`       | `bool`                   | `true`                                   | Compiles the common languages' grammars in idle time after mount, so the first code block does not pause. |
@@ -143,6 +147,7 @@ follows `prefers-color-scheme` unless the document sets
 | `--rc-selection`        | The selection highlight.                                                                      |
 | `--rc-alert-note`, `-tip`, `-important`, `-warning`, `-caution` | The five GitHub alert colors.                                         |
 | `--rc-error`            | A math error, where an equation would not parse.                                              |
+| `--rc-thinking-dot`, `-gap`, `-period` | The thinking dots' size, the space between them, and how long one bob takes.   |
 
 ```css
 .rc-chat { --rc-accent: #7c3aed; --rc-tint-bg: #ede9fe; --rc-chat-bg: #fff8e7; }
@@ -170,6 +175,7 @@ they share them:
 | `MessageView` | One message, placed and colored by its name, and named on request.                         |
 | `RichText`    | Any Markdown, from a `Signal<String>`.                                                     |
 | `CodeBlock`   | One highlighted block with language label and copy button.                                 |
+| `Thinking`    | The three bobbing dots, with a `label` for screen readers, for a body you draw yourself.    |
 
 The copy button's words are a `CodeLabels { copy, copied }` provided as
 context, so one `provide_context` changes them everywhere. The `render`

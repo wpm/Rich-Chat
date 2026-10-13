@@ -17,7 +17,11 @@
 // it, adding and deleting a user, the theme switch, dragging the text
 // box taller, the Width slider widening every user's wrapped bubbles at
 // once up to the transcript's edges, and that all of it survives a
-// reload. Last, that the transcript keeps its end in view:
+// reload. Then the Thinking switch: two users thinking at once, out of
+// step, the dots turning into a reply in the same bubble, above the
+// other user's dots, which are still dancing, a bubble that keeps its
+// height, the fade for a reader who asks for less motion, and a deleted
+// user's dots going with them. Last, that the transcript keeps its end in view:
 // through a burst of messages, a growing composer, and
 // a shrinking window, but not for a reader who has scrolled up.
 // Screenshots land in ./screenshots for a human to look at.
@@ -830,6 +834,100 @@ try {
     await page.click('.control-theme');
     await page.waitForTimeout(100);
     check((await chatBackground()) === 'rgb(13, 17, 23)', 'and the window follows the switch to dark');
+
+    check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
+    await page.close();
+  }
+
+  // Thinking: an empty live bubble shows dots until its text arrives.
+  {
+    const page = await browser.newPage({ colorScheme: 'light', viewport: { width: 1000, height: 900 } });
+    const errors = [];
+    page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+    page.on('pageerror', (error) => errors.push(String(error)));
+    console.log('\nthinking');
+    await page.goto(origin, { waitUntil: 'networkidle' });
+    await page.waitForSelector('.rc-composer-input');
+
+    const thinkingOn = () => page.$eval('.control-thinking', (el) => el.getAttribute('aria-checked') === 'true');
+    const toggleThinking = async () => {
+      await page.click('.control-thinking');
+      await page.waitForTimeout(100);
+    };
+    const choose = async (name) => {
+      await page.selectOption('.control-users', name);
+      await page.waitForTimeout(100);
+    };
+    // Who is thinking, in transcript order.
+    const thinkers = () => page.$$eval('.rc-message', (rows) => rows.filter((row) => row.querySelector('.rc-thinking')).map((row) => row.dataset.name));
+    const thinkingBubble = (name) => `.rc-message[data-name="${name}"]:has(.rc-thinking) .rc-bubble`;
+
+    check(!(await thinkingOn()), 'no one starts out thinking');
+    check((await page.$$('.rc-thinking')).length === 0, 'and there are no dots');
+
+    await choose('Assistant');
+    await toggleThinking();
+    check(await thinkingOn(), 'the Thinking switch turns on for the assistant');
+    check(JSON.stringify(await thinkers()) === '["Assistant"]', 'and the assistant\'s dots appear');
+    check((await page.$$('.rc-message')).length === TOUR + 1, 'in a bubble of their own at the end');
+    check((await page.$$eval('.rc-thinking > span', (els) => els.length)) === 3, 'three dots');
+    check((await page.$eval('.rc-thinking', (el) => `${el.getAttribute('role')}|${el.getAttribute('aria-label')}`)) === 'img|Thinking', 'named for a screen reader');
+    check((await page.$eval('.rc-thinking > span', (el) => getComputedStyle(el).animationName)) === 'rc-thinking-bob', 'and bobbing');
+    const dotColor = await page.$eval('.rc-thinking > span', (el) => getComputedStyle(el).backgroundColor);
+    const inkColor = await page.$eval(thinkingBubble('Assistant'), (el) => getComputedStyle(el).color);
+    check(dotColor === inkColor, `in the bubble's ink (${dotColor})`);
+    const thinkingHeight = await page.$eval(thinkingBubble('Assistant'), (el) => el.getBoundingClientRect().height);
+
+    await choose('User');
+    check(!(await thinkingOn()), 'the switch follows the selection');
+    await toggleThinking();
+    check(JSON.stringify(await thinkers()) === '["Assistant","User"]', 'two users think at once');
+    const phases = await page.$$eval('.rc-thinking > span:first-child', (els) => els.map((el) => el.getAnimations()[0]?.currentTime));
+    check(phases.length === 2 && Math.abs(phases[0] - phases[1]) > 50, `out of step (${phases.map(Math.round).join(', ')} ms)`);
+    await page.screenshot({ path: `${shots}/thinking-0-two.png` });
+
+    // The assistant replies: the dots become the text, in the same bubble,
+    // above the user's dots, which carry on. The reply is long enough to
+    // still be arriving when it is looked at.
+    await page.$eval(thinkingBubble('Assistant'), (el) => { el.dataset.check = 'same'; });
+    await choose('Assistant');
+    check(await thinkingOn(), 'the switch shows the assistant still thinking');
+    const reply = 'Here is what I came up with. '.repeat(12).trim();
+    await type(page, reply);
+    await page.press('.rc-composer-input', 'Enter');
+    await page.waitForTimeout(60);
+    const midway = await page.$eval('[data-check="same"]', (el) => ({ connected: el.isConnected, text: el.textContent, dots: !!el.querySelector('.rc-thinking') }));
+    check(midway.connected && !midway.dots && midway.text.startsWith('Here is') && midway.text.length < reply.length,
+      `the dots turn into text in place, in the same bubble, as it arrives (${midway.text.length} of ${reply.length})`);
+    check(!(await thinkingOn()), 'the assistant is no longer thinking');
+    await page.waitForFunction((reply) => [...document.querySelectorAll('.rc-message[data-name="Assistant"] .rc-bubble')].some((el) => el.textContent.trim() === reply), reply);
+    check(JSON.stringify(await thinkers()) === '["User"]', 'and the user\'s dots remain');
+    check((await page.$$('.rc-message')).length === TOUR + 2, 'with no bubble added for the reply');
+    const order = await page.$$eval('.rc-message', (rows, reply) => rows.slice(-2).map((row) => (row.querySelector('.rc-thinking') ? 'dots' : row.textContent.trim() === reply ? 'reply' : '?')).join(), reply);
+    check(order === 'reply,dots', `the reply is above the user's dots (${order})`);
+    await page.screenshot({ path: `${shots}/thinking-1-replied.png` });
+
+    // A thinking bubble is one line tall, as a one-line message is.
+    await choose('User');
+    await type(page, 'ok');
+    await page.press('.rc-composer-input', 'Enter');
+    await page.waitForFunction(() => document.querySelectorAll('.rc-thinking').length === 0);
+    const lineHeight = await page.$eval('.rc-message:last-child .rc-bubble', (el) => el.getBoundingClientRect().height);
+    check(Math.abs(lineHeight - thinkingHeight) < 1, `a thinking bubble is as tall as a line of text (${thinkingHeight} and ${lineHeight})`);
+    check((await page.$$('.rc-message')).length === TOUR + 2, 'and the user\'s reply is in their bubble too');
+
+    // Less motion: the dots fade instead.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await toggleThinking();
+    check((await page.$eval('.rc-thinking > span', (el) => getComputedStyle(el).animationName)) === 'rc-thinking-fade', 'with reduced motion the dots fade instead of bob');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+    // Deleting a thinking user takes their dots.
+    const before = (await page.$$('.rc-message')).length;
+    await page.click('.control-delete');
+    await page.waitForTimeout(100);
+    check((await page.$$('.rc-thinking')).length === 0, 'deleting a thinking user removes their dots');
+    check((await page.$$('.rc-message')).length === before - 1, 'and their bubble');
 
     check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
     await page.close();

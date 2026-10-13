@@ -480,6 +480,45 @@ mod tests {
         );
     }
 
+    /// The thinking dots are one line of text tall, so a bubble does
+    /// not change height when its first word replaces them; that is the
+    /// structure's. How they look and move is the theme's, in tokens on
+    /// the root, with a fade instead of the bob for a reader who asks
+    /// for less motion.
+    #[test]
+    fn the_thinking_dots_are_a_line_tall_and_themed() {
+        let structure = rule(STRUCTURE, ".rc-thinking");
+        for declaration in [
+            "display: inline-flex;",
+            "align-items: center;",
+            "height: 1lh;",
+            "vertical-align: top;",
+        ] {
+            assert!(structure.contains(declaration), "{structure}");
+        }
+        let root = rule(THEME, ":root");
+        for token in [
+            "--rc-thinking-dot:",
+            "--rc-thinking-gap:",
+            "--rc-thinking-period:",
+        ] {
+            assert!(root.contains(token), "the root lacks {token}");
+        }
+        let dot = rule(THEME, ".rc-thinking > span");
+        assert!(dot.contains("background: currentColor;"), "{dot}");
+        assert!(dot.contains("var(--rc-thinking-period)"), "{dot}");
+        assert!(THEME.contains("animation-delay"), "the dots are staggered");
+        let reduced = THEME
+            .split("@media (prefers-reduced-motion: reduce)")
+            .nth(1)
+            .expect("a fallback for reduced motion");
+        assert!(reduced.contains(".rc-thinking > span"), "{reduced}");
+        assert!(
+            reduced.contains("animation-name: rc-thinking-fade;"),
+            "{reduced}"
+        );
+    }
+
     /// A host's reset takes whatever list markers the theme leaves to the
     /// browser: layer order only arbitrates declarations both sides make.
     #[test]

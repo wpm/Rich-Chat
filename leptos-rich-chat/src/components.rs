@@ -250,6 +250,32 @@ fn copy_to_clipboard(text: &str) {
     }
 }
 
+/// Three dots that bob while someone is thinking: a
+/// `span.rc-thinking` with the `img` role, named by `label` for a screen
+/// reader, around three empty `span`s.
+///
+/// [`MessageView`] shows it in a live message's bubble until the first
+/// character arrives; it is public so that a [`Body::View`] can show it
+/// too. The dots are drawn in `currentColor`, so they take the ink of
+/// whatever they sit in. Each starts its cycle when it is inserted, so
+/// two thinkers bob out of step. The theme's tokens for them are
+/// `--rc-thinking-dot`, `--rc-thinking-gap` and `--rc-thinking-period`,
+/// and a reader who prefers reduced motion sees them fade instead.
+#[component]
+pub fn Thinking(
+    /// What a screen reader calls the dots.
+    #[prop(default = "Thinking".to_string(), into)]
+    label: String,
+) -> impl IntoView {
+    view! {
+        <span class="rc-thinking" role="img" aria-label=label>
+            <span></span>
+            <span></span>
+            <span></span>
+        </span>
+    }
+}
+
 /// One message in the transcript. The outer `div.rc-message` carries the
 /// message's name as `data-name`, which the host's [`Names`] rules place
 /// and color. With `show_names`, the name is written over the body, in a
@@ -264,6 +290,12 @@ fn copy_to_clipboard(text: &str) {
 /// the bubble around its own body gives its root element
 /// `class="rc-bubble"`, and the name's colors and tail land on it.
 /// `options` and `on_link` apply to Markdown bodies only.
+///
+/// A live Markdown message whose text is still empty is thinking: its
+/// bubble shows the [`Thinking`] dots, named by `thinking_label`, until
+/// the first character arrives, and then the same bubble fills with
+/// text. The dots sit beside the text rather than in its place, so
+/// nothing is rebuilt when they go.
 #[component]
 pub fn MessageView(
     /// The message.
@@ -280,12 +312,19 @@ pub fn MessageView(
     /// A reference to the outer `div.rc-message`.
     #[prop(optional)]
     node_ref: NodeRef<html::Div>,
+    /// What a screen reader calls the dots of a message that is thinking.
+    #[prop(default = "Thinking".to_string(), into)]
+    thinking_label: String,
 ) -> impl IntoView {
     let name = message.name.clone();
+    let live = message.live;
     let body = match message.body {
         Body::Text(content) => view! {
             <div class="rc-bubble">
-                <RichText content=content draft=message.live options=options on_link=on_link />
+                <Show when=move || live && content.read().is_empty()>
+                    <Thinking label=thinking_label.clone() />
+                </Show>
+                <RichText content=content draft=live options=options on_link=on_link />
             </div>
         }
         .into_any(),
@@ -1058,6 +1097,10 @@ pub fn Chat(
     /// a signal, for a host that lets the reader switch it.
     #[prop(optional, into)]
     show_names: Signal<bool>,
+    /// What a screen reader calls the dots of a message that is
+    /// thinking: one that is live and still empty. See [`MessageView`].
+    #[prop(default = "Thinking".to_string(), into)]
+    thinking_label: String,
     /// Compile the common languages' grammars in idle time after mount,
     /// so the first code block renders without a pause. See [`warm_up`].
     #[prop(default = true)]
@@ -1096,6 +1139,7 @@ pub fn Chat(
                                 options=body_options.clone()
                                 on_link=on_link
                                 node_ref=wrapper
+                                thinking_label=thinking_label.clone()
                             />
                         }
                     }
@@ -1357,6 +1401,76 @@ mod tests {
             || view! { <MessageView message=Message::streaming("s", "bob", text).finished() /> },
         );
         assert!(!done.contains("<math"), "{done}");
+    }
+
+    #[test]
+    fn thinking_is_a_named_image_of_three_dots() {
+        let out = html(|| view! { <Thinking /> });
+        assert_eq!(
+            out,
+            "<span role=\"img\" aria-label=\"Thinking\" class=\"rc-thinking\">\
+             <span></span><span></span><span></span></span>",
+        );
+        let named = html(|| view! { <Thinking label="Réfléchit" /> });
+        assert!(named.contains("aria-label=\"Réfléchit\""), "{named}");
+    }
+
+    #[test]
+    fn an_empty_live_bubble_is_thinking() {
+        let text = RwSignal::new(String::new());
+        let out = html(|| view! { <MessageView message=Message::streaming("t", "bob", text) /> });
+        let bubble = out
+            .find("<div class=\"rc-bubble\">")
+            .unwrap_or_else(|| panic!("{out}"));
+        let dots = out
+            .find("<span role=\"img\" aria-label=\"Thinking\" class=\"rc-thinking\">")
+            .unwrap_or_else(|| panic!("{out}"));
+        let rich = out
+            .find("class=\"rc-rich\"")
+            .unwrap_or_else(|| panic!("{out}"));
+        assert!(
+            bubble < dots && dots < rich,
+            "the dots are in the bubble, beside the text that will replace them: {out}"
+        );
+
+        let named = html(|| {
+            view! { <MessageView message=Message::streaming("t", "bob", text) thinking_label="Pensando" /> }
+        });
+        assert!(named.contains("aria-label=\"Pensando\""), "{named}");
+    }
+
+    #[test]
+    fn only_an_empty_live_bubble_is_thinking() {
+        let text = RwSignal::new(String::new());
+        let finished = html(
+            || view! { <MessageView message=Message::streaming("t", "bob", text).finished() /> },
+        );
+        assert!(!finished.contains("rc-thinking"), "{finished}");
+        let empty = html(|| view! { <MessageView message=Message::new("t", "bob", "") /> });
+        assert!(!empty.contains("rc-thinking"), "{empty}");
+
+        text.set("Hel".to_string());
+        let speaking =
+            html(|| view! { <MessageView message=Message::streaming("t", "bob", text) /> });
+        assert!(!speaking.contains("rc-thinking"), "{speaking}");
+        assert!(speaking.contains("<p>Hel</p>"), "{speaking}");
+    }
+
+    #[test]
+    fn chat_shows_every_thinker_with_its_label() {
+        let messages = vec![
+            Message::new("1", "me", "Anyone?"),
+            Message::streaming("2", "alice", RwSignal::new(String::new())),
+            Message::streaming("3", "bob", RwSignal::new(String::new())),
+        ];
+        let out = html(|| {
+            view! { <Chat messages=messages.clone() on_send=|_: String| {} /> }
+        });
+        assert_eq!(out.matches("aria-label=\"Thinking\"").count(), 2, "{out}");
+        let named = html(|| {
+            view! { <Chat messages=messages on_send=|_: String| {} thinking_label="Typing" /> }
+        });
+        assert_eq!(named.matches("aria-label=\"Typing\"").count(), 2, "{named}");
     }
 
     #[test]
