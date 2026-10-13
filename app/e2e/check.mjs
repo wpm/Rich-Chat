@@ -118,6 +118,13 @@ async function type(page, text) {
   await page.waitForTimeout(150);
 }
 
+/** Types `text` into the composer and sends it with Enter. */
+async function sendText(page, text) {
+  await type(page, text);
+  await page.press('.rc-composer-input', 'Enter');
+  await page.waitForTimeout(200);
+}
+
 // The bubbles the window opens on: the introduction, then the tour of
 // Markdown, code and math.
 // Every count of messages below is this many plus what the test sent, and
@@ -390,11 +397,7 @@ try {
       };
     }));
     const boxHeight = () => page.$eval('.rc-composer-input', (el) => el.getBoundingClientRect().height);
-    const send = async (text) => {
-      await type(page, text);
-      await page.press('.rc-composer-input', 'Enter');
-      await page.waitForTimeout(200);
-    };
+    const send = (text) => sendText(page, text);
 
     await page.goto(origin, { waitUntil: 'networkidle' });
     await page.waitForSelector('.rc-composer-input');
@@ -909,8 +912,7 @@ try {
 
     // A thinking bubble is one line tall, as a one-line message is.
     await choose('User');
-    await type(page, 'ok');
-    await page.press('.rc-composer-input', 'Enter');
+    await sendText(page, 'ok');
     await page.waitForFunction(() => document.querySelectorAll('.rc-thinking').length === 0);
     const lineHeight = await page.$eval('.rc-message:last-child .rc-bubble', (el) => el.getBoundingClientRect().height);
     check(Math.abs(lineHeight - thinkingHeight) < 1, `a thinking bubble is as tall as a line of text (${thinkingHeight} and ${lineHeight})`);
@@ -947,11 +949,7 @@ try {
       const last = [...document.querySelectorAll('.rc-message')].at(-1).getBoundingClientRect();
       return last.bottom <= pane.bottom;
     });
-    const send = async (text) => {
-      await type(page, text);
-      await page.press('.rc-composer-input', 'Enter');
-      await page.waitForTimeout(200);
-    };
+    const send = (text) => sendText(page, text);
 
     await page.goto(origin, { waitUntil: 'networkidle' });
     await page.waitForSelector('.rc-composer-input');

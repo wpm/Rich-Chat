@@ -232,9 +232,11 @@ fn App() -> impl IntoView {
 /// final once it is all there.
 fn drip(transcript: RwSignal<Transcript>, reply: Reply, text: String, from: usize) {
     let to = drip_end(&text, from, DRIP_STEP);
-    reply.text.set(text[..to].to_string());
+    reply
+        .text
+        .update(|written| written.push_str(&text[from..to]));
     if to == text.len() {
-        transcript.update(|transcript| transcript.finish(reply.id));
+        transcript.update(|transcript| transcript.finish(&reply.id));
     } else {
         set_timeout(move || drip(transcript, reply, text, to), DRIP_EVERY);
     }

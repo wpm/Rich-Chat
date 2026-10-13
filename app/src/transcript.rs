@@ -10,27 +10,20 @@
 use leptos::prelude::*;
 use leptos_rich_chat::Message;
 
-/// A user's live bubble while they are thinking.
-#[derive(Clone, Copy)]
-struct Thinker {
-    /// Where the bubble is: its id is the message's.
-    id: usize,
-    text: RwSignal<String>,
-}
-
-/// A send into a thinking user's bubble: the text arrives through `text`
-/// while the bubble is live, then [`Transcript::finish`] with `id` makes
-/// it final.
-#[derive(Clone, Copy)]
+/// A thinking user's bubble: the id of its message and the text that
+/// fills it. Sending as them hands it back, for the text to arrive
+/// through `text` while the bubble is live, until [`Transcript::finish`]
+/// with `id` makes it final.
+#[derive(Clone)]
 pub struct Reply {
-    pub id: usize,
+    pub id: String,
     pub text: RwSignal<String>,
 }
 
 pub struct Transcript {
     messages: Vec<Message>,
     /// The thinking users by name, in the order they started.
-    thinking: Vec<(String, Thinker)>,
+    thinking: Vec<(String, Reply)>,
     /// The number in the next message's id. Ids are never reused, even
     /// once a bubble is removed, since the transcript keys on them.
     next: usize,
@@ -53,18 +46,20 @@ impl Transcript {
     }
 
     pub fn is_thinking(&self, name: &str) -> bool {
-        self.thinker(name).is_some()
+        self.thinking.iter().any(|(thinking, _)| thinking == name)
     }
 
-    fn thinker(&self, name: &str) -> Option<Thinker> {
-        self.thinking
+    /// Stops `name` thinking, handing back their bubble.
+    fn take_thinker(&mut self, name: &str) -> Option<Reply> {
+        let at = self
+            .thinking
             .iter()
-            .find(|(thinking, _)| thinking == name)
-            .map(|&(_, thinker)| thinker)
+            .position(|(thinking, _)| thinking == name)?;
+        Some(self.thinking.remove(at).1)
     }
 
-    fn take_id(&mut self) -> usize {
-        let id = self.next;
+    fn take_id(&mut self) -> String {
+        let id = format!("m{}", self.next);
         self.next += 1;
         id
     }
@@ -78,17 +73,15 @@ impl Transcript {
             let id = self.take_id();
             let text = RwSignal::new(String::new());
             self.messages
-                .push(Message::streaming(message_id(id), name, text));
-            self.thinking.push((name.to_string(), Thinker { id, text }));
+                .push(Message::streaming(id.clone(), name, text));
+            self.thinking.push((name.to_string(), Reply { id, text }));
         }
     }
 
     /// Removes `name`'s thinking bubble, if they have one.
     pub fn stop_thinking(&mut self, name: &str) {
-        if let Some(thinker) = self.thinker(name) {
-            self.thinking.retain(|(thinking, _)| thinking != name);
-            let id = message_id(thinker.id);
-            self.messages.retain(|message| message.id != id);
+        if let Some(thinker) = self.take_thinker(name) {
+            self.messages.retain(|message| message.id != thinker.id);
         }
     }
 
@@ -97,29 +90,20 @@ impl Transcript {
     /// back their bubble, for the caller to write `text` into; it stays
     /// where it is, and live until [`finish`](Self::finish).
     pub fn send(&mut self, name: &str, text: String) -> Option<Reply> {
-        if let Some(thinker) = self.thinker(name) {
-            self.thinking.retain(|(thinking, _)| thinking != name);
-            return Some(Reply {
-                id: thinker.id,
-                text: thinker.text,
-            });
+        let reply = self.take_thinker(name);
+        if reply.is_none() {
+            let id = self.take_id();
+            self.messages.push(Message::new(id, name, text));
         }
-        let id = self.take_id();
-        self.messages.push(Message::new(message_id(id), name, text));
-        None
+        reply
     }
 
     /// Makes the bubble with `id` final.
-    pub fn finish(&mut self, id: usize) {
-        let id = message_id(id);
+    pub fn finish(&mut self, id: &str) {
         if let Some(message) = self.messages.iter_mut().find(|message| message.id == id) {
-            *message = message.clone().finished();
+            message.live = false;
         }
     }
-}
-
-fn message_id(n: usize) -> String {
-    format!("m{n}")
 }
 
 /// Where the next piece of a reply being dripped into its bubble ends:
@@ -219,7 +203,7 @@ mod tests {
         let bubble = &transcript.messages()[2];
         assert_eq!(text(bubble), "done");
         assert!(bubble.live, "live until finished");
-        transcript.finish(reply.id);
+        transcript.finish(&reply.id);
         assert!(!transcript.messages()[2].live);
         assert_eq!(text(&transcript.messages()[2]), "done");
         assert!(transcript.messages()[3].live, "U's bubble is untouched");
