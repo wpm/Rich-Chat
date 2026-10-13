@@ -105,6 +105,12 @@ const focusIs = (page, selector) => page.evaluate((selector) => document.activeE
 /** Whether the switch `selector` finds is on. */
 const switchOn = (page, selector) => page.$eval(selector, (el) => el.getAttribute('aria-checked') === 'true');
 
+/** Clicks the switch `selector` finds, and waits `wait` ms for it to take. */
+async function flip(page, selector, wait = 100) {
+  await page.click(selector);
+  await page.waitForTimeout(wait);
+}
+
 /** Selects `name` in the users list. */
 async function chooseUser(page, name) {
   await page.selectOption('.control-users', name);
@@ -127,16 +133,6 @@ async function type(page, text) {
   await page.waitForTimeout(150);
 }
 
-/** A new page, in a context of its own, and the errors its console and
- * its scripts report, for the check that it stays clean. */
-async function openPage(options) {
-  const page = await browser.newPage(options);
-  const errors = [];
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('pageerror', (error) => errors.push(String(error)));
-  return { page, errors };
-}
-
 /** Types `text` into the composer and sends it with Enter. */
 async function sendText(page, text) {
   await type(page, text);
@@ -151,13 +147,29 @@ async function sendText(page, text) {
 const TOUR = 4;
 
 const browser = await chromium.launch();
+
+/** The app on a new page, in a context of its own (so fresh storage),
+ * loaded and ready to type into, and `close`, which checks that nothing
+ * was reported to its console or thrown by its scripts, then closes it. */
+async function openPage(options) {
+  const page = await browser.newPage(options);
+  const errors = [];
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', (error) => errors.push(String(error)));
+  await page.goto(origin, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.rc-composer-input');
+  const close = async () => {
+    check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
+    await page.close();
+  };
+  return { page, close };
+}
+
 try {
   for (const colorScheme of ['light', 'dark']) {
-    const { page, errors } = await openPage({ colorScheme, viewport: { width: 900, height: 900 }, deviceScaleFactor: 2 });
+    const { page, close } = await openPage({ colorScheme, viewport: { width: 900, height: 900 }, deviceScaleFactor: 2 });
     console.log(`\n${colorScheme} mode`);
 
-    await page.goto(origin, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.rc-composer-input');
 
     // The window opens on a tour: an introduction from the assistant,
     // Markdown from the user, code from the assistant, then math from the
@@ -354,13 +366,12 @@ try {
     await page.addStyleTag({ content: '.rc-chat { --rc-chat-bg: rgb(7, 8, 9); }' });
     check((await surfaces()) === 'rgb(7, 8, 9),rgb(4, 5, 6),rgb(4, 5, 6)', `and --rc-chat-bg colors the window alone in ${colorScheme} mode`);
 
-    check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
-    await page.close();
+    await close();
   }
 
   // The app's controls, on a fresh page (a new context, so fresh storage).
   {
-    const { page, errors } = await openPage({ colorScheme: 'light', viewport: { width: 1000, height: 900 }, deviceScaleFactor: 2 });
+    const { page, close } = await openPage({ colorScheme: 'light', viewport: { width: 1000, height: 900 }, deviceScaleFactor: 2 });
     console.log('\ncontrols');
     const theme = () => page.$eval('html', (el) => el.dataset.theme);
     const chatBackground = () => page.$eval('.rc-chat', (el) => getComputedStyle(el).backgroundColor);
@@ -411,8 +422,6 @@ try {
     const boxHeight = () => page.$eval('.rc-composer-input', (el) => el.getBoundingClientRect().height);
     const send = (text) => sendText(page, text);
 
-    await page.goto(origin, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.rc-composer-input');
     check(await page.$('.controls') !== null, 'the controls bar is there');
     check(await page.$eval('.controls', (el) => el.firstElementChild.contains(el.querySelector('.control-users'))), 'the users are at the far left');
     check(await page.$eval('.controls', (el) => el.lastElementChild.classList.contains('control-theme')), 'the theme switch is at the far right');
@@ -441,8 +450,7 @@ try {
 
     // Theme.
     check((await theme()) === 'light', 'the theme starts as the system\'s');
-    await page.click('.control-theme');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-theme');
     check((await theme()) === 'dark', 'the switch turns the theme dark');
     check((await chatBackground()) === 'rgb(13, 17, 23)', 'the chat repaints in the dark palette');
     check(await switchOn(page, '.control-theme'), 'the switch reports its state');
@@ -496,8 +504,7 @@ try {
     check((await page.$$('.rc-sender')).length === 0, 'and carry no name');
     check(await sliderOff(), 'and the slider that sizes the names is off with them');
     check((await sliderAt()) === '0.95', 'at its default');
-    await page.click('.control-names');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-names');
     check(await switchOn(page, '.control-names'), 'the Names switch reports it is on');
     const named = await labels();
     check(named.length > 0 && named.every((label) => label !== null), 'and every bubble has a name over it');
@@ -518,11 +525,9 @@ try {
     check((await labels()).filter((label) => label.carried === 'Assistant').every((label) => label.leftGap < label.rightGap), 'moving the bubbles to the left takes the names with them');
     await page.click('.control-side[value="center"]');
     await page.waitForTimeout(100);
-    await page.click('.control-names');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-names');
     check(!(await switchOn(page, '.control-names')) && (await page.$$('.rc-sender')).length === 0, 'the switch takes the names off again');
-    await page.click('.control-names');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-names');
     check((await page.$$('.rc-sender')).length === (await page.$$('.rc-message')).length, 'and back on');
 
     // How big the names are: the slider beside the switch, live only while
@@ -537,12 +542,10 @@ try {
     check(namesAre(grown, 1.4), 'which grows every name past the text');
     check(grown.every((label) => label.above && label.inside), 'still above the bubble, within its width');
     await page.screenshot({ path: `${shots}/controls-0-names-large.png` });
-    await page.click('.control-names');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-names');
     check((await page.$$('.rc-sender')).length === 0, 'the switch takes the names off whatever their size');
     check(await sliderOff() && (await sliderAt()) === '1.4', 'and the slider goes off where it was left');
-    await page.click('.control-names');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-names');
     check(namesAre(await labels(), 1.4), 'and the names come back at that size');
 
     // Busy: a reply is in flight, so sending waits, and the reader goes on
@@ -550,8 +553,7 @@ try {
     const composerBusy = () => page.$eval('.rc-composer', (el) => el.classList.contains('rc-busy'));
     const messageCount = async () => (await page.$$('.rc-message')).length;
     check(!(await switchOn(page, '.control-busy')) && !(await composerBusy()), 'the chat starts with nothing in flight');
-    await page.click('.control-busy');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-busy');
     check(await switchOn(page, '.control-busy'), 'the Busy switch reports it is on');
     check(await composerBusy(), 'and the composer carries rc-busy');
     check(!(await page.$eval('.rc-composer-input', (el) => el.disabled)), 'the text box stays open while busy');
@@ -591,8 +593,7 @@ try {
     await page.keyboard.type('and after');
     await page.waitForTimeout(150);
     await page.screenshot({ path: `${shots}/controls-0-busy.png` });
-    await page.click('.control-busy');
-    await page.waitForTimeout(200);
+    await flip(page, '.control-busy', 200);
     check(!(await switchOn(page, '.control-busy')) && !(await composerBusy()), 'the switch ends the wait');
     check((await messageCount()) === beforeBusy, 'which sends nothing on its own');
     check((await boxText(page)) === 'Written while **busy**\nand after', 'the draft is still in the box');
@@ -613,8 +614,7 @@ try {
     await page.click('.rc-preview-toggle');
     check(await page.$('.rc-composer-preview.rc-collapsed') !== null, 'a draft is previewed, and its preview collapsed');
     const beforeOff = await messageCount();
-    await page.click('.control-disabled');
-    await page.waitForTimeout(150);
+    await flip(page, '.control-disabled', 150);
     check(await switchOn(page, '.control-disabled'), 'the Disabled switch reports it is on');
     check(await page.$eval('.rc-composer-input', (el) => el.disabled), 'the text box is disabled');
     check(await page.$('.rc-composer-preview') === null, 'and the preview goes, draft or no draft');
@@ -622,8 +622,7 @@ try {
     check(!(await composerBusy()), 'off is not waiting: no rc-busy');
     check((await boxText(page)) === 'Typed *before* the composer went off', 'the draft is kept');
     await page.screenshot({ path: `${shots}/controls-0-disabled.png` });
-    await page.click('.control-disabled');
-    await page.waitForTimeout(150);
+    await flip(page, '.control-disabled', 150);
     check(!(await switchOn(page, '.control-disabled')) && !(await page.$eval('.rc-composer-input', (el) => el.disabled)), 'the switch turns the composer back on');
     check((await messageCount()) === beforeOff, 'which sends nothing on its own');
     check(await page.$('.rc-composer-preview.rc-collapsed') !== null, 'the preview is back, collapsed as it was left');
@@ -833,8 +832,7 @@ try {
     check(namesAre(await labels(), 1.4), 'which they are written at');
     check((await chatBackground()) === 'rgb(255, 248, 231)', 'and the window\'s background');
     check((await windowColor()) === '#fff8e7' && !(await resetDisabled()), 'which its control shows, with the theme\'s to put back');
-    await page.click('.control-theme');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-theme');
     check((await theme()) === 'light', 'the switch turns the theme light again');
     check((await bubbleStyle('Assistant', 'backgroundColor')) === 'rgb(18, 52, 86)', 'and the bubble keeps its own color');
     check((await chatBackground()) === 'rgb(255, 248, 231)', 'and so does the window');
@@ -842,25 +840,17 @@ try {
     await page.waitForTimeout(100);
     check((await chatBackground()) === 'rgb(255, 255, 255)', 'put back to the theme\'s, the window is the light palette\'s');
     check((await windowColor()) === '#ffffff' && await resetDisabled(), 'the control shows it, with nothing to put back');
-    await page.click('.control-theme');
-    await page.waitForTimeout(100);
+    await flip(page, '.control-theme');
     check((await chatBackground()) === 'rgb(13, 17, 23)', 'and the window follows the switch to dark');
 
-    check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
-    await page.close();
+    await close();
   }
 
   // Thinking: an empty live bubble shows dots until its text arrives.
   {
-    const { page, errors } = await openPage({ colorScheme: 'light', viewport: { width: 1000, height: 900 } });
+    const { page, close } = await openPage({ colorScheme: 'light', viewport: { width: 1000, height: 900 } });
     console.log('\nthinking');
-    await page.goto(origin, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.rc-composer-input');
 
-    const toggleThinking = async () => {
-      await page.click('.control-thinking');
-      await page.waitForTimeout(100);
-    };
     // Who is thinking, in transcript order.
     const thinkers = () => page.$$eval('.rc-message', (rows) => rows.filter((row) => row.querySelector('.rc-thinking')).map((row) => row.dataset.name));
     const thinkingBubble = (name) => `.rc-message[data-name="${name}"]:has(.rc-thinking) .rc-bubble`;
@@ -869,7 +859,7 @@ try {
     check((await page.$$('.rc-thinking')).length === 0, 'and there are no dots');
 
     await chooseUser(page, 'Assistant');
-    await toggleThinking();
+    await flip(page, '.control-thinking');
     check(await switchOn(page, '.control-thinking'), 'the Thinking switch turns on for the assistant');
     check(JSON.stringify(await thinkers()) === '["Assistant"]', 'and the assistant\'s dots appear');
     check((await page.$$('.rc-message')).length === TOUR + 1, 'in a bubble of their own at the end');
@@ -883,7 +873,7 @@ try {
 
     await chooseUser(page, 'User');
     check(!(await switchOn(page, '.control-thinking')), 'the switch follows the selection');
-    await toggleThinking();
+    await flip(page, '.control-thinking');
     check(JSON.stringify(await thinkers()) === '["Assistant","User"]', 'two users think at once');
     const phases = await page.$$eval('.rc-thinking > span:first-child', (els) => els.map((el) => el.getAnimations()[0]?.currentTime));
     check(phases.length === 2 && Math.abs(phases[0] - phases[1]) > 50, `out of step (${phases.map(Math.round).join(', ')} ms)`);
@@ -920,7 +910,7 @@ try {
 
     // Less motion: the dots fade instead.
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await toggleThinking();
+    await flip(page, '.control-thinking');
     check((await page.$eval('.rc-thinking > span', (el) => getComputedStyle(el).animationName)) === 'rc-thinking-fade', 'with reduced motion the dots fade instead of bob');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
 
@@ -931,13 +921,12 @@ try {
     check((await page.$$('.rc-thinking')).length === 0, 'deleting a thinking user removes their dots');
     check((await page.$$('.rc-message')).length === before - 1, 'and their bubble');
 
-    check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
-    await page.close();
+    await close();
   }
 
   // The transcript keeps its end in view, unless the reader has left it.
   {
-    const { page, errors } = await openPage({ colorScheme: 'light', viewport: { width: 900, height: 600 } });
+    const { page, close } = await openPage({ colorScheme: 'light', viewport: { width: 900, height: 600 } });
     console.log('\nfollowing');
     // How far the transcript is from its end, in CSS pixels.
     const gap = () => page.$eval('.rc-messages', (el) => el.scrollHeight - el.scrollTop - el.clientHeight);
@@ -948,8 +937,6 @@ try {
     });
     const send = (text) => sendText(page, text);
 
-    await page.goto(origin, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.rc-composer-input');
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(200);
     check((await gap()) === 0, 'the window opens at the end of the welcome, its fonts loaded');
@@ -993,8 +980,7 @@ try {
     await send('back at the end');
     check((await gap()) === 0, 'and is followed again once back at the end');
 
-    check(errors.length === 0, `console is clean${errors.length ? `: ${errors.join(' | ')}` : ''}`);
-    await page.close();
+    await close();
   }
 } finally {
   await browser.close();
