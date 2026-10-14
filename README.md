@@ -235,39 +235,6 @@ check, on purpose: an upload that could not happen is a broken
 workflow, not a quiet gap in the graph. Pull requests from forks do not
 see the secret, and Codecov accepts their uploads without it.
 
-## Releasing
-
-The library and the app are released separately, each from its own
-tag, and both entirely in GitHub's web interface:
-
-1. Bump the version and date the changelog. For the library, that is
-   `version` in [`leptos-rich-chat/Cargo.toml`](leptos-rich-chat/Cargo.toml)
-   and the *Unreleased* heading of its
-   [CHANGELOG](leptos-rich-chat/CHANGELOG.md); for the app, `version`
-   under `[workspace.package]` in the root [`Cargo.toml`](Cargo.toml),
-   which both of the app's crates and `tauri.conf.json` take. Merge it
-   into `main`. `Cargo.lock` catches up by itself the next time Cargo
-   runs; nothing builds with `--locked`.
-2. On the repository's Releases page, choose *Draft a new release*,
-   create the tag `leptos-rich-chat-vX.Y.Z` or `app-vX.Y.Z` from `main`,
-   press *Generate release notes*, and *Publish release*.
-
-Publishing the release is what runs the workflows. For a
-`leptos-rich-chat-v` tag, [`publish-crate.yml`](.github/workflows/publish-crate.yml)
-tests the crate and publishes it to crates.io. If the tag does not
-match the manifest or a test fails, nothing is published and the
-release stands without a crate: fix the cause and rerun the job, or
-delete the release and its tag and make it again. For an `app-v` tag,
-[`release-app.yml`](.github/workflows/release-app.yml) puts the install
-instructions above the generated notes and builds the installers,
-which appear on the release as the builds finish, some fifteen to
-twenty minutes after it is published. A failed build leaves the release
-without some installers until the failed job is rerun.
-
-Either workflow can also be run by hand from the Actions tab, as a
-trial: the crate's does everything but publish, and the app's builds
-the installers as workflow artifacts without touching a release.
-
 ## License
 
 MIT. See [LICENSE](LICENSE). The bundled Latin Modern fonts are under
