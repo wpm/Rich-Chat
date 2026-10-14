@@ -560,6 +560,9 @@ fn parse_hex(color: &str) -> Option<(u8, u8, u8)> {
     Some((channel(0)?, channel(2)?, channel(4)?))
 }
 
+#[cfg(all(test, target_arch = "wasm32"))]
+mod browser_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;

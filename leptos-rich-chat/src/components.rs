@@ -179,11 +179,17 @@ fn intercept_link(event: &ev::MouseEvent, on_link: Option<Callback<String>>) {
     let Some(href) = anchor.get_attribute("href") else {
         return;
     };
-    if href.starts_with('#') {
+    if !goes_to_host(&href) {
         return;
     }
     event.prevent_default();
     on_link.run(href);
+}
+
+/// Whether a click on a link to `href` goes to the host's `on_link`:
+/// every link but an in-page one.
+fn goes_to_host(href: &str) -> bool {
+    !href.starts_with('#')
 }
 
 /// One code block with a language label and a copy button.
@@ -1241,6 +1247,28 @@ fn Messages(
 /// as at it.
 const END_SLACK: i32 = 48;
 
+/// Whether the reader is at the end after a scroll event that left
+/// `scrollTop` at `top`, in a pane `scroll_height` tall showing
+/// `client_height` of it. `at_end` is whether they were before it and
+/// `last_top` where the event before it left `scrollTop`. See [`Follow`]
+/// for why a scroll that leaves the end further away is not leaving it.
+fn at_end_after_scroll(
+    at_end: bool,
+    last_top: i32,
+    top: i32,
+    scroll_height: i32,
+    client_height: i32,
+) -> bool {
+    let gap = scroll_height - top - client_height;
+    if gap <= END_SLACK {
+        true
+    } else if top < last_top {
+        false
+    } else {
+        at_end
+    }
+}
+
 /// Keeps the transcript's end in view while the reader is at it.
 ///
 /// The reader is "at the end" until they scroll up, and again once they
@@ -1338,12 +1366,13 @@ impl Follow {
             return;
         };
         let top = pane.scroll_top();
-        let gap = pane.scroll_height() - top - pane.client_height();
-        if gap <= END_SLACK {
-            self.at_end.set_value(true);
-        } else if top < self.last_top.get_value() {
-            self.at_end.set_value(false);
-        }
+        self.at_end.set_value(at_end_after_scroll(
+            self.at_end.get_value(),
+            self.last_top.get_value(),
+            top,
+            pane.scroll_height(),
+            pane.client_height(),
+        ));
         self.last_top.set_value(top);
     }
 
@@ -1354,7 +1383,12 @@ impl Follow {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
+mod browser_tests;
+
+// Natively, where the views render to HTML strings; the browser tests
+// are the ones above.
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use std::sync::Arc;
 
@@ -2576,6 +2610,46 @@ mod tests {
             !focus_within(NodeRef::new()),
             "and off the browser nothing holds the focus"
         );
+    }
+
+    // A pane 1000 pixels tall showing 400 of them: its end is at 600.
+
+    #[test]
+    fn the_reader_is_at_the_end_within_the_slack_of_it() {
+        assert!(at_end_after_scroll(false, 0, 600, 1000, 400), "at it");
+        assert!(
+            at_end_after_scroll(false, 0, 600 - END_SLACK, 1000, 400),
+            "within the slack"
+        );
+        assert!(
+            !at_end_after_scroll(false, 0, 600 - END_SLACK - 1, 1000, 400),
+            "just beyond it"
+        );
+    }
+
+    #[test]
+    fn scrolling_up_away_from_the_end_leaves_it() {
+        assert!(!at_end_after_scroll(true, 600, 500, 1000, 400));
+    }
+
+    #[test]
+    fn growth_that_pushes_the_end_away_is_not_leaving_it() {
+        // The pane grew to 1400 before the event arrived; the scroll that
+        // the event reports went down, not up.
+        assert!(at_end_after_scroll(true, 500, 600, 1400, 400), "nor up");
+        assert!(at_end_after_scroll(true, 600, 600, 1400, 400), "nor at all");
+    }
+
+    #[test]
+    fn scrolling_down_short_of_the_end_does_not_return_to_it() {
+        assert!(!at_end_after_scroll(false, 100, 300, 1000, 400));
+    }
+
+    #[test]
+    fn links_go_to_the_host_except_in_page_ones() {
+        assert!(goes_to_host("https://example.com"));
+        assert!(goes_to_host("mailto:someone@example.com"));
+        assert!(!goes_to_host("#rc-1234abcd-fn-1"), "a footnote");
     }
 
     #[test]

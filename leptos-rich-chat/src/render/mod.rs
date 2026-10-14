@@ -238,9 +238,7 @@ impl<'a, 'o> Renderer<'a, 'o> {
                 groups.push(std::mem::take(&mut current));
             }
         }
-        if !current.is_empty() {
-            groups.push(current);
-        }
+        debug_assert!(current.is_empty(), "every tag opened is closed");
 
         let mut footnotes = HashMap::new();
         for event in groups.iter().flatten() {
@@ -273,9 +271,10 @@ impl<'a, 'o> Renderer<'a, 'o> {
         let groups = std::mem::take(&mut self.groups);
         let mut blocks = Vec::with_capacity(groups.len());
         let mut definitions: Vec<(usize, String)> = Vec::new();
+        // No group is empty: each ends with the event that closed it.
         for group in groups {
-            match group.first() {
-                Some(Event::Start(Tag::CodeBlock(kind))) => {
+            match &group[0] {
+                Event::Start(Tag::CodeBlock(kind)) => {
                     let token = fence_token(kind);
                     let source = code_text(&group[1..group.len() - 1]);
                     let Highlighted { language, html } =
@@ -286,12 +285,12 @@ impl<'a, 'o> Renderer<'a, 'o> {
                         html,
                     });
                 }
-                Some(Event::Start(Tag::FootnoteDefinition(label))) => {
+                Event::Start(Tag::FootnoteDefinition(label)) => {
                     let number = self.footnotes[label];
                     let inner = self.html_of(&group[1..group.len() - 1]);
                     definitions.push((number, inner));
                 }
-                Some(Event::Start(Tag::Paragraph)) if self.options.math => {
+                Event::Start(Tag::Paragraph) if self.options.math => {
                     if let Some(source) = lone_display_math(&group) {
                         let mathml = latex_to_mathml(&source, true);
                         blocks.push(BlockKind::Math { source, mathml });
@@ -299,14 +298,13 @@ impl<'a, 'o> Renderer<'a, 'o> {
                         blocks.push(BlockKind::Html(self.html_of(&group)));
                     }
                 }
-                Some(Event::Start(Tag::Table(_))) => {
+                Event::Start(Tag::Table(_)) => {
                     let inner = self.html_of(&group);
                     blocks.push(BlockKind::Html(format!(
                         "<div class=\"rc-table-wrap\">{inner}</div>\n"
                     )));
                 }
-                Some(_) => blocks.push(BlockKind::Html(self.html_of(&group))),
-                None => {}
+                _ => blocks.push(BlockKind::Html(self.html_of(&group))),
             }
         }
         if !definitions.is_empty() {

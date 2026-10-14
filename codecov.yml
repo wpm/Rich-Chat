@@ -1,6 +1,14 @@
 # Codecov's settings: https://codecov.io/gh/wpm/Rich-Chat, fed by the
-# coverage job in .github/workflows/ci.yml. Reference:
+# coverage and browser coverage jobs in .github/workflows/ci.yml. Reference:
 # https://docs.codecov.com/docs/codecov-yaml
+
+# Two uploads make a commit's coverage, the native tests' and the browser
+# tests', and Codecov judges and comments on the first that arrives unless
+# told to wait: so the checks and the comment wait for both. Another job
+# that uploads raises the count.
+codecov:
+  notify:
+    after_n_builds: 2
 
 coverage:
   status:
@@ -20,6 +28,7 @@ coverage:
 comment:
   layout: "condensed_header, diff, files"
   require_changes: true
+  after_n_builds: 2
 
 # Not run under the tests, so not counted: the desktop shell is only
 # checked to compile, and the end-to-end tests drive the built app.
@@ -29,13 +38,10 @@ ignore:
   # The app's browser-only modules: the window, the controls bar, and
   # link opening. They run nowhere but in the browser, where the
   # end-to-end tests drive them without coverage counters, so on the
-  # graph they would only be lines that no test can reach. The way to
-  # count them is wasm-bindgen tests run under cargo-llvm-cov with
-  # --target wasm32-unknown-unknown, which cargo-llvm-cov supports; but
-  # it needs nightly Rust for -Zno-profiler-runtime and the
-  # wasm_bindgen_unstable_test_coverage cfg. Once those are stable, add
-  # a wasm coverage job to ci.yml, upload its report under a flag, and
-  # take these out of the list.
+  # graph they would only be lines that no test can reach. The browser
+  # coverage job in ci.yml counts browser-only code that has browser
+  # tests (.github/scripts/browser-tests.sh); once these have some, take
+  # them out of the list.
   - "app/src/main.rs"
   - "app/src/controls.rs"
   - "app/src/opener.rs"
