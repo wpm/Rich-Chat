@@ -204,12 +204,30 @@ The callback receives the destination; the default is suppressed. The
 [test app](https://github.com/wpm/Rich-Chat/tree/main/app) hands it to
 Tauri's opener plugin.
 
+### A read-only transcript
+
+A host that only shows a conversation between other parties, with
+nothing for the reader to send, renders `Transcript` in place of `Chat`.
+It is `Chat` without the composer: the same window, the same bubbles,
+and the same following of the end, but no `on_send` and no text box.
+
+```rust
+use leptos_rich_chat::{RichChatStyle, Transcript};
+
+view! {
+    <RichChatStyle names=names />
+    <Transcript messages=messages show_names=true empty="Waiting for the game to start" />
+}
+```
+
 ### Pieces
 
-`Chat` is the whole window. Its parts stand alone:
+`Chat` is the whole window, a `Transcript` above a `Composer`. Its parts
+stand alone:
 
 | Component       | Renders                                                                          |
 |-----------------|----------------------------------------------------------------------------------|
+| `Transcript`    | the scrolling, following transcript; `Chat` without the composer                 |
 | `Composer`      | the text box, its collapsible preview, and send button; attributes reach the box |
 | `MessageView`   | one message, placed and colored by its name, and named on request                |
 | `RichText`      | any Markdown, from a `Signal<String>`                                            |

@@ -2,14 +2,15 @@
 //! thinking, the selected user's bubbles, the
 //! widest a message gets, the window's background, whether bubbles are
 //! named and how big the name is, whether the chat is busy or disabled,
-//! the theme.
+//! whether it has a composer at all, the theme.
 //!
 //! Each control edits the app's [`Settings`]; the app root turns those
 //! into the library's table of names and its `show_names`, the root
 //! element's theme attribute, and custom properties for the stylesheets.
-//! The Thinking, Busy and Disabled switches are the exception: each is a
-//! state of the conversation, not a choice to keep, so it is kept apart
-//! from the settings and starts off. Thinking is the [`Transcript`]'s.
+//! The Thinking, Busy, Disabled and Composer switches are the exception:
+//! each is a state of the conversation, not a choice to keep, so it is
+//! kept apart from the settings and starts as a new chat does, with the
+//! composer on and the rest off. Thinking is the [`Transcript`]'s.
 
 use leptos::ev;
 use leptos::prelude::*;
@@ -23,7 +24,9 @@ use crate::transcript::Transcript;
 /// The controls. `theme` is the one in effect, which is the chosen one
 /// or, until one is chosen, the system's. `busy` and `disabled` are the
 /// chat's: there is no model here to wait on, nor a key to be without,
-/// so the switches stand in for them.
+/// so the switches stand in for them. `composer` is whether the chat has
+/// one: off, the app shows the library's transcript alone, as a viewer of
+/// a conversation between others does.
 #[component]
 pub fn Controls(
     settings: RwSignal<Settings>,
@@ -31,6 +34,7 @@ pub fn Controls(
     theme: Signal<Theme>,
     busy: RwSignal<bool>,
     disabled: RwSignal<bool>,
+    composer: RwSignal<bool>,
 ) -> impl IntoView {
     let dark = move || theme.get() == Theme::Dark;
     let toggle_theme = move |_| {
@@ -300,6 +304,16 @@ pub fn Controls(
                 on:click=move |_| disabled.update(|disabled| *disabled = !*disabled)
             >
                 "Disabled"
+            </button>
+            <button
+                type="button"
+                class="control-button control-toggle control-composer"
+                role="switch"
+                aria-checked=move || composer.get().to_string()
+                title="Show the composer; off, the transcript is shown alone, as a viewer with nothing to send does"
+                on:click=move |_| composer.update(|composer| *composer = !*composer)
+            >
+                "Composer"
             </button>
             <button
                 type="button"

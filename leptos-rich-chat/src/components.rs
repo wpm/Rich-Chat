@@ -1,7 +1,8 @@
 //! The Leptos components.
 //!
-//! [`Chat`] is the whole thing: a transcript above a [`Composer`]. Each
-//! piece is also usable alone: [`MessageView`] for one message,
+//! [`Chat`] is the whole thing: a [`Transcript`] above a [`Composer`].
+//! Each piece is also usable alone: [`Transcript`] for a conversation to
+//! read with nothing to send, [`MessageView`] for one message,
 //! [`RichText`] for any Markdown, [`CodeBlock`] for one highlighted block.
 //! All of them expect at least the structure stylesheet, which
 //! [`RichChatStyle`] injects; see [`style`](crate::style) for what a host
@@ -999,7 +1000,7 @@ pub fn Composer(
 /// [`WARM_LANGUAGES`](crate::render::WARM_LANGUAGES), one per idle
 /// callback, so the first code block in any of them renders without the
 /// pause that compiling a grammar on demand costs (up to half a second for
-/// TypeScript). [`Chat`] calls this after mounting; a host that uses
+/// TypeScript). [`Chat`] and [`Transcript`] call this after mounting; a host that uses
 /// [`RichText`] on its own can call it once at startup. Where the browser
 /// has no `requestIdleCallback`, the steps run on short timeouts instead.
 /// A no-op outside the browser or without the `highlight` feature.
@@ -1022,19 +1023,11 @@ fn warm_from(index: usize) {
     }
 }
 
-/// A chat window: the transcript, then a [`Composer`].
+/// A chat window: a [`Transcript`], then a [`Composer`], in one
+/// `div.rc-chat`.
 ///
-/// The transcript keeps its end in view: new messages, ones still
-/// growing, images and fonts that arrive late, and a composer or window
-/// that changes size all leave the last bubble showing. It stops
-/// following once the reader scrolls up to look at something, and
-/// resumes when they come back to the end.
-///
-/// That works by scrolling the transcript, `div.rc-messages`, which the
-/// structure stylesheet makes the scroll container inside a `.rc-chat`
-/// that fills its parent. A host that lays the window out itself must
-/// keep `.rc-messages` the element that scrolls; if the page scrolls
-/// instead, nothing follows.
+/// The transcript keeps its end in view, as [`Transcript`] describes;
+/// a composer that changes size is one more thing it follows through.
 #[component]
 pub fn Chat(
     /// The transcript, oldest first.
@@ -1093,10 +1086,81 @@ pub fn Chat(
     /// Shown in the transcript while it is empty.
     #[prop(optional, into)]
     empty: Option<String>,
+    /// Write each message's name over its bubble. See [`Transcript`].
+    #[prop(optional, into)]
+    show_names: Signal<bool>,
+    /// What a screen reader calls the dots of a message that is
+    /// thinking. See [`Transcript`].
+    #[prop(default = "Thinking".to_string(), into)]
+    thinking_label: String,
+    /// Compile the common languages' grammars in idle time after mount.
+    /// See [`Transcript`].
+    #[prop(default = true)]
+    warm_up: bool,
+) -> impl IntoView {
+    view! {
+        <div class="rc-chat">
+            <Messages
+                messages=messages
+                show_names=show_names
+                options=options.clone()
+                on_link=on_link
+                empty=empty
+                thinking_label=thinking_label
+                warm_up=warm_up
+            />
+            <Composer
+                on_send=on_send
+                draft=draft
+                placeholder=placeholder
+                disabled=disabled
+                busy=busy
+                busy_label=busy_label
+                preview=preview
+                preview_label=preview_label
+                preview_name=preview_name
+                send=send_content(send)
+                hint=hint_text(hint)
+                options=options
+                on_link=on_link
+            />
+        </div>
+    }
+}
+
+/// A conversation to read, with nothing to send: [`Chat`] without the
+/// [`Composer`], for a host that only shows messages between other
+/// parties.
+///
+/// The transcript keeps its end in view: new messages, ones still
+/// growing, images and fonts that arrive late, and a window that changes
+/// size all leave the last bubble showing. It stops following once the
+/// reader scrolls up to look at something, and resumes when they come
+/// back to the end.
+///
+/// That works by scrolling the transcript, `div.rc-messages`, which the
+/// structure stylesheet makes the scroll container inside a `.rc-chat`
+/// that fills its parent. A host that lays the window out itself must
+/// keep `.rc-messages` the element that scrolls; if the page scrolls
+/// instead, nothing follows.
+#[component]
+pub fn Transcript(
+    /// The transcript, oldest first.
+    #[prop(into)]
+    messages: Signal<Vec<Message>>,
     /// Write each message's name over its bubble. Off by default; may be
     /// a signal, for a host that lets the reader switch it.
     #[prop(optional, into)]
     show_names: Signal<bool>,
+    /// What to render; the default renders everything.
+    #[prop(optional)]
+    options: RenderOptions,
+    /// Called with a link's destination instead of following it.
+    #[prop(into, optional_no_strip)]
+    on_link: Option<Callback<String>>,
+    /// Shown in the transcript while it is empty.
+    #[prop(optional, into)]
+    empty: Option<String>,
     /// What a screen reader calls the dots of a message that is
     /// thinking: one that is live and still empty. See [`MessageView`].
     #[prop(default = "Thinking".to_string(), into)]
@@ -1104,6 +1168,33 @@ pub fn Chat(
     /// Compile the common languages' grammars in idle time after mount,
     /// so the first code block renders without a pause. See [`warm_up`].
     #[prop(default = true)]
+    warm_up: bool,
+) -> impl IntoView {
+    view! {
+        <div class="rc-chat">
+            <Messages
+                messages=messages
+                show_names=show_names
+                options=options
+                on_link=on_link
+                empty=empty
+                thinking_label=thinking_label
+                warm_up=warm_up
+            />
+        </div>
+    }
+}
+
+/// The scrolling pane that [`Transcript`] and [`Chat`] share, without the
+/// window around it, which each draws once. Its props are theirs.
+#[component]
+fn Messages(
+    messages: Signal<Vec<Message>>,
+    show_names: Signal<bool>,
+    options: RenderOptions,
+    on_link: Option<Callback<String>>,
+    empty: Option<String>,
+    thinking_label: String,
     warm_up: bool,
 ) -> impl IntoView {
     let pane = NodeRef::<html::Div>::new();
@@ -1119,46 +1210,28 @@ pub fn Chat(
     #[cfg(not(target_arch = "wasm32"))]
     let _ = warm_up;
 
-    let body_options = options.clone();
     view! {
-        <div class="rc-chat">
-            <div class="rc-messages" node_ref=pane on:scroll=move |_| follow.scrolled()>
-                <Show when=move || messages.read().is_empty()>
-                    <div class="rc-empty">{empty.clone().unwrap_or_default()}</div>
-                </Show>
-                <For
-                    each=move || messages.get()
-                    key=|message| (message.id.clone(), message.live)
-                    children=move |message| {
-                        let wrapper = NodeRef::<html::Div>::new();
-                        follow.watch(wrapper);
-                        view! {
-                            <MessageView
-                                message=message
-                                show_names=show_names
-                                options=body_options.clone()
-                                on_link=on_link
-                                node_ref=wrapper
-                                thinking_label=thinking_label.clone()
-                            />
-                        }
+        <div class="rc-messages" node_ref=pane on:scroll=move |_| follow.scrolled()>
+            <Show when=move || messages.read().is_empty()>
+                <div class="rc-empty">{empty.clone().unwrap_or_default()}</div>
+            </Show>
+            <For
+                each=move || messages.get()
+                key=|message| (message.id.clone(), message.live)
+                children=move |message| {
+                    let wrapper = NodeRef::<html::Div>::new();
+                    follow.watch(wrapper);
+                    view! {
+                        <MessageView
+                            message=message
+                            show_names=show_names
+                            options=options.clone()
+                            on_link=on_link
+                            node_ref=wrapper
+                            thinking_label=thinking_label.clone()
+                        />
                     }
-                />
-            </div>
-            <Composer
-                on_send=on_send
-                draft=draft
-                placeholder=placeholder
-                disabled=disabled
-                busy=busy
-                busy_label=busy_label
-                preview=preview
-                preview_label=preview_label
-                preview_name=preview_name
-                send=send_content(send)
-                hint=hint_text(hint)
-                options=options
-                on_link=on_link
+                }
             />
         </div>
     }
@@ -2035,6 +2108,61 @@ mod tests {
         assert!(
             named.contains("<div class=\"rc-sender\">them</div>"),
             "{named}"
+        );
+    }
+
+    #[test]
+    fn transcript_shows_the_empty_text_then_the_messages_and_no_composer() {
+        let messages = RwSignal::new(Vec::<Message>::new());
+        let empty = html(|| view! { <Transcript messages=messages empty="Nothing yet" /> });
+        assert!(
+            empty.starts_with("<div class=\"rc-chat\"><div class=\"rc-messages\">"),
+            "{empty}"
+        );
+        assert!(
+            empty.contains("<div class=\"rc-empty\">Nothing yet</div>"),
+            "{empty}"
+        );
+
+        messages.set(vec![
+            Message::new("1", "me", "Hello"),
+            Message::streaming("2", "them", RwSignal::new(String::new())),
+            Message::streaming("3", "other", RwSignal::new(String::new())),
+        ]);
+        let full = html(|| view! { <Transcript messages=messages empty="Nothing yet" /> });
+        assert!(!full.contains("Nothing yet"), "{full}");
+        let ids: Vec<_> = attribute_values(&full, "data-message-id");
+        assert_eq!(ids, ["1", "2", "3"], "every message, in order: {full}");
+        assert_eq!(full.matches("aria-label=\"Thinking\"").count(), 2, "{full}");
+        assert!(!full.contains("rc-sender"), "names are off by default");
+        assert!(!full.contains("rc-composer"), "no composer: {full}");
+        assert!(!full.contains("<textarea"), "no text box: {full}");
+
+        let named = html(|| view! { <Transcript messages=messages show_names=true /> });
+        assert!(
+            named.contains("<div class=\"rc-sender\">me</div>"),
+            "{named}"
+        );
+    }
+
+    #[test]
+    fn attributes_on_transcript_land_on_the_window() {
+        let none = Vec::<Message>::new();
+        let out = html(|| view! { <Transcript messages=none attr:id="viewer" /> });
+        assert!(
+            out.starts_with("<div id=\"viewer\" class=\"rc-chat\">"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn chat_has_one_window_around_the_transcript_and_the_composer() {
+        let none = Vec::<Message>::new();
+        let out = html(|| view! { <Chat messages=none on_send=|_: String| {} /> });
+        assert_eq!(out.matches("class=\"rc-chat\"").count(), 1, "{out}");
+        assert!(
+            out.starts_with("<div class=\"rc-chat\"><div class=\"rc-messages\">"),
+            "{out}"
         );
     }
 

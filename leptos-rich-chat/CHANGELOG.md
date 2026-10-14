@@ -9,6 +9,11 @@ version is 0, a minor release may change the API.
 
 ### Added
 
+- `Transcript`, the scrolling half of `Chat`: the messages in their own
+  `div.rc-chat`, following the end as `Chat` does, with no composer and
+  no `on_send`, for a host that only shows a conversation. `Chat` is now
+  a `Transcript` above a `Composer`, with its props, behavior and DOM
+  unchanged.
 - A live message whose text is still empty is thinking: its bubble
   shows three bobbing dots until the first character arrives, and then
   the same bubble fills with text, in place, since the transcript's key,
