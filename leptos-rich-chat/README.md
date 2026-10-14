@@ -472,5 +472,13 @@ on every desktop platform.
 
 ## License
 
-MIT. The Latin Modern fonts are under the
-[GUST Font License](https://www.gust.org.pl/projects/e-foundry/licenses).
+The code is licensed under either of
+[MIT](https://github.com/wpm/Rich-Chat/blob/main/leptos-rich-chat/LICENSE-MIT)
+or
+[Apache-2.0](https://github.com/wpm/Rich-Chat/blob/main/leptos-rich-chat/LICENSE-APACHE),
+at your option. The `bundled-fonts` feature, on by default, embeds the
+Latin Modern fonts in your binary; they are under the
+[GUST Font License](https://www.gust.org.pl/projects/e-foundry/licenses),
+not under either of those, and their license ships in the crate at
+[`assets/fonts/LICENSE.md`](https://github.com/wpm/Rich-Chat/blob/main/leptos-rich-chat/assets/fonts/LICENSE.md).
+Turn off default features to leave them out.

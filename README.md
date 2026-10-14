@@ -237,6 +237,7 @@ see the secret, and Codecov accepts their uploads without it.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). The bundled Latin Modern fonts are under
-the GUST Font License; see
+Licensed under either of [MIT](LICENSE-MIT) or
+[Apache-2.0](LICENSE-APACHE), at your option. The bundled Latin Modern
+fonts are under the GUST Font License; see
 [leptos-rich-chat/assets/fonts/LICENSE.md](leptos-rich-chat/assets/fonts/LICENSE.md).
