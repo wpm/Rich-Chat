@@ -213,14 +213,15 @@ cargo test -p leptos-rich-chat     # the library, natively
 cargo clippy --workspace --all-targets
 cd app && trunk build --release    # the frontend, to app/dist
 cd app/e2e && npm install && npm test   # the built app in headless Chromium
+.github/scripts/browser-tests.sh cargo test   # the code that needs a DOM, in headless Chrome; needs wasm-bindgen-cli and chromedriver
 cargo run -p leptos-rich-chat --example highlight_css -- OneHalfDark dark   # regenerate assets/highlight.css, see the library README
 cargo llvm-cov -p leptos-rich-chat --open   # test coverage, as a report in the browser; needs cargo-llvm-cov
 ```
 
 The [CI workflow](.github/workflows/ci.yml) runs the library's tests
 natively, builds the frontend and drives it in headless Chromium, checks
-the desktop shell on every platform, and measures the library's test
-coverage, which goes to [Codecov](https://codecov.io/gh/wpm/Rich-Chat)
+the desktop shell on every platform, and measures the test coverage,
+native and in the browser, which goes to [Codecov](https://codecov.io/gh/wpm/Rich-Chat)
 and is the badge above; [`codecov.yml`](codecov.yml) says how coverage
 is judged.
 

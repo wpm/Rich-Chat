@@ -14,18 +14,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Versions in more than one place: this job, the coverage job, the
+      # Versions in more than one place: this job, the coverage jobs, the
       # desktop job and publish-crate.yml set up the toolchain and cache
       # themselves, and the frontend jobs get them from
       # .github/actions/wasm-toolchain. Bump them all together.
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy -p leptos-rich-chat -p rich-chat-app --all-targets -- -D warnings
       # Without `highlight`, as a host that turns it off builds the crate.
       - run: cargo clippy -p leptos-rich-chat --no-default-features --all-targets -- -D warnings
+      # The browser tests, which build for wasm32 only and which the
+      # browser coverage job runs.
+      - run: cargo clippy -p leptos-rich-chat -p rich-chat-app --target wasm32-unknown-unknown --tests -- -D warnings
       # The runs are listed in the script, which the coverage job and
       # publish-crate.yml run too.
       - run: .github/scripts/library-tests.sh cargo test
@@ -115,6 +119,60 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
+  # The browser tests, which run the code that needs a DOM (clicks and
+  # keys, the focus, the clipboard, scrolling, local storage) in headless
+  # Chrome, instrumented, and their coverage sent to Codecov beside the
+  # coverage job's under the flag `browser`; Codecov adds the two up. The
+  # runs are listed in .github/scripts/browser-tests.sh.
+  #
+  # Wasm coverage is experimental in wasm-bindgen and needs nightly Rust
+  # (for -Zno-profiler-runtime and the
+  # wasm_bindgen_unstable_test_coverage cfg). The nightly is pinned to
+  # one built on LLVM 22: wasm-bindgen-test pins minicov 0.3.8, the
+  # profiling runtime the tests link, which writes LLVM 22's profile
+  # format, and a nightly on LLVM 23 writes a newer one that minicov
+  # 0.3.8 cannot, so the tests pass and the coverage dump crashes. Move
+  # the pin forward once a wasm-bindgen-test release takes minicov 0.3.9.
+  #
+  # The runner is wasm-bindgen-test-runner at Cargo.lock's wasm-bindgen
+  # version, which it must match, with the Chrome and chromedriver the
+  # runner image ships. minicov compiles its runtime with the image's
+  # clang; it is archived with the toolchain's llvm-ar, since an archive
+  # made by another ar can lack the index the wasm linker reads, and the
+  # runtime is then silently left out. The upload is as the coverage
+  # job's, token and all.
+  browser-coverage:
+    name: Browser tests (coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-03-25
+          targets: wasm32-unknown-unknown
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - id: tools
+        run: |
+          version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+          echo "wasm-bindgen=$version" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,wasm-bindgen@${{ steps.tools.outputs.wasm-bindgen }}
+      - run: |
+          echo "CHROMEDRIVER=$CHROMEWEBDRIVER/chromedriver" >> "$GITHUB_ENV"
+          echo "AR_wasm32_unknown_unknown=$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin/llvm-ar" >> "$GITHUB_ENV"
+      - run: .github/scripts/browser-tests.sh cargo llvm-cov --no-report
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: -Zno-profiler-runtime -Clink-args=--no-gc-sections --cfg=wasm_bindgen_unstable_test_coverage
+      - run: cargo llvm-cov report --target wasm32-unknown-unknown --lcov --output-path lcov.info
+      - uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          flags: browser
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+
   # The tests of the release scripts, every .github/scripts/*-test.sh.
   scripts:
     name: Release scripts
@@ -128,7 +186,7 @@ jobs:
   ci:
     name: CI
     runs-on: ubuntu-latest
-    needs: [library, frontend, desktop, coverage, scripts]
+    needs: [library, frontend, desktop, coverage, browser-coverage, scripts]
     if: always()
     steps:
       - run: |
@@ -136,9 +194,11 @@ jobs:
           echo "frontend: ${{ needs.frontend.result }}"
           echo "desktop: ${{ needs.desktop.result }}"
           echo "coverage: ${{ needs.coverage.result }}"
+          echo "browser-coverage: ${{ needs.browser-coverage.result }}"
           echo "scripts: ${{ needs.scripts.result }}"
           test "${{ needs.library.result }}" = success
           test "${{ needs.frontend.result }}" = success
           test "${{ needs.desktop.result }}" = success
           test "${{ needs.coverage.result }}" = success
+          test "${{ needs.browser-coverage.result }}" = success
           test "${{ needs.scripts.result }}" = success

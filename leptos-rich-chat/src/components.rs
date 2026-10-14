@@ -1383,7 +1383,12 @@ impl Follow {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
+mod browser_tests;
+
+// Natively, where the views render to HTML strings; the browser tests
+// are the ones above.
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use std::sync::Arc;
 

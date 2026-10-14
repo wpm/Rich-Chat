@@ -49,7 +49,8 @@ web-sys = { workspace = true, features = [
     "Window",
 ] }
 
-[dev-dependencies]
+# The native tests, which are most of them.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # Tests render the components to HTML strings natively; the ssr feature is
 # what makes `to_html` available and is unified into test builds only.
 leptos = { workspace = true, features = ["ssr"] }
@@ -58,6 +59,15 @@ leptos = { workspace = true, features = ["ssr"] }
 # app) enables it, Cargo unifies it into this crate's test build too; an
 # effect then spawns a task and panics without an executor to spawn on.
 any_spawner = { version = "0.3", features = ["futures-executor"] }
+
+# The browser tests, which run the parts that need a DOM: wasm-bindgen-test
+# runs them in a headless browser, and Leptos's csr feature turns on the
+# effects that mount and watch elements. See .github/scripts/browser-tests.sh.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+leptos = { workspace = true, features = ["csr"] }
+js-sys.workspace = true
+web-sys = { workspace = true, features = ["Event", "EventInit", "KeyboardEventInit", "MouseEventInit"] }
 
 [lints.rust]
 unused_qualifications = "warn"
