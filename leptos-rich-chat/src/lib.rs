@@ -117,7 +117,8 @@ pub mod render;
 pub mod style;
 
 pub use components::{
-    Chat, CodeBlock, CodeLabels, Composer, MessageView, RichChatStyle, RichText, Thinking, warm_up,
+    Chat, CodeBlock, CodeLabels, Composer, MessageView, RichChatStyle, RichText, Thinking,
+    Transcript, warm_up,
 };
 pub use message::{Body, Message};
 pub use names::{Look, Names, Position};

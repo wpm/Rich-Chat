@@ -21,7 +21,9 @@
 // step, the dots turning into a reply in the same bubble, above the
 // other user's dots, which are still dancing, a bubble that keeps its
 // height, the fade for a reader who asks for less motion, and a deleted
-// user's dots going with them. Last, that the transcript keeps its end in view:
+// user's dots going with them. Then the Composer switch off, the
+// transcript alone, following its end with no composer below it. Last,
+// that the transcript keeps its end in view:
 // through a burst of messages, a growing composer, and
 // a shrinking window, but not for a reader who has scrolled up.
 // Screenshots land in ./screenshots for a human to look at.
@@ -116,6 +118,16 @@ async function chooseUser(page, name) {
   await page.selectOption('.control-users', name);
   await page.waitForTimeout(100);
 }
+
+/** How far the transcript is from its end, in CSS pixels. */
+const gap = (page) => page.$eval('.rc-messages', (el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+
+/** Whether the last bubble's bottom is inside the transcript. */
+const lastBubbleVisible = (page) => page.evaluate(() => {
+  const pane = document.querySelector('.rc-messages').getBoundingClientRect();
+  const last = [...document.querySelectorAll('.rc-message')].at(-1).getBoundingClientRect();
+  return last.bottom <= pane.bottom;
+});
 
 /** What is in the composer's text box. */
 const boxText = (page) => page.$eval('.rc-composer-input', (el) => el.value);
@@ -924,22 +936,54 @@ try {
     await close();
   }
 
+  // The Composer switch off: the library's transcript alone, as a viewer
+  // of a conversation between others shows it, still following its end.
+  {
+    const { page, close } = await openPage({ colorScheme: 'light', viewport: { width: 900, height: 600 } });
+    console.log('\ntranscript alone');
+
+    check(await switchOn(page, '.control-composer'), 'the Composer switch starts on');
+    await flip(page, '.control-composer', 150);
+    check(!(await switchOn(page, '.control-composer')), 'and turns off');
+    check(await page.$('.rc-composer') === null && await page.$('textarea') === null, 'off, there is no composer');
+    check((await page.$$('.rc-chat')).length === 1 && (await page.$$('.rc-message')).length === TOUR, 'and the transcript is there alone, with the same messages');
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(200);
+    check((await gap(page)) === 0, 'at its end');
+
+    // Messages arriving while the reader is at the end come into view.
+    await chooseUser(page, 'Assistant');
+    await flip(page, '.control-thinking', 200);
+    check((await page.$$('.rc-message')).length === TOUR + 1, 'a message is appended');
+    check((await gap(page)) === 0 && await lastBubbleVisible(page), 'and scrolls into view');
+    await chooseUser(page, 'User');
+    await flip(page, '.control-thinking', 200);
+    check((await page.$$('.rc-thinking')).length === 2, 'two thinking messages show two sets of dots');
+    check((await gap(page)) === 0 && await lastBubbleVisible(page), 'the second in view too');
+    await page.screenshot({ path: `${shots}/transcript-0-alone.png` });
+
+    // A reader who scrolled up stays there.
+    await page.evaluate(() => { document.querySelector('.rc-messages').scrollTop = 0; });
+    await page.waitForTimeout(100);
+    await flip(page, '.control-thinking', 100);
+    await flip(page, '.control-thinking', 200);
+    check((await page.$eval('.rc-messages', (el) => el.scrollTop)) === 0, 'a reader who scrolled up stays where they were');
+
+    await flip(page, '.control-composer', 150);
+    check(await page.$('.rc-composer-input') !== null && (await page.$$('.rc-message')).length === TOUR + 2, 'on again, the composer is back below the same messages');
+
+    await close();
+  }
+
   // The transcript keeps its end in view, unless the reader has left it.
   {
     const { page, close } = await openPage({ colorScheme: 'light', viewport: { width: 900, height: 600 } });
     console.log('\nfollowing');
-    // How far the transcript is from its end, in CSS pixels.
-    const gap = () => page.$eval('.rc-messages', (el) => el.scrollHeight - el.scrollTop - el.clientHeight);
-    const lastBubbleVisible = () => page.evaluate(() => {
-      const pane = document.querySelector('.rc-messages').getBoundingClientRect();
-      const last = [...document.querySelectorAll('.rc-message')].at(-1).getBoundingClientRect();
-      return last.bottom <= pane.bottom;
-    });
     const send = (text) => sendText(page, text);
 
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'the window opens at the end of the welcome, its fonts loaded');
+    check((await gap(page)) === 0, 'the window opens at the end of the welcome, its fonts loaded');
 
     // Messages faster than frames: none may be lost.
     for (let i = 0; i < 5; i += 1) {
@@ -948,25 +992,25 @@ try {
     }
     await page.waitForTimeout(300);
     check((await page.$$('.rc-message')).length === TOUR + 5, 'a burst of five messages all arrive');
-    check((await gap()) === 0, 'and the transcript is at the end after them');
+    check((await gap(page)) === 0, 'and the transcript is at the end after them');
 
     // The composer growing over the transcript, by a draft or by a drag.
     await type(page, Array.from({ length: 12 }, (_, i) => `line ${i}`).join('\n'));
-    check(await lastBubbleVisible(), 'a long draft growing the composer leaves the last bubble showing');
+    check(await lastBubbleVisible(page), 'a long draft growing the composer leaves the last bubble showing');
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'and sending it lands at the end');
+    check((await gap(page)) === 0, 'and sending it lands at the end');
     const composer = await (await page.$('.rc-composer')).boundingBox();
     await page.mouse.move(composer.x + composer.width / 2, composer.y + 4);
     await page.mouse.down();
     await page.mouse.move(composer.x + composer.width / 2, composer.y + 4 - 200, { steps: 6 });
     await page.mouse.up();
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'dragging the text box taller keeps the end in view');
-    check(await lastBubbleVisible(), 'with the last bubble showing');
+    check((await gap(page)) === 0, 'dragging the text box taller keeps the end in view');
+    check(await lastBubbleVisible(page), 'with the last bubble showing');
     await page.setViewportSize({ width: 900, height: 420 });
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'so does a shorter window');
+    check((await gap(page)) === 0, 'so does a shorter window');
     await page.screenshot({ path: `${shots}/following-0-composer-tall.png` });
 
     // A reader who scrolled up is reading; a new message must not pull
@@ -978,7 +1022,7 @@ try {
     await page.evaluate(() => { const pane = document.querySelector('.rc-messages'); pane.scrollTop = pane.scrollHeight; });
     await page.waitForTimeout(100);
     await send('back at the end');
-    check((await gap()) === 0, 'and is followed again once back at the end');
+    check((await gap(page)) === 0, 'and is followed again once back at the end');
 
     await close();
   }

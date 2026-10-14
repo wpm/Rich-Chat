@@ -46,7 +46,8 @@ renders as a draft while it grows, and `Message::view(id, name, view)`
 for a body you draw yourself, in place of the bubble. A streaming
 message whose text is still empty is thinking: its bubble shows three
 bobbing dots until the first character arrives, then fills with text in
-place.
+place. A host with nothing to send, a viewer of a conversation between
+others, renders `Transcript` instead: `Chat` without the text box.
 
 Everything about the crate is set in one of four places: props on
 `Chat`, props on `RichChatStyle`, CSS custom properties, and Cargo

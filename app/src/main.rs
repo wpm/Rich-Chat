@@ -14,7 +14,9 @@
 //! bubbles alone; whether every bubble has its user's name over it, and
 //! how big; whether the chat is busy, as a host waiting on a model's
 //! reply sets it, so that the text box and the preview stay and only
-//! the sending waits, or disabled, the composer off; light or dark.
+//! the sending waits, or disabled, the composer off; whether there is a
+//! composer at all, or the library's transcript alone, as a viewer of a
+//! conversation between others has; light or dark.
 //! The composer's top edge can be dragged to make the text box taller.
 //! All of that is this app's: the library gets a table of names saying
 //! where each user's bubbles go and in what colors, a flag for the
@@ -32,6 +34,7 @@ use std::time::Duration;
 
 use leptos::ev;
 use leptos::prelude::*;
+use leptos_rich_chat::Transcript as TranscriptView;
 use leptos_rich_chat::{Chat, Message, RichChatStyle};
 use wasm_bindgen::JsCast;
 
@@ -125,6 +128,8 @@ fn App() -> impl IntoView {
     let busy = RwSignal::new(false);
     // And the composer off altogether, as for a host with no key.
     let disabled = RwSignal::new(false);
+    // Or no composer at all: the transcript alone, as a viewer shows it.
+    let composer = RwSignal::new(true);
     // The settings the stylesheets read as custom properties, on the
     // root, from where the library's reach every component by
     // inheritance as its docs say a host's override on any ancestor
@@ -196,6 +201,8 @@ fn App() -> impl IntoView {
     };
     let release = move |_| drag.set(None);
 
+    let on_link = Callback::new(opener::open_url);
+
     view! {
         <RichChatStyle names=names />
         <main
@@ -213,16 +220,30 @@ fn App() -> impl IntoView {
                 theme=theme
                 busy=busy
                 disabled=disabled
+                composer=composer
             />
-            <Chat
-                messages=messages
-                on_send=send
-                on_link=Callback::new(opener::open_url)
-                preview_name=sender
-                show_names=show_names
-                busy=busy
-                disabled=disabled
-            />
+            <Show
+                when=move || composer.get()
+                fallback=move || {
+                    view! {
+                        <TranscriptView
+                            messages=messages
+                            on_link=on_link
+                            show_names=show_names
+                        />
+                    }
+                }
+            >
+                <Chat
+                    messages=messages
+                    on_send=send
+                    on_link=on_link
+                    preview_name=sender
+                    show_names=show_names
+                    busy=busy
+                    disabled=disabled
+                />
+            </Show>
         </main>
     }
 }
