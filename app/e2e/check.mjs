@@ -119,6 +119,16 @@ async function chooseUser(page, name) {
   await page.waitForTimeout(100);
 }
 
+/** How far the transcript is from its end, in CSS pixels. */
+const gap = (page) => page.$eval('.rc-messages', (el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+
+/** Whether the last bubble's bottom is inside the transcript. */
+const lastBubbleVisible = (page) => page.evaluate(() => {
+  const pane = document.querySelector('.rc-messages').getBoundingClientRect();
+  const last = [...document.querySelectorAll('.rc-message')].at(-1).getBoundingClientRect();
+  return last.bottom <= pane.bottom;
+});
+
 /** What is in the composer's text box. */
 const boxText = (page) => page.$eval('.rc-composer-input', (el) => el.value);
 
@@ -931,12 +941,6 @@ try {
   {
     const { page, close } = await openPage({ colorScheme: 'light', viewport: { width: 900, height: 600 } });
     console.log('\ntranscript alone');
-    const gap = () => page.$eval('.rc-messages', (el) => el.scrollHeight - el.scrollTop - el.clientHeight);
-    const lastBubbleVisible = () => page.evaluate(() => {
-      const pane = document.querySelector('.rc-messages').getBoundingClientRect();
-      const last = [...document.querySelectorAll('.rc-message')].at(-1).getBoundingClientRect();
-      return last.bottom <= pane.bottom;
-    });
 
     check(await switchOn(page, '.control-composer'), 'the Composer switch starts on');
     await flip(page, '.control-composer', 150);
@@ -945,17 +949,17 @@ try {
     check((await page.$$('.rc-chat')).length === 1 && (await page.$$('.rc-message')).length === TOUR, 'and the transcript is there alone, with the same messages');
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'at its end');
+    check((await gap(page)) === 0, 'at its end');
 
     // Messages arriving while the reader is at the end come into view.
     await chooseUser(page, 'Assistant');
     await flip(page, '.control-thinking', 200);
     check((await page.$$('.rc-message')).length === TOUR + 1, 'a message is appended');
-    check((await gap()) === 0 && await lastBubbleVisible(), 'and scrolls into view');
+    check((await gap(page)) === 0 && await lastBubbleVisible(page), 'and scrolls into view');
     await chooseUser(page, 'User');
     await flip(page, '.control-thinking', 200);
     check((await page.$$('.rc-thinking')).length === 2, 'two thinking messages show two sets of dots');
-    check((await gap()) === 0 && await lastBubbleVisible(), 'the second in view too');
+    check((await gap(page)) === 0 && await lastBubbleVisible(page), 'the second in view too');
     await page.screenshot({ path: `${shots}/transcript-0-alone.png` });
 
     // A reader who scrolled up stays there.
@@ -975,18 +979,11 @@ try {
   {
     const { page, close } = await openPage({ colorScheme: 'light', viewport: { width: 900, height: 600 } });
     console.log('\nfollowing');
-    // How far the transcript is from its end, in CSS pixels.
-    const gap = () => page.$eval('.rc-messages', (el) => el.scrollHeight - el.scrollTop - el.clientHeight);
-    const lastBubbleVisible = () => page.evaluate(() => {
-      const pane = document.querySelector('.rc-messages').getBoundingClientRect();
-      const last = [...document.querySelectorAll('.rc-message')].at(-1).getBoundingClientRect();
-      return last.bottom <= pane.bottom;
-    });
     const send = (text) => sendText(page, text);
 
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'the window opens at the end of the welcome, its fonts loaded');
+    check((await gap(page)) === 0, 'the window opens at the end of the welcome, its fonts loaded');
 
     // Messages faster than frames: none may be lost.
     for (let i = 0; i < 5; i += 1) {
@@ -995,25 +992,25 @@ try {
     }
     await page.waitForTimeout(300);
     check((await page.$$('.rc-message')).length === TOUR + 5, 'a burst of five messages all arrive');
-    check((await gap()) === 0, 'and the transcript is at the end after them');
+    check((await gap(page)) === 0, 'and the transcript is at the end after them');
 
     // The composer growing over the transcript, by a draft or by a drag.
     await type(page, Array.from({ length: 12 }, (_, i) => `line ${i}`).join('\n'));
-    check(await lastBubbleVisible(), 'a long draft growing the composer leaves the last bubble showing');
+    check(await lastBubbleVisible(page), 'a long draft growing the composer leaves the last bubble showing');
     await page.press('.rc-composer-input', 'Enter');
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'and sending it lands at the end');
+    check((await gap(page)) === 0, 'and sending it lands at the end');
     const composer = await (await page.$('.rc-composer')).boundingBox();
     await page.mouse.move(composer.x + composer.width / 2, composer.y + 4);
     await page.mouse.down();
     await page.mouse.move(composer.x + composer.width / 2, composer.y + 4 - 200, { steps: 6 });
     await page.mouse.up();
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'dragging the text box taller keeps the end in view');
-    check(await lastBubbleVisible(), 'with the last bubble showing');
+    check((await gap(page)) === 0, 'dragging the text box taller keeps the end in view');
+    check(await lastBubbleVisible(page), 'with the last bubble showing');
     await page.setViewportSize({ width: 900, height: 420 });
     await page.waitForTimeout(200);
-    check((await gap()) === 0, 'so does a shorter window');
+    check((await gap(page)) === 0, 'so does a shorter window');
     await page.screenshot({ path: `${shots}/following-0-composer-tall.png` });
 
     // A reader who scrolled up is reading; a new message must not pull
@@ -1025,7 +1022,7 @@ try {
     await page.evaluate(() => { const pane = document.querySelector('.rc-messages'); pane.scrollTop = pane.scrollHeight; });
     await page.waitForTimeout(100);
     await send('back at the end');
-    check((await gap()) === 0, 'and is followed again once back at the end');
+    check((await gap(page)) === 0, 'and is followed again once back at the end');
 
     await close();
   }

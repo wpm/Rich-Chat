@@ -201,6 +201,8 @@ fn App() -> impl IntoView {
     };
     let release = move |_| drag.set(None);
 
+    let on_link = Callback::new(opener::open_url);
+
     view! {
         <RichChatStyle names=names />
         <main
@@ -226,7 +228,7 @@ fn App() -> impl IntoView {
                     view! {
                         <TranscriptView
                             messages=messages
-                            on_link=Callback::new(opener::open_url)
+                            on_link=on_link
                             show_names=show_names
                         />
                     }
@@ -235,7 +237,7 @@ fn App() -> impl IntoView {
                 <Chat
                     messages=messages
                     on_send=send
-                    on_link=Callback::new(opener::open_url)
+                    on_link=on_link
                     preview_name=sender
                     show_names=show_names
                     busy=busy
