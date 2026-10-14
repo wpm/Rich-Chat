@@ -216,6 +216,7 @@ cd app/e2e && npm install && npm test   # the built app in headless Chromium
 .github/scripts/browser-tests.sh cargo test   # the code that needs a DOM, in headless Chrome; needs wasm-bindgen-cli and chromedriver
 cargo run -p leptos-rich-chat --example highlight_css -- OneHalfDark dark   # regenerate assets/highlight.css, see the library README
 cargo llvm-cov -p leptos-rich-chat --open   # test coverage, as a report in the browser; needs cargo-llvm-cov
+.github/scripts/coverage.sh   # test coverage as CI counts it, native and in the browser together
 ```
 
 The [CI workflow](.github/workflows/ci.yml) runs the library's tests
