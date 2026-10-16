@@ -278,11 +278,13 @@ body {
 /* ---- The name over a bubble ------------------------------------------- */
 
 /* The library sets the name over a bubble smaller than this app wants
- * it. The bar's slider moves it, through a property the app always
- * sets; this rule is unlayered, so it wins over the library's theme
- * layer. */
+ * it, and in its muted color. The bar's slider moves the size, through a
+ * property the app always sets, and the color is the user's, the
+ * `--name-accent` their look sets on their messages; this rule is
+ * unlayered, so it wins over the library's theme layer. */
 .app .rc-sender {
   font-size: var(--app-sender-size);
+  color: var(--name-accent, var(--rc-muted));
 }
 
 /* The badge beside a name, drawn through the library's `sender`: its

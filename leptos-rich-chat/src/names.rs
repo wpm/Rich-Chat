@@ -23,11 +23,12 @@
 //!     .name("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
 //! ```
 //!
-//! Position and the two colors are the only properties here, because
-//! they are what a stylesheet cannot express without knowing the name.
-//! Everything else about a name (its font size, a border, an avatar, or
-//! that a `notice` shows no name over its bubble) is ordinary CSS
-//! against `.rc-message[data-name="…"]`.
+//! Position and the two colors are what a [`Look`] sets itself, because
+//! they are what a stylesheet cannot express without knowing the name;
+//! a value more than the bubble needs is a custom property on it (see
+//! [`Look::property`]). Everything else about a name (its font size, an
+//! avatar, or that a `notice` shows no name over its bubble) is
+//! ordinary CSS against `.rc-message[data-name="…"]`.
 
 use std::fmt::Write;
 
@@ -68,6 +69,8 @@ pub struct Look {
     pub background: Option<String>,
     /// The bubble's text color, or the theme's if `None`.
     pub foreground: Option<String>,
+    /// Custom properties, name and value, in order. See [`Look::property`].
+    pub properties: Vec<(String, String)>,
 }
 
 impl Look {
@@ -90,6 +93,36 @@ impl Look {
         self.foreground = Some(css.into());
         self
     }
+
+    /// The same look with the custom property `name` set to `css` on the
+    /// name's messages and its composer preview, where everything inside
+    /// inherits it for the host's own rules to read. `css` is inserted as
+    /// it is; a `name` that is not `--` and an identifier is left out.
+    pub fn property(mut self, name: impl Into<String>, css: impl Into<String>) -> Self {
+        self.properties.push((name.into(), css.into()));
+        self
+    }
+
+    /// The look's custom properties that are custom properties' names,
+    /// as declarations each led by a space: ` --side: blue;`.
+    fn declarations(&self) -> String {
+        self.properties
+            .iter()
+            .filter(|(name, _)| is_custom_property(name))
+            .map(|(name, css)| format!(" {name}: {css};"))
+            .collect()
+    }
+}
+
+/// Whether `name` is a custom property's: `--` and at least one more
+/// character, each a letter, a digit, `-`, `_`, or anything past ASCII.
+fn is_custom_property(name: &str) -> bool {
+    name.strip_prefix("--").is_some_and(|rest| {
+        !rest.is_empty()
+            && rest
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || !c.is_ascii())
+    })
 }
 
 /// The names the host's messages are from, each with its [`Look`], in
@@ -160,7 +193,8 @@ impl Names {
     /// over it on the same side. On a side, a second rule gives the
     /// bubble its tail there, the theme's `--rc-tail`. Colors given are
     /// a last rule, on the bubble and on a composer preview of that
-    /// name.
+    /// name. Custom properties go on the first rule and on one of
+    /// their own for the preview.
     pub fn css(&self) -> String {
         let mut css = String::from(
             "@layer rich-chat.structure, rich-chat.theme;\n@layer rich-chat.theme {\n",
@@ -169,6 +203,7 @@ impl Names {
             let name = css_string(name);
             let message = format!(".rc-message[data-name=\"{name}\"]");
             let bubble = format!("{message} > .rc-bubble");
+            let preview = format!(".rc-composer-preview[data-name=\"{name}\"]");
             let (placement, tail) = match look.position {
                 Position::Left => (
                     "flex-start",
@@ -180,7 +215,8 @@ impl Names {
                     Some("border-bottom-right-radius: var(--rc-tail, 0);"),
                 ),
             };
-            let _ = writeln!(css, "{message} {{ align-items: {placement}; }}");
+            let properties = look.declarations();
+            let _ = writeln!(css, "{message} {{ align-items: {placement};{properties} }}");
             if let Some(tail) = tail {
                 let _ = writeln!(css, "{bubble} {{ {tail} }}");
             }
@@ -192,10 +228,10 @@ impl Names {
                 let _ = write!(colors, " color: {foreground};");
             }
             if !colors.is_empty() {
-                let _ = writeln!(
-                    css,
-                    ":is({bubble}, .rc-composer-preview[data-name=\"{name}\"]) {{{colors} }}"
-                );
+                let _ = writeln!(css, ":is({bubble}, {preview}) {{{colors} }}");
+            }
+            if !properties.is_empty() {
+                let _ = writeln!(css, "{preview} {{{properties} }}");
             }
         }
         css.push_str("}\n");
@@ -315,6 +351,77 @@ mod tests {
             css.contains("[data-name=\"say \\\"hi\\\"\\\\\\a \"]"),
             "{css}"
         );
+    }
+
+    #[test]
+    fn properties_are_written_in_order_on_the_message_and_the_preview() {
+        let css = Names::none()
+            .name(
+                "p6",
+                Look::at(Position::Right)
+                    .background("transparent")
+                    .property("--side", "var(--sd-good)")
+                    .property("--seat", "light-dark(#123, #abc)"),
+            )
+            .css();
+        assert!(
+            css.contains(
+                ".rc-message[data-name=\"p6\"] { align-items: flex-end; \
+                 --side: var(--sd-good); --seat: light-dark(#123, #abc); }\n"
+            ),
+            "{css}"
+        );
+        assert!(
+            css.contains(
+                ".rc-composer-preview[data-name=\"p6\"] { \
+                 --side: var(--sd-good); --seat: light-dark(#123, #abc); }\n"
+            ),
+            "{css}"
+        );
+    }
+
+    #[test]
+    fn a_look_without_properties_writes_no_more_than_before() {
+        let css = Names::none()
+            .name("a", Look::at(Position::Center).background("teal"))
+            .css();
+        assert_eq!(
+            css,
+            "@layer rich-chat.structure, rich-chat.theme;\n@layer rich-chat.theme {\n\
+             .rc-message[data-name=\"a\"] { align-items: center; }\n\
+             :is(.rc-message[data-name=\"a\"] > .rc-bubble, .rc-composer-preview[data-name=\"a\"]) { background: teal; }\n\
+             }\n"
+        );
+    }
+
+    #[test]
+    fn only_custom_property_names_are_written() {
+        let look = Look::at(Position::Left)
+            .property("color", "red")
+            .property("--", "red")
+            .property("-x", "red")
+            .property("--a b", "red")
+            .property("--a;color", "red")
+            .property("--a}", "red")
+            .property("--ok_1-é", "blue");
+        assert_eq!(look.properties.len(), 7, "the look keeps what it is given");
+        let css = Names::none().name("n", look).css();
+        assert!(!css.contains("red"), "{css}");
+        assert!(
+            css.contains(
+                ".rc-message[data-name=\"n\"] { align-items: flex-start; --ok_1-é: blue; }\n"
+            ),
+            "{css}"
+        );
+        assert!(
+            css.contains(".rc-composer-preview[data-name=\"n\"] { --ok_1-é: blue; }\n"),
+            "{css}"
+        );
+
+        let none = Names::none()
+            .name("n", Look::at(Position::Left).property("color", "red"))
+            .css();
+        assert!(!none.contains("rc-composer-preview"), "{none}");
     }
 
     #[test]

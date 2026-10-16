@@ -164,10 +164,30 @@ The colors are CSS values, so `var(--…)` and `light-dark(…, …)` keep
 light and dark mode in your stylesheet. A color left out is the theme's
 plain bubble color, and a name with no entry gets the plain bubble on
 the left. `names` can be a signal, and only its rules are rewritten when
-it changes. Position and the two colors are all a `Look` holds, because
-they are what a stylesheet cannot say without knowing the name;
+it changes. Position and the two colors are what a `Look` sets itself,
+because they are what a stylesheet cannot say without knowing the name;
 anything else about a name is a rule of yours against
 `.rc-message[data-name="…"]`.
+
+A color that should reach more than the bubble, such as the name over
+it, a border, or a view of yours, is a custom property on the `Look`.
+It is set on the name's messages and its composer preview, so
+everything inside them inherits it, and one static rule of yours reads
+it for every name:
+
+```rust
+let names = Names::none()
+    .name("Player 6", Look::at(Position::Right).background("transparent").property("--side", "var(--good)"))
+    .name("Player 2", Look::at(Position::Left).background("transparent").property("--side", "var(--evil)"));
+```
+
+```css
+.rc-sender { color: var(--side, var(--rc-muted)); }
+```
+
+The value is inserted as it is, like the colors. The name must be a
+custom property's, `--` and an identifier; any other is left out of the
+stylesheet, so a `Look` never sets a declaration of its own.
 
 The composer's preview takes the theme's tint colors, or those of the
 name given as `preview_name`, so it can look like the bubble about to be

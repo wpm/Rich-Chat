@@ -433,6 +433,7 @@ try {
         above: name.bottom <= bubble.top, inside: name.left >= bubble.left - 1 && name.right <= bubble.right + 1,
         leftGap: name.left - bubble.left, rightGap: bubble.right - name.right,
         color: style.color, size: parseFloat(style.fontSize),
+        bubbleColor: getComputedStyle(row.querySelector('.rc-bubble')).backgroundColor,
       };
     }));
     const boxHeight = () => page.$eval('.rc-composer-input', (el) => el.getBoundingClientRect().height);
@@ -534,7 +535,10 @@ try {
     // Whether every name over a bubble is `em` times the chat's text.
     const namesAre = (labels, em) => labels.length > 0 && labels.every((label) => Math.abs(label.size - em * bubbleSize) < 0.1);
     check(named.every((label) => label.size < bubbleSize), 'set smaller than the text');
-    check(named.every((label) => label.color === named[0].color), 'in one color whatever the bubble\'s');
+    // The color is the user's, reaching the name through the `--name-accent`
+    // property each user's look sets on their messages.
+    check(named.every((label) => label.color === label.bubbleColor), 'in its user\'s color, the one their bubbles wear');
+    check(new Set(named.map((label) => label.color)).size > 1, 'which differs between users');
     await page.screenshot({ path: `${shots}/controls-0-names.png` });
     await page.click('.control-side[value="left"]');
     await page.waitForTimeout(100);
