@@ -116,7 +116,10 @@ let names = Names::none()
 view! { <RichChatStyle names=names /> }
 ```
 
-A name with no entry gets the plain bubble on the left.
+A name with no entry gets the plain bubble on the left. A `Look` can
+also carry custom properties, `.property("--side", "var(--good)")`, set
+on the name's messages for your own rules to read, such as
+`.rc-sender { color: var(--side); }`.
 
 The crate's stylesheets are in [cascade layers](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer),
 so any unlayered rule in your own stylesheet wins over it, whatever its

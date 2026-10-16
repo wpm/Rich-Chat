@@ -228,9 +228,12 @@ impl User {
     }
 
     /// How this user's bubbles look: on their side, in their color, with
-    /// the text color that reads best on it.
+    /// the text color that reads best on it; and their color as
+    /// `--name-accent`, for the name over the bubble.
     pub fn look(&self) -> Look {
-        let look = Look::at(self.side.position()).background(self.color.clone());
+        let look = Look::at(self.side.position())
+            .background(self.color.clone())
+            .property("--name-accent", self.color.clone());
         match text_on(&self.color) {
             Some(text) => look.foreground(text),
             None => look,
@@ -776,6 +779,17 @@ mod tests {
         let look = user.look();
         assert_eq!(look.background.as_deref(), Some("var(--alice)"));
         assert_eq!(look.foreground, None);
+    }
+
+    /// The user's color reaches the name over their bubbles too, as a
+    /// property the app's stylesheet reads.
+    #[test]
+    fn a_users_color_is_their_names_accent() {
+        let user = User::new("Alice", Side::Left, "#7c3aed");
+        assert_eq!(
+            user.look().properties,
+            [("--name-accent".to_string(), "#7c3aed".to_string())]
+        );
     }
 
     /// `from_stored` over a fixed set of keys.

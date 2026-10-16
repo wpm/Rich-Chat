@@ -13,6 +13,9 @@ version is 0, a minor release may change the API.
   `MessageView` take a `Callback<String, AnyView>` that is given the
   message's name and returns what goes in `div.rc-sender`, such as a
   name in bold with a role in italics, or a badge.
+- `Look::property`, to carry custom properties onto a name's messages
+  and composer preview, where a host's static rules read them: the
+  color of the name over a bubble, a border, a badge.
 
 ## [0.1.0] - 2026-10-14
 
