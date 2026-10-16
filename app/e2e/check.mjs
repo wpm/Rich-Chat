@@ -10,8 +10,10 @@
 // bubble side and color changing every bubble of theirs, the window's
 // background changing the ground behind the bubbles and nothing of the
 // composer's, and going back to the theme's, the names over the bubbles
-// and the slider that sizes them, the Busy switch holding what is sent
-// while the text box and the preview carry on, the Disabled switch
+// and the slider that sizes them, the Rich names switch showing a badge
+// beside each, drawn through the library's `sender`, the Busy switch
+// holding what is sent while the text box and the preview carry on, the
+// Disabled switch
 // turning the composer off and back with its draft and collapsed
 // preview intact and the caret back in the box where the reader left
 // it, adding and deleting a user, the theme switch, dragging the text
@@ -424,8 +426,10 @@ try {
       const name = label.getBoundingClientRect();
       const bubble = row.querySelector('.rc-bubble').getBoundingClientRect();
       const style = getComputedStyle(label);
+      const badge = label.querySelector('.app-badge');
       return {
-        text: label.textContent, carried: row.dataset.name,
+        text: label.firstChild.textContent, carried: row.dataset.name,
+        badge: badge && getComputedStyle(badge).display !== 'none' ? badge.textContent : null,
         above: name.bottom <= bubble.top, inside: name.left >= bubble.left - 1 && name.right <= bubble.right + 1,
         leftGap: name.left - bubble.left, rightGap: bubble.right - name.right,
         color: style.color, size: parseFloat(style.fontSize),
@@ -559,6 +563,24 @@ try {
     check(await sliderOff() && (await sliderAt()) === '1.4', 'and the slider goes off where it was left');
     await flip(page, '.control-names');
     check(namesAre(await labels(), 1.4), 'and the names come back at that size');
+
+    // The names as the app draws them, through the library's `sender`:
+    // the Rich names switch puts a badge of the initial beside each one,
+    // in the same line over the bubble, and takes it away again.
+    check(!(await switchOn(page, '.control-rich-names')), 'the names start without badges');
+    check((await labels()).every((label) => label.badge === null), 'and none is shown');
+    await flip(page, '.control-rich-names');
+    check(await switchOn(page, '.control-rich-names'), 'the Rich names switch reports it is on');
+    const drawn = await labels();
+    check(drawn.length > 0 && drawn.every((label) => label.badge === label.carried[0]), 'every .rc-sender holds a badge of its name\'s initial');
+    check(drawn.every((label) => label.text === label.carried), 'after the name as spelled');
+    check(drawn.every((label) => label.above && label.inside), 'still above the bubble, within its width');
+    await page.screenshot({ path: `${shots}/controls-0-rich-names.png` });
+    await flip(page, '.control-rich-names');
+    check((await labels()).every((label) => label.badge === null), 'and the switch takes the badges off again');
+    await flip(page, '.control-names');
+    check(await page.$eval('.control-rich-names', (el) => el.disabled), 'the switch is off while the names are');
+    await flip(page, '.control-names');
 
     // Busy: a reply is in flight, so sending waits, and the reader goes on
     // writing the next message, preview and all.

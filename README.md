@@ -68,6 +68,7 @@ features.
 | `send`          | view function            | the word "Send"                          | The send button's content, so it can be an icon.                                                         |
 | `empty`         | `String`                 | nothing                                  | Shown in the transcript while it has no messages.                                                        |
 | `show_names`    | `Signal<bool>`           | `false`                                  | Writes each message's name over its bubble, as a group chat does.                                        |
+| `sender`        | `Callback<String, AnyView>` | the name as spelled                   | Draws what goes over a bubble, given its name: a name and a role, an avatar, a badge.                    |
 | `disabled`      | `Signal<bool>`           | `false`                                  | The composer off: the text box is disabled, there is no preview, nothing sends. The draft is kept.       |
 | `busy`          | `Signal<bool>`           | `false`                                  | A reply in flight: the text box and preview carry on, but nothing sends until it clears. The draft is kept. |
 | `busy_label`    | `String`                 | `"Sending is paused"`                    | What a screen reader is told while `busy` holds a send back.                                             |

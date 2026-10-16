@@ -284,3 +284,23 @@ body {
 .app .rc-sender {
   font-size: var(--app-sender-size);
 }
+
+/* The badge beside a name, drawn through the library's `sender`: its
+ * initial in a small filled square, shown while Rich names is on. */
+.app:not(.app-rich-names) .app-badge {
+  display: none;
+}
+
+.app-badge {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-inline-start: 0.4em;
+  padding: 0 0.2em;
+  border-radius: 3px;
+  background: var(--app-accent);
+  color: var(--app-accent-fg);
+  font-size: 0.8em;
+  font-weight: 600;
+  line-height: 1.4em;
+  text-align: center;
+}

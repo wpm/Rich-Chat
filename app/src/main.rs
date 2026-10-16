@@ -11,10 +11,11 @@
 //! their color,
 //! which changes every bubble of theirs; the widest a message gets, for
 //! every user at once; the window's background, the ground behind the
-//! bubbles alone; whether every bubble has its user's name over it, and
-//! how big; whether the chat is busy, as a host waiting on a model's
-//! reply sets it, so that the text box and the preview stay and only
-//! the sending waits, or disabled, the composer off; whether there is a
+//! bubbles alone; whether every bubble has its user's name over it, how
+//! big, and whether it has a badge of the user's initial beside it;
+//! whether the chat is busy, as a host waiting on a model's reply sets
+//! it, so that the text box and the preview stay and only the sending
+//! waits, or disabled, the composer off; whether there is a
 //! composer at all, or the library's transcript alone, as a viewer of a
 //! conversation between others has; light or dark.
 //! The composer's top edge can be dragged to make the text box taller.
@@ -126,6 +127,14 @@ fn App() -> impl IntoView {
     // The wait a host with a model has between a message and its reply.
     // Not a setting: every run starts with nothing in flight.
     let busy = RwSignal::new(false);
+    // The name over each bubble, through the library's `sender`, with a
+    // badge of its initial that a class on the window shows while Rich
+    // names is on. Not a setting either.
+    let rich_names = RwSignal::new(false);
+    let draw_name = Callback::new(|name: String| {
+        let initial = name.chars().next();
+        view! { {name}<span class="app-badge" aria-hidden="true">{initial}</span> }.into_any()
+    });
     // And the composer off altogether, as for a host with no key.
     let disabled = RwSignal::new(false);
     // Or no composer at all: the transcript alone, as a viewer shows it.
@@ -208,6 +217,7 @@ fn App() -> impl IntoView {
         <main
             class="app"
             class:app-resizing=move || drag.read().is_some()
+            class:app-rich-names=move || rich_names.get()
             style=style
             on:pointerdown=press
             on:pointermove=moved
@@ -221,6 +231,7 @@ fn App() -> impl IntoView {
                 busy=busy
                 disabled=disabled
                 composer=composer
+                rich_names=rich_names
             />
             <Show
                 when=move || composer.get()
@@ -230,6 +241,7 @@ fn App() -> impl IntoView {
                             messages=messages
                             on_link=on_link
                             show_names=show_names
+                            sender=draw_name
                         />
                     }
                 }
@@ -240,6 +252,7 @@ fn App() -> impl IntoView {
                     on_link=on_link
                     preview_name=sender
                     show_names=show_names
+                    sender=draw_name
                     busy=busy
                     disabled=disabled
                 />
