@@ -1,16 +1,17 @@
 //! The bar above the chat: the users and whether the selected one is
-//! thinking, the selected user's bubbles, the
-//! widest a message gets, the window's background, whether bubbles are
-//! named and how big the name is, whether the chat is busy or disabled,
+//! thinking, the selected user's bubbles, the widest a message gets, the
+//! window's background, whether bubbles are named, how big the name is
+//! and whether it has a badge, whether the chat is busy or disabled,
 //! whether it has a composer at all, the theme.
 //!
 //! Each control edits the app's [`Settings`]; the app root turns those
 //! into the library's table of names and its `show_names`, the root
 //! element's theme attribute, and custom properties for the stylesheets.
-//! The Thinking, Busy, Disabled and Composer switches are the exception:
-//! each is a state of the conversation, not a choice to keep, so it is
-//! kept apart from the settings and starts as a new chat does, with the
-//! composer on and the rest off. Thinking is the [`Transcript`]'s.
+//! The Thinking, Rich names, Busy, Disabled and Composer switches are
+//! the exception: each is a state of the conversation, not a choice to
+//! keep, so it is kept apart from the settings and starts as a new chat
+//! does, with the composer on and the rest off. Thinking is the
+//! [`Transcript`]'s.
 
 use leptos::ev;
 use leptos::prelude::*;
@@ -26,7 +27,8 @@ use crate::transcript::Transcript;
 /// chat's: there is no model here to wait on, nor a key to be without,
 /// so the switches stand in for them. `composer` is whether the chat has
 /// one: off, the app shows the library's transcript alone, as a viewer of
-/// a conversation between others does.
+/// a conversation between others does. `rich_names` is whether the app
+/// draws its own badge beside each name, through the library's `sender`.
 #[component]
 pub fn Controls(
     settings: RwSignal<Settings>,
@@ -35,6 +37,7 @@ pub fn Controls(
     busy: RwSignal<bool>,
     disabled: RwSignal<bool>,
     composer: RwSignal<bool>,
+    rich_names: RwSignal<bool>,
 ) -> impl IntoView {
     let dark = move || theme.get() == Theme::Dark;
     let toggle_theme = move |_| {
@@ -284,6 +287,17 @@ pub fn Controls(
                     disabled=move || !show_names.get()
                     on:input=resize_names
                 />
+                <button
+                    type="button"
+                    class="control-button control-toggle control-rich-names"
+                    role="switch"
+                    aria-checked=move || rich_names.get().to_string()
+                    title="Draw a badge of the user's initial beside each name"
+                    disabled=move || !show_names.get()
+                    on:click=move |_| rich_names.update(|rich| *rich = !*rich)
+                >
+                    "Rich names"
+                </button>
             </div>
             <button
                 type="button"

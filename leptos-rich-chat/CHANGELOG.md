@@ -5,6 +5,15 @@ All notable changes to `leptos-rich-chat`. The format follows
 follows [Semantic Versioning](https://semver.org/): while the major
 version is 0, a minor release may change the API.
 
+## [Unreleased]
+
+### Added
+
+- `sender`, to draw the name over a bubble: `Chat`, `Transcript` and
+  `MessageView` take a `Callback<String, AnyView>` that is given the
+  message's name and returns what goes in `div.rc-sender`, such as a
+  name in bold with a role in italics, or a badge.
+
 ## [0.1.0] - 2026-10-14
 
 The first release: `Chat`, `Transcript`, `Composer`, `MessageView`,

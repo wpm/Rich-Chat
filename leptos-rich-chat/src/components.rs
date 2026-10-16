@@ -286,7 +286,8 @@ pub fn Thinking(
 /// One message in the transcript. The outer `div.rc-message` carries the
 /// message's name as `data-name`, which the host's [`Names`] rules place
 /// and color. With `show_names`, the name is written over the body, in a
-/// `div.rc-sender` on the body's side.
+/// `div.rc-sender` on the body's side: the name as spelled, or what the
+/// host's `sender` draws for it.
 ///
 /// What follows the name depends on the message's [`Body`]. Markdown,
 /// [`Body::Text`], is rendered by [`RichText`] inside a `div.rc-bubble`,
@@ -316,6 +317,13 @@ pub fn MessageView(
     /// Called with a link's destination instead of following it.
     #[prop(into, optional_no_strip)]
     on_link: Option<Callback<String>>,
+    /// Draws what goes in `div.rc-sender`, given the message's name, in
+    /// place of the name as spelled. Called once, when the message mounts
+    /// with `show_names` on. A screen reader reads the line with the
+    /// bubble, so keep the name in it as text and mark decoration
+    /// `aria-hidden`.
+    #[prop(into, optional_no_strip)]
+    sender: Option<Callback<String, AnyView>>,
     /// A reference to the outer `div.rc-message`.
     #[prop(optional)]
     node_ref: NodeRef<html::Div>,
@@ -345,7 +353,12 @@ pub fn MessageView(
             node_ref=node_ref
         >
             <Show when=move || show_names.get()>
-                <div class="rc-sender">{name.clone()}</div>
+                <div class="rc-sender">
+                    {match sender {
+                        Some(sender) => sender.run(name.clone()),
+                        None => name.clone().into_any(),
+                    }}
+                </div>
             </Show>
             {body}
         </div>
@@ -1095,6 +1108,9 @@ pub fn Chat(
     /// Write each message's name over its bubble. See [`Transcript`].
     #[prop(optional, into)]
     show_names: Signal<bool>,
+    /// Draws the name over each bubble. See [`MessageView`].
+    #[prop(into, optional_no_strip)]
+    sender: Option<Callback<String, AnyView>>,
     /// What a screen reader calls the dots of a message that is
     /// thinking. See [`Transcript`].
     #[prop(default = "Thinking".to_string(), into)]
@@ -1109,6 +1125,7 @@ pub fn Chat(
             <Messages
                 messages=messages
                 show_names=show_names
+                sender=sender
                 options=options.clone()
                 on_link=on_link
                 empty=empty
@@ -1158,6 +1175,9 @@ pub fn Transcript(
     /// a signal, for a host that lets the reader switch it.
     #[prop(optional, into)]
     show_names: Signal<bool>,
+    /// Draws the name over each bubble. See [`MessageView`].
+    #[prop(into, optional_no_strip)]
+    sender: Option<Callback<String, AnyView>>,
     /// What to render; the default renders everything.
     #[prop(optional)]
     options: RenderOptions,
@@ -1181,6 +1201,7 @@ pub fn Transcript(
             <Messages
                 messages=messages
                 show_names=show_names
+                sender=sender
                 options=options
                 on_link=on_link
                 empty=empty
@@ -1197,6 +1218,7 @@ pub fn Transcript(
 fn Messages(
     messages: Signal<Vec<Message>>,
     show_names: Signal<bool>,
+    sender: Option<Callback<String, AnyView>>,
     options: RenderOptions,
     on_link: Option<Callback<String>>,
     empty: Option<String>,
@@ -1231,6 +1253,7 @@ fn Messages(
                         <MessageView
                             message=message
                             show_names=show_names
+                            sender=sender
                             options=options.clone()
                             on_link=on_link
                             node_ref=wrapper
@@ -1497,6 +1520,41 @@ mod tests {
         show.set(true);
         let on = html(|| view! { <MessageView message=message show_names=show /> });
         assert!(on.contains("<div class=\"rc-sender\">Alice</div>"), "{on}");
+    }
+
+    /// A host's sender line: the name in bold and a badge of its initial.
+    fn badge_sender() -> Callback<String, AnyView> {
+        Callback::new(|name: String| {
+            let initial = name.chars().next();
+            view! { <b>{name}</b><span class="badge" aria-hidden="true">{initial}</span> }
+                .into_any()
+        })
+    }
+
+    #[test]
+    fn a_host_draws_the_name_over_a_bubble() {
+        let message = Message::new("m9", "Alice", "hi");
+        let out = html(|| {
+            view! { <MessageView message=message show_names=true sender=badge_sender() /> }
+        });
+        let name = out
+            .find(
+                "<div class=\"rc-sender\"><b>Alice</b>\
+                 <span aria-hidden=\"true\" class=\"badge\">A</span></div>",
+            )
+            .unwrap_or_else(|| panic!("{out}"));
+        let bubble = out
+            .find("<div class=\"rc-bubble\">")
+            .unwrap_or_else(|| panic!("{out}"));
+        assert!(name < bubble, "the name is over the bubble: {out}");
+    }
+
+    #[test]
+    fn a_host_sender_is_not_drawn_without_names() {
+        let message = Message::new("m9", "Alice", "hi");
+        let out = html(|| view! { <MessageView message=message sender=badge_sender() /> });
+        assert!(!out.contains("rc-sender"), "{out}");
+        assert!(!out.contains("badge"), "{out}");
     }
 
     #[test]
@@ -2143,6 +2201,15 @@ mod tests {
             named.contains("<div class=\"rc-sender\">them</div>"),
             "{named}"
         );
+
+        let drawn = html(|| {
+            view! {
+                <Chat messages=messages on_send=|_: String| {} show_names=true sender=badge_sender() />
+            }
+        });
+        assert!(drawn.contains("<b>me</b>"), "{drawn}");
+        assert!(drawn.contains("<b>them</b>"), "{drawn}");
+        assert_eq!(drawn.matches("class=\"badge\"").count(), 2, "{drawn}");
     }
 
     #[test]
@@ -2177,6 +2244,12 @@ mod tests {
             named.contains("<div class=\"rc-sender\">me</div>"),
             "{named}"
         );
+
+        let drawn = html(|| {
+            view! { <Transcript messages=messages show_names=true sender=badge_sender() /> }
+        });
+        assert_eq!(drawn.matches("class=\"badge\"").count(), 3, "{drawn}");
+        assert!(drawn.contains("<b>them</b>"), "{drawn}");
     }
 
     #[test]

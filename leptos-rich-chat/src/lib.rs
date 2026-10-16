@@ -79,7 +79,8 @@
 //! the right and `assistant` on the left. A group chat, or a transcript
 //! with notices down the middle, is a different table, with a [`Look`]
 //! at a [`Position`] per name. [`Chat`]'s `show_names` writes the name
-//! over each bubble, on its side.
+//! over each bubble, on its side, and its `sender` draws it as the host
+//! likes, given the name.
 //!
 //! # Styling
 //!

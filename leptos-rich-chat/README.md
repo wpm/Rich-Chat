@@ -191,6 +191,36 @@ the size is that element's `font-size`, so a name that should be bigger
 or smaller than the theme's `0.875em` is another rule of yours:
 `.rc-sender { font-size: 1em; }`.
 
+A name can be more than its letters: a player in bold with their role in
+italics beside it, an avatar, a badge. Give `Chat`, `Transcript` or
+`MessageView` a `sender`, which takes the message's name and returns the
+view that goes in `div.rc-sender` in place of the text:
+
+```rust
+// The name is "Player 6 · Seer".
+let sender = Callback::new(|name: String| {
+    let (player, role) = name.split_once(" · ").unwrap_or((&name, ""));
+    let seat = player.trim_start_matches("Player ").to_string();
+    view! {
+        <span class="seat" aria-label=format!("Seat {seat}")>{seat.clone()}</span>
+        <b>{player.to_string()}</b>
+        " "
+        <i>{role.to_string()}</i>
+    }
+    .into_any()
+});
+view! { <Chat messages=messages on_send=send show_names=true sender=sender /> }
+```
+
+The `div` stays, with its class, its side and the theme's rules, so what
+you draw keeps the name's place and muted color unless a rule of yours
+says otherwise. It is drawn only with `show_names`, once per message
+when it mounts; a view that should change afterwards reads a signal of
+yours. A screen reader reads the line along with the bubble, so keep
+the name in it as text, give a mark that carries meaning words of its
+own, as the seat above has, and put `aria-hidden="true"` on one that is
+only decoration.
+
 ### Links
 
 By default links open in a new browsing context. In a Tauri window the
@@ -383,8 +413,8 @@ checkout of this repository or the package in Cargo's registry cache.
 The words in the interface are props: `Chat` and `Composer` take
 `placeholder`, `hint` (empty leaves the line out), `preview_label`, and
 `send`, the button's content, so it can be an icon; `Chat` takes `empty`
-for the bare transcript and `show_names` for the names over the
-bubbles; and the copy button's labels are a `CodeLabels` provided as
+for the bare transcript, `show_names` for the names over the
+bubbles and `sender` to draw them; and the copy button's labels are a `CodeLabels` provided as
 context, or a prop on `CodeBlock`. The text in the box is
 the composer's own unless `draft`, an `RwSignal<String>` the host holds,
 is given: to prefill it, read it, or keep it across unmounting.
