@@ -659,6 +659,13 @@ mod keys {
     pub fn escape_returns(press: &Press) -> bool {
         press.key == "Escape"
     }
+
+    /// Whether a press in the transcript scrolls it up: the up arrow,
+    /// Page Up, Home, or Shift+Space.
+    pub fn scrolls_up(press: &Press) -> bool {
+        matches!(press.key.as_str(), "ArrowUp" | "PageUp" | "Home")
+            || (press.key == " " && press.shift)
+    }
 }
 
 /// The text box's key handler: Enter sends, by `submit`, and Alt+Shift+P
@@ -1238,8 +1245,8 @@ fn Messages(
     #[cfg(not(target_arch = "wasm32"))]
     let _ = warm_up;
 
-    view! {
-        <div class="rc-messages" node_ref=pane on:scroll=move |_| follow.scrolled()>
+    let pane_view = view! {
+        <div class="rc-messages" node_ref=pane on:scroll=move |event| follow.scrolled(event.time_stamp())>
             <Show when=move || messages.read().is_empty()>
                 <div class="rc-empty">{empty.clone().unwrap_or_default()}</div>
             </Show>
@@ -1263,29 +1270,71 @@ fn Messages(
                 }
             />
         </div>
-    }
+    };
+    // The reader's own input, which only the browser has. See [`Follow`].
+    #[cfg(target_arch = "wasm32")]
+    let pane_view = pane_view
+        .into_inner()
+        .on(passive::<ev::WheelEvent>("wheel"), move |event| {
+            if event.delta_y() < 0.0 {
+                follow.steered(event.time_stamp());
+            }
+        })
+        .on(passive::<ev::TouchEvent>("touchmove"), move |event| {
+            follow.steered(event.time_stamp())
+        })
+        .on(ev::keydown, move |event| {
+            if keys::scrolls_up(&keys::Press::from(&event)) {
+                follow.steered(event.time_stamp());
+            }
+        })
+        .on(ev::pointerdown, move |event| {
+            // On the pane itself, its scrollbar, not on a bubble in it.
+            if event.target() == event.current_target() {
+                follow.pressed(true);
+            }
+        })
+        .on(ev::pointerup, move |_| follow.pressed(false))
+        .on(ev::pointercancel, move |_| follow.pressed(false));
+    pane_view
+}
+
+/// The event `name`, listened to passively: the handler never prevents
+/// the default, so the browser need not wait for it to scroll.
+#[cfg(target_arch = "wasm32")]
+fn passive<E: wasm_bindgen::convert::FromWasmAbi>(name: &'static str) -> ev::Custom<E> {
+    let mut event = ev::Custom::new(name);
+    event.options_mut().set_passive(true);
+    event
 }
 
 /// How far from the end of the transcript, in CSS pixels, still counts
 /// as at it.
 const END_SLACK: i32 = 48;
 
+/// How long after the reader's own input to the pane, in milliseconds, a
+/// scroll counts as theirs: long enough for the smooth scroll a wheel
+/// notch or a key starts to carry them past [`END_SLACK`].
+const STEER_MS: f64 = 500.0;
+
 /// Whether the reader is at the end after a scroll event that left
 /// `scrollTop` at `top`, in a pane `scroll_height` tall showing
-/// `client_height` of it. `at_end` is whether they were before it and
-/// `last_top` where the event before it left `scrollTop`. See [`Follow`]
-/// for why a scroll that leaves the end further away is not leaving it.
+/// `client_height` of it. `at_end` is whether they were before it,
+/// `last_top` where the event before it left `scrollTop`, and `steered`
+/// whether the reader's own input came just before it. See [`Follow`]
+/// for why only a scroll up that the reader steered leaves the end.
 fn at_end_after_scroll(
     at_end: bool,
     last_top: i32,
     top: i32,
     scroll_height: i32,
     client_height: i32,
+    steered: bool,
 ) -> bool {
     let gap = scroll_height - top - client_height;
     if gap <= END_SLACK {
         true
-    } else if top < last_top {
+    } else if steered && top < last_top {
         false
     } else {
         at_end
@@ -1295,12 +1344,23 @@ fn at_end_after_scroll(
 /// Keeps the transcript's end in view while the reader is at it.
 ///
 /// The reader is "at the end" until they scroll up, and again once they
-/// scroll back to within [`END_SLACK`] of it. A scroll event is judged
-/// by its direction, not by where it leaves the transcript: the event
-/// arrives a frame after the scroll it reports, and by then a bubble may
-/// have arrived and pushed the end further away. That is growth, not the
-/// reader leaving, and reading it as leaving is how a transcript loses a
-/// burst of messages.
+/// scroll back to within [`END_SLACK`] of it. A scroll event says where
+/// the transcript is, not who moved it, and it arrives a frame after the
+/// scroll it reports, by when the transcript may have changed under it.
+/// So it is not taken for the reader leaving unless two things hold:
+///
+/// - It went up. A bubble arriving pushes the end further away, which is
+///   growth, not leaving; reading it as leaving is how a transcript
+///   loses a burst of messages.
+/// - The reader steered it: within [`STEER_MS`] after the wheel turned
+///   up, a key that scrolls up was pressed or a finger moved on the
+///   pane, or while the pane itself (its scrollbar) is pressed. A bubble
+///   going away has the browser lower `scrollTop` to fit, which is a
+///   scroll up nobody made; if another bubble arrives before the event
+///   for it, the end is far away too.
+///
+/// A scroll up that no input to the pane made, such as the browser's
+/// find in page going to a match, is not leaving either.
 ///
 /// The scrolling itself is driven by a `ResizeObserver` on the pane and
 /// on every bubble: a bubble arriving, growing (a stream of content, an
@@ -1315,6 +1375,11 @@ struct Follow {
     at_end: StoredValue<bool>,
     /// Where the last scroll event left `scrollTop`.
     last_top: StoredValue<i32>,
+    /// When the reader last gave the pane input that scrolls it up, as
+    /// an event's timestamp.
+    last_input: StoredValue<f64>,
+    /// The reader is pressing the pane itself: dragging its scrollbar.
+    pressed: StoredValue<bool>,
     /// Made on the first element watched, in the browser only.
     observer: StoredValue<Option<Observer>, LocalStorage>,
 }
@@ -1332,6 +1397,8 @@ impl Follow {
             pane,
             at_end: StoredValue::new(true),
             last_top: StoredValue::new(0),
+            last_input: StoredValue::new(f64::NEG_INFINITY),
+            pressed: StoredValue::new(false),
             observer: StoredValue::new_local(None),
         };
         on_cleanup(move || {
@@ -1383,8 +1450,24 @@ impl Follow {
         })
     }
 
-    /// The pane scrolled: by the reader, or by [`to_end`](Self::to_end).
-    fn scrolled(self) {
+    /// The reader gave the pane input that scrolls it up, at `at`.
+    // Called by the listeners, which are the browser's only.
+    #[cfg_attr(not(any(target_arch = "wasm32", test)), expect(dead_code))]
+    fn steered(self, at: f64) {
+        self.last_input.set_value(at);
+    }
+
+    /// The reader pressed the pane itself, or let go of it.
+    // Called by the listeners, which are the browser's only.
+    #[cfg_attr(not(any(target_arch = "wasm32", test)), expect(dead_code))]
+    fn pressed(self, pressed: bool) {
+        self.pressed.set_value(pressed);
+    }
+
+    /// The pane scrolled, as an event at `at` says: by the reader, by
+    /// [`to_end`](Self::to_end), or by the browser fitting it to a
+    /// shorter transcript.
+    fn scrolled(self, at: f64) {
         let Some(pane) = self.pane.get_untracked() else {
             return;
         };
@@ -1395,6 +1478,7 @@ impl Follow {
             top,
             pane.scroll_height(),
             pane.client_height(),
+            self.pressed.get_value() || at - self.last_input.get_value() < STEER_MS,
         ));
         self.last_top.set_value(top);
     }
@@ -1415,7 +1499,7 @@ mod browser_tests;
 mod tests {
     use std::sync::Arc;
 
-    use super::keys::{Press, enter_sends, escape_returns, preview_key};
+    use super::keys::{Press, enter_sends, escape_returns, preview_key, scrolls_up};
     use super::*;
     use crate::names::{Look, Position};
 
@@ -2641,6 +2725,24 @@ mod tests {
     }
 
     #[test]
+    fn the_keys_that_scroll_up() {
+        for key in ["ArrowUp", "PageUp", "Home"] {
+            assert!(scrolls_up(&press(key)), "{key}");
+        }
+        assert!(
+            scrolls_up(&Press {
+                shift: true,
+                ..press(" ")
+            }),
+            "Shift+Space"
+        );
+        assert!(!scrolls_up(&press(" ")), "Space goes down");
+        for key in ["ArrowDown", "PageDown", "End", "a"] {
+            assert!(!scrolls_up(&press(key)), "{key}");
+        }
+    }
+
+    #[test]
     fn the_key_expands_the_preview_it_goes_to_when_there_is_one() {
         Owner::new().with(|| {
             let expanded = RwSignal::new(false);
@@ -2689,33 +2791,49 @@ mod tests {
 
     #[test]
     fn the_reader_is_at_the_end_within_the_slack_of_it() {
-        assert!(at_end_after_scroll(false, 0, 600, 1000, 400), "at it");
         assert!(
-            at_end_after_scroll(false, 0, 600 - END_SLACK, 1000, 400),
+            at_end_after_scroll(false, 0, 600, 1000, 400, false),
+            "at it"
+        );
+        assert!(
+            at_end_after_scroll(false, 0, 600 - END_SLACK, 1000, 400, false),
             "within the slack"
         );
         assert!(
-            !at_end_after_scroll(false, 0, 600 - END_SLACK - 1, 1000, 400),
+            !at_end_after_scroll(false, 0, 600 - END_SLACK - 1, 1000, 400, false),
             "just beyond it"
         );
     }
 
     #[test]
     fn scrolling_up_away_from_the_end_leaves_it() {
-        assert!(!at_end_after_scroll(true, 600, 500, 1000, 400));
+        assert!(!at_end_after_scroll(true, 600, 500, 1000, 400, true));
+    }
+
+    #[test]
+    fn a_scroll_up_the_reader_did_not_steer_is_not_leaving_the_end() {
+        // A bubble went away and the browser lowered `scrollTop` to fit;
+        // another arrived, to 1400, before the event did.
+        assert!(at_end_after_scroll(true, 600, 540, 1400, 400, false));
     }
 
     #[test]
     fn growth_that_pushes_the_end_away_is_not_leaving_it() {
         // The pane grew to 1400 before the event arrived; the scroll that
         // the event reports went down, not up.
-        assert!(at_end_after_scroll(true, 500, 600, 1400, 400), "nor up");
-        assert!(at_end_after_scroll(true, 600, 600, 1400, 400), "nor at all");
+        assert!(
+            at_end_after_scroll(true, 500, 600, 1400, 400, true),
+            "nor up"
+        );
+        assert!(
+            at_end_after_scroll(true, 600, 600, 1400, 400, true),
+            "nor at all"
+        );
     }
 
     #[test]
     fn scrolling_down_short_of_the_end_does_not_return_to_it() {
-        assert!(!at_end_after_scroll(false, 100, 300, 1000, 400));
+        assert!(!at_end_after_scroll(false, 100, 300, 1000, 400, false));
     }
 
     #[test]
@@ -2730,10 +2848,14 @@ mod tests {
         let _ = any_spawner::Executor::init_futures_executor();
         Owner::new().with(|| {
             let follow = Follow::new(NodeRef::new());
-            follow.scrolled();
+            follow.steered(1.0);
+            follow.pressed(true);
+            follow.scrolled(2.0);
             follow.to_end();
             assert!(follow.at_end.get_value());
             assert_eq!(follow.last_top.get_value(), 0);
+            assert_eq!(follow.last_input.get_value(), 1.0, "input is noted");
+            assert!(follow.pressed.get_value(), "and a press");
         });
     }
 }

@@ -9,7 +9,7 @@ use leptos::mount::{UnmountHandle, mount_to};
 use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
 use web_sys::{
     Event, EventInit, HtmlElement, HtmlTextAreaElement, KeyboardEvent, KeyboardEventInit,
-    MouseEvent, MouseEventInit,
+    MouseEvent, MouseEventInit, WheelEvent, WheelEventInit,
 };
 
 use super::*;
@@ -358,16 +358,31 @@ fn transcript() -> (
 }
 
 fn add(messages: RwSignal<Vec<Message>>, count: usize) {
+    for _ in 0..count {
+        let n = messages.read_untracked().len();
+        post(messages, format!("Message {n}"));
+    }
+}
+
+/// Appends one message with `text`.
+fn post(messages: RwSignal<Vec<Message>>, text: String) {
     messages.update(|all| {
-        for _ in 0..count {
-            let n = all.len();
-            all.push(Message::new(n.to_string(), "User", format!("Message {n}")));
-        }
+        let n = all.len();
+        all.push(Message::new(n.to_string(), "User", text));
     });
 }
 
 fn gap(pane: &HtmlElement) -> i32 {
     pane.scroll_height() - pane.scroll_top() - pane.client_height()
+}
+
+/// The reader scrolls the pane to `top`, with the wheel.
+fn scroll_by_hand(pane: &HtmlElement, top: i32) {
+    let init = WheelEventInit::new();
+    init.set_delta_y(f64::from(top - pane.scroll_top()));
+    let wheel = WheelEvent::new_with_event_init_dict("wheel", &init).unwrap();
+    pane.dispatch_event(&wheel).unwrap();
+    pane.set_scroll_top(top);
 }
 
 /// Lets the observers report and the scroll events they cause arrive.
@@ -386,16 +401,74 @@ async fn the_transcript_follows_its_end_until_the_reader_scrolls_up() {
     assert!(gap(&pane) <= END_SLACK, "at the end: {}", gap(&pane));
 
     // The reader scrolls up; new messages leave them where they are.
-    pane.set_scroll_top(0);
+    scroll_by_hand(&pane, 0);
     settle().await;
     add(messages, 5);
     settle().await;
     assert_eq!(pane.scroll_top(), 0, "left alone");
 
     // Back at the end, it follows again.
-    pane.set_scroll_top(pane.scroll_height());
+    scroll_by_hand(&pane, pane.scroll_height());
     settle().await;
     add(messages, 5);
     settle().await;
     assert!(gap(&pane) <= END_SLACK, "following again: {}", gap(&pane));
+}
+
+#[wasm_bindgen_test]
+async fn the_transcript_follows_its_end_when_a_bubble_goes_and_another_comes() {
+    let (_root, _view, pane, messages) = transcript();
+    add(messages, 20);
+    settle().await;
+    assert!(gap(&pane) <= END_SLACK, "at the end: {}", gap(&pane));
+
+    // A bubble goes away and the browser lowers `scrollTop` to fit the
+    // shorter transcript; another arrives before the scroll event for
+    // that does. The reader never scrolled. (Done by hand, since when
+    // the browser clamps and dispatches the event is its own business.)
+    pane.set_scroll_top(pane.scroll_top() - 60);
+    post(messages, "A tall post.\n\n".repeat(10));
+    settle().await;
+    assert!(gap(&pane) <= END_SLACK, "still following: {}", gap(&pane));
+}
+
+/// A pointer event called `name` at `target`, bubbling.
+fn point(target: &HtmlElement, name: &str) {
+    let init = MouseEventInit::new();
+    init.set_bubbles(true);
+    let event = MouseEvent::new_with_mouse_event_init_dict(name, &init).unwrap();
+    target.dispatch_event(&event).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn a_press_on_a_bubble_is_not_steering() {
+    let (_root, _view, pane, messages) = transcript();
+    add(messages, 20);
+    settle().await;
+
+    // The reader presses something in a bubble, then the browser fits
+    // the pane to a shorter transcript as another bubble arrives.
+    point(&find(&pane, ".rc-message"), "pointerdown");
+    pane.set_scroll_top(pane.scroll_top() - 60);
+    post(messages, "A tall post.\n\n".repeat(10));
+    settle().await;
+    assert!(gap(&pane) <= END_SLACK, "still following: {}", gap(&pane));
+}
+
+#[wasm_bindgen_test]
+async fn the_reader_steers_for_as_long_as_they_press_the_scrollbar() {
+    let (_root, _view, pane, messages) = transcript();
+    add(messages, 20);
+    settle().await;
+
+    // The reader holds the scrollbar, past the steering window, then
+    // drags it up.
+    point(&pane, "pointerdown");
+    sleep(STEER_MS as i32 + 100).await;
+    pane.set_scroll_top(0);
+    settle().await;
+    point(&pane, "pointerup");
+    add(messages, 5);
+    settle().await;
+    assert_eq!(pane.scroll_top(), 0, "left alone");
 }

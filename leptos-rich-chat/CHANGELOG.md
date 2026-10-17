@@ -7,6 +7,16 @@ version is 0, a minor release may change the API.
 
 ## [Unreleased]
 
+### Fixed
+
+- The transcript no longer stops following its end when a bubble goes
+  away and another arrives before the scroll event for the first. Only
+  a scroll up that comes with the reader's own input to the pane leaves
+  the end: the wheel turned up, a key that scrolls up, a finger moving,
+  or a press on the scrollbar. A scroll up from anything else, such as
+  the browser's find in page, no longer does. The wheel and touch
+  listeners are passive, so they never hold up scrolling.
+
 ## [0.2.0] - 2026-10-16
 
 ### Changed
