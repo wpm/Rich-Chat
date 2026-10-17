@@ -1,6 +1,6 @@
 [package]
 name = "leptos-rich-chat"
-version = "0.1.0"
+version = "0.2.0"
 description = "Leptos chat components that render Markdown, LaTeX math, and syntax-highlighted code"
 readme = "README.md"
 homepage = "https://wpm.github.io/Rich-Chat/"

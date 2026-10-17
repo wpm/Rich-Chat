@@ -61,7 +61,23 @@ impl Position {
 /// The colors are CSS values, inserted into the generated stylesheet as
 /// they are: a color, a `var(--…)`, a `light-dark(…, …)`. A color
 /// left out is the theme's plain bubble color.
+///
+/// A look is made with [`Look::at`] and the methods after it, not by
+/// listing its fields, so that a field added later is not a breaking
+/// change:
+///
+/// ```compile_fail
+/// use leptos_rich_chat::{Look, Position};
+///
+/// let look = Look {
+///     position: Position::Left,
+///     background: None,
+///     foreground: None,
+///     properties: Vec::new(),
+/// };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct Look {
     /// Where the bubble sits.
     pub position: Position,

@@ -1,30 +1,26 @@
 name: Publish the crate
 
 # Publishes leptos-rich-chat to crates.io when a release tagged
-# leptos-rich-chat-v<version> is published on GitHub, where <version> is
-# what leptos-rich-chat/Cargo.toml says: the crate is tested, its
-# documentation built as docs.rs will build it, and published. The
-# README's Releasing section says how to make the release. Run by hand
-# instead, it does everything but the publishing.
+# v<version> is published on GitHub, where <version> is what
+# leptos-rich-chat/Cargo.toml says: the crate is tested, its
+# documentation built as docs.rs will build it, and published. Run by
+# hand instead, it does everything but the publishing.
 #
 # If the tests or the version check fail, nothing is published and the
 # release stands without a crate: fix the cause, then rerun the job, or
 # delete the release and its tag and publish it again. A version that is
 # on crates.io already is not published twice, so a rerun after the
-# upload went through, or the release for 0.1.0, which was published by
-# hand, succeeds without doing anything.
+# upload went through succeeds without doing anything.
 #
-# The library's releases are separate from the app's: those are tagged
-# app-v<version>, see release-app.yml. The app depends on the library by
-# path, so it is never waiting on a crates.io release.
+# The 0.1.0 release, published by hand, is tagged leptos-rich-chat-v0.1.0;
+# every release since is tagged v<version>.
 #
 # Publishing uses crates.io's trusted publishing, so no token is stored
 # here: the job's OpenID Connect token is exchanged for a short-lived
 # crates.io one. That is set up on the crate's settings page on
 # crates.io (Trusted Publishing: GitHub, owner wpm, repository Rich-Chat,
-# workflow publish-crate.yml), which exists once the first version has
-# been published by hand with `cargo publish -p leptos-rich-chat`. So
-# this file keeps its name: renamed, it can no longer publish.
+# workflow publish-crate.yml). So this file keeps its name: renamed, it
+# can no longer publish.
 on:
   release:
     types: [published]
@@ -40,8 +36,7 @@ concurrency:
 jobs:
   publish:
     name: Publish to crates.io
-    # Releases of the app come here too, and are skipped.
-    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'leptos-rich-chat-v')
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.release.tag_name }}
@@ -53,7 +48,7 @@ jobs:
       - id: version
         run: |
           if [ "$GITHUB_EVENT_NAME" = release ]; then set -- --tag "$TAG"; fi
-          .github/scripts/release-version.sh leptos-rich-chat-v leptos-rich-chat "$@"
+          .github/scripts/release-version.sh v leptos-rich-chat "$@"
       # crates.io answers 200 for a version it has and 404 for one it has
       # not. One it has is not tested or published again.
       - id: published
