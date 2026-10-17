@@ -230,17 +230,6 @@ native and in the browser, which goes to [Codecov](https://codecov.io/gh/wpm/Ric
 and is the badge above; [`codecov.yml`](codecov.yml) says how coverage
 is judged.
 
-**Supplying `CODECOV_TOKEN`.** The upload identifies itself to Codecov
-with a token that the workflow reads from the repository secret
-`CODECOV_TOKEN`. To set it up once: on Codecov, open the repository,
-then Settings > General, and copy the *Repository Upload Token*; on
-GitHub, open the repository's Settings > Secrets and variables >
-Actions, and add a repository secret named `CODECOV_TOKEN` with that
-value. Without the secret the coverage job fails, and with it the CI
-check, on purpose: an upload that could not happen is a broken
-workflow, not a quiet gap in the graph. Pull requests from forks do not
-see the secret, and Codecov accepts their uploads without it.
-
 ## License
 
 Licensed under either of [MIT](LICENSE-MIT) or
