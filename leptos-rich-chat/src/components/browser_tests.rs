@@ -472,3 +472,54 @@ async fn the_reader_steers_for_as_long_as_they_press_the_scrollbar() {
     settle().await;
     assert_eq!(pane.scroll_top(), 0, "left alone");
 }
+
+#[wasm_bindgen_test]
+async fn a_key_or_a_finger_that_scrolls_up_leaves_the_end() {
+    for steer in [
+        |pane: &HtmlElement| {
+            press(pane, "ArrowUp", "ArrowUp", false, false);
+        },
+        |pane: &HtmlElement| point(pane, "touchmove"),
+    ] {
+        let (_root, _view, pane, messages) = transcript();
+        add(messages, 20);
+        settle().await;
+        steer(&pane);
+        pane.set_scroll_top(0);
+        settle().await;
+        add(messages, 5);
+        settle().await;
+        assert_eq!(pane.scroll_top(), 0, "left alone");
+    }
+}
+
+#[wasm_bindgen_test]
+async fn the_wheel_turned_down_is_not_steering() {
+    let (_root, _view, pane, messages) = transcript();
+    add(messages, 20);
+    settle().await;
+
+    let init = WheelEventInit::new();
+    init.set_delta_y(100.0);
+    let wheel = WheelEvent::new_with_event_init_dict("wheel", &init).unwrap();
+    pane.dispatch_event(&wheel).unwrap();
+    pane.set_scroll_top(pane.scroll_top() - 60);
+    post(messages, "A tall post.\n\n".repeat(10));
+    settle().await;
+    assert!(gap(&pane) <= END_SLACK, "still following: {}", gap(&pane));
+}
+
+#[wasm_bindgen_test]
+async fn a_press_the_browser_cancels_stops_steering() {
+    let (_root, _view, pane, messages) = transcript();
+    add(messages, 20);
+    settle().await;
+
+    point(&pane, "pointerdown");
+    point(&pane, "pointercancel");
+    sleep(STEER_MS as i32 + 100).await;
+    pane.set_scroll_top(pane.scroll_top() - 60);
+    post(messages, "A tall post.\n\n".repeat(10));
+    settle().await;
+    assert!(gap(&pane) <= END_SLACK, "still following: {}", gap(&pane));
+}

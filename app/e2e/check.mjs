@@ -27,7 +27,8 @@
 // transcript alone, following its end with no composer below it. Last,
 // that the transcript keeps its end in view:
 // through a burst of messages, a growing composer, and
-// a shrinking window, but not for a reader who has scrolled up.
+// a shrinking window, but not for a reader who has scrolled up with the
+// wheel.
 // Screenshots land in ./screenshots for a human to look at.
 //
 //   npm test                 # against ../dist, from this directory
@@ -123,6 +124,16 @@ async function chooseUser(page, name) {
 
 /** How far the transcript is from its end, in CSS pixels. */
 const gap = (page) => page.$eval('.rc-messages', (el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+
+/** Scrolls the transcript to its top the way a reader does, with the
+ * wheel over it: the transcript leaves its end only for the reader's own
+ * input, not for a script setting scrollTop. */
+async function wheelToTop(page) {
+  const pane = await (await page.$('.rc-messages')).boundingBox();
+  await page.mouse.move(pane.x + pane.width / 2, pane.y + pane.height / 2);
+  await page.mouse.wheel(0, -100000);
+  await page.waitForTimeout(300);
+}
 
 /** Whether the last bubble's bottom is inside the transcript. */
 const lastBubbleVisible = (page) => page.evaluate(() => {
@@ -989,8 +1000,7 @@ try {
     await page.screenshot({ path: `${shots}/transcript-0-alone.png` });
 
     // A reader who scrolled up stays there.
-    await page.evaluate(() => { document.querySelector('.rc-messages').scrollTop = 0; });
-    await page.waitForTimeout(100);
+    await wheelToTop(page);
     await flip(page, '.control-thinking', 100);
     await flip(page, '.control-thinking', 200);
     check((await page.$eval('.rc-messages', (el) => el.scrollTop)) === 0, 'a reader who scrolled up stays where they were');
@@ -1041,8 +1051,7 @@ try {
 
     // A reader who scrolled up is reading; a new message must not pull
     // them away. Coming back to the end resumes following.
-    await page.evaluate(() => { document.querySelector('.rc-messages').scrollTop = 0; });
-    await page.waitForTimeout(100);
+    await wheelToTop(page);
     await send('while the reader is up top');
     check((await page.$eval('.rc-messages', (el) => el.scrollTop)) === 0, 'a reader who scrolled up stays where they were');
     await page.evaluate(() => { const pane = document.querySelector('.rc-messages'); pane.scrollTop = pane.scrollHeight; });
