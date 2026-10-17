@@ -33,6 +33,8 @@ jobs:
       # The runs are listed in the script, which the coverage job and
       # publish-crate.yml run too.
       - run: .github/scripts/library-tests.sh cargo test
+      # The code that must not compile, once; see tests/ui.rs.
+      - run: cargo test -p leptos-rich-chat --test ui -- --ignored
       - run: cargo doc -p leptos-rich-chat --no-deps
         env:
           RUSTDOCFLAGS: -D warnings

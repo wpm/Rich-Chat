@@ -1,0 +1,11 @@
+error[E0639]: cannot create non-exhaustive struct using struct expression
+  --> tests/ui/look_by_fields.rs:5:17
+   |
+ 5 |       let _look = Look {
+   |  _________________^
+ 6 | |         position: Position::Left,
+ 7 | |         background: None,
+ 8 | |         foreground: None,
+ 9 | |         properties: Vec::new(),
+10 | |     };
+   | |_____^
