@@ -270,6 +270,42 @@ view! {
 }
 ```
 
+### Stepping through a transcript
+
+A host that replays a finished conversation, one message at a time,
+holds the reader's place and hands it to `Transcript` as `selected`, a
+message's id. That message is outlined and marked `aria-current`, every
+message after it fades, so the whole conversation shows and how far the
+reader has got is plain, and the selected message scrolls into view,
+as little as it takes, each time the selection changes. While there is
+a selection the transcript stays on it rather than following its end;
+once it clears, the transcript follows again unless the reader has
+scrolled up.
+
+`on_select` receives the id of a message the reader clicks, though not
+of one whose link or button they click. The transcript only reports
+the click; what is selected is the host's to decide:
+
+```rust
+let selected = RwSignal::new(Some("0".to_string()));
+view! {
+    <Transcript
+        messages=messages
+        selected=selected
+        on_select=Callback::new(move |id: String| selected.set(Some(id)))
+    />
+}
+```
+
+The selected message is `div.rc-message.rc-selected`, and the theme
+outlines its body, the bubble or the view drawn in its place, in
+`--rc-selected-outline`, `2px solid` in `--rc-accent` unless you set
+it. The messages after it are `div.rc-message.rc-later`, at
+`--rc-later-opacity`, 0.4 by default. With `on_select` the pane is
+`div.rc-messages.rc-selectable`, and its messages take the pointer
+cursor. Without `selected`, nothing is marked and the transcript is as
+it always was.
+
 ### Pieces
 
 `Chat` is the whole window, a `Transcript` above a `Composer`. Its parts

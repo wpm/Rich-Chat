@@ -480,6 +480,35 @@ mod tests {
         );
     }
 
+    /// A transcript with a selection outlines the selected message's
+    /// body and fades the messages after it, in the theme's tokens: the
+    /// outline undeclared, like `--rc-chat-bg`, so it follows whichever
+    /// `--rc-accent` is in force, and the fade declared on the root.
+    #[test]
+    fn the_theme_outlines_the_selection_and_fades_what_comes_after() {
+        assert!(
+            rule(THEME, ".rc-message.rc-selected > :last-child")
+                .contains("outline: var(--rc-selected-outline, 2px solid var(--rc-accent));"),
+            "the selected body is outlined"
+        );
+        assert!(
+            !THEME.contains("--rc-selected-outline:"),
+            "declared, it would be cut off from the --rc-accent in force"
+        );
+        assert!(
+            rule(THEME, ":root").contains("--rc-later-opacity: 0.4;"),
+            "the root declares the fade"
+        );
+        assert!(
+            rule(THEME, ".rc-message.rc-later").contains("opacity: var(--rc-later-opacity);"),
+            "the later messages read it"
+        );
+        assert!(
+            rule(THEME, ".rc-messages.rc-selectable > .rc-message").contains("cursor: pointer;"),
+            "a message that can be clicked looks it"
+        );
+    }
+
     /// The thinking dots are one line of text tall, so a bubble does
     /// not change height when its first word replaces them; that is the
     /// structure's. How they look and move is the theme's, in tokens on

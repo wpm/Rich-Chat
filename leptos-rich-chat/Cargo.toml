@@ -1,6 +1,6 @@
 [package]
 name = "leptos-rich-chat"
-version = "0.2.1"
+version = "0.2.2"
 description = "Leptos chat components that render Markdown, LaTeX math, and syntax-highlighted code"
 readme = "README.md"
 homepage = "https://wpm.github.io/Rich-Chat/"
@@ -47,6 +47,8 @@ web-sys = { workspace = true, features = [
     "Navigator",
     "Node",
     "ResizeObserver",
+    "ScrollIntoViewOptions",
+    "ScrollLogicalPosition",
     "TouchEvent",
     "WheelEvent",
     "Window",
@@ -72,7 +74,7 @@ trybuild = "1"
 wasm-bindgen-test = "0.3"
 leptos = { workspace = true, features = ["csr"] }
 js-sys.workspace = true
-web-sys = { workspace = true, features = ["Event", "EventInit", "KeyboardEventInit", "MouseEventInit", "WheelEventInit"] }
+web-sys = { workspace = true, features = ["DomRect", "Event", "EventInit", "KeyboardEventInit", "MouseEventInit", "WheelEventInit"] }
 
 [lints.rust]
 unused_qualifications = "warn"

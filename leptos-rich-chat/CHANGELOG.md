@@ -7,6 +7,20 @@ version is 0, a minor release may change the API.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-17
+
+### Added
+
+- `selected` and `on_select` on `Transcript`, for a host that steps
+  through a finished conversation. `selected` names a message by id:
+  it is `rc-selected` and `aria-current`, outlined in
+  `--rc-selected-outline`; every message after it is `rc-later`, faded
+  to `--rc-later-opacity`; it scrolls into view whenever the selection
+  changes; and the transcript stops following its end while there is
+  one. `on_select` receives the id of a message the reader clicks,
+  though not through a link or a button in it, and makes the pane
+  `rc-selectable`.
+
 ## [0.2.1] - 2026-10-17
 
 ### Fixed
@@ -71,7 +85,8 @@ them.
 - Styles in cascade layers, with every color and size a `--rc-*` custom
   property, so a host can restyle any of it.
 
-[Unreleased]: https://github.com/wpm/Rich-Chat/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/wpm/Rich-Chat/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/wpm/Rich-Chat/releases/tag/v0.2.2
 [0.2.1]: https://github.com/wpm/Rich-Chat/releases/tag/v0.2.1
 [0.2.0]: https://github.com/wpm/Rich-Chat/releases/tag/v0.2.0
 [0.1.0]: https://github.com/wpm/Rich-Chat/releases/tag/leptos-rich-chat-v0.1.0
