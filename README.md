@@ -16,7 +16,7 @@ short one. A live demo is at <https://wpm.github.io/Rich-Chat/>.
 ```toml
 [dependencies]
 leptos = { version = "0.8", features = ["csr"] }
-leptos-rich-chat = "0.1"
+leptos-rich-chat = "0.2"
 ```
 
 ```rust

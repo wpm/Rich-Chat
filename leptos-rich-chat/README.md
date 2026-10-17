@@ -32,7 +32,7 @@ arrives.
 ```toml
 [dependencies]
 leptos = { version = "0.8", features = ["csr"] }
-leptos-rich-chat = "0.1"
+leptos-rich-chat = "0.2"
 ```
 
 ```rust

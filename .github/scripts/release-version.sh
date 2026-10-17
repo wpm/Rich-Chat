@@ -12,7 +12,7 @@
 # it, a trial run, the version is only reported.
 #
 #   release-version.sh app-v rich-chat-desktop rich-chat-app --tag app-v0.1.0
-#   release-version.sh leptos-rich-chat-v leptos-rich-chat
+#   release-version.sh v leptos-rich-chat --tag v0.2.0
 #
 # Environment:
 #   GITHUB_OUTPUT   where the version output goes (stdout without it)
