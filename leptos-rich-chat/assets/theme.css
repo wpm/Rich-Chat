@@ -33,6 +33,9 @@
   --rc-thinking-dot: 0.45em;
   --rc-thinking-gap: 0.3em;
   --rc-thinking-period: 1.2s;
+  /* How much of their ink the messages after a transcript's selected
+   * one keep. */
+  --rc-later-opacity: 0.4;
 
   --rc-fg: #1f2328;
   --rc-muted: #59636e;
@@ -166,6 +169,25 @@
   font-weight: 650;
   line-height: 1.3;
   color: var(--rc-muted);
+}
+
+/* A transcript the reader steps through. The selected message's body,
+ * its bubble or the view drawn in its place, is outlined in
+ * --rc-selected-outline, undeclared like --rc-chat-bg so that it follows
+ * whichever --rc-accent is in force; the messages after it fade to
+ * --rc-later-opacity, so the whole conversation shows and how far the
+ * reader has got is plain. */
+.rc-messages.rc-selectable > .rc-message {
+  cursor: pointer;
+}
+
+.rc-message.rc-selected > :last-child {
+  outline: var(--rc-selected-outline, 2px solid var(--rc-accent));
+  outline-offset: 2px;
+}
+
+.rc-message.rc-later {
+  opacity: var(--rc-later-opacity);
 }
 
 /* The thinking dots, in the ink of the bubble they sit in, each a step

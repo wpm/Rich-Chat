@@ -47,6 +47,8 @@ web-sys = { workspace = true, features = [
     "Navigator",
     "Node",
     "ResizeObserver",
+    "ScrollIntoViewOptions",
+    "ScrollLogicalPosition",
     "TouchEvent",
     "WheelEvent",
     "Window",
@@ -72,7 +74,7 @@ trybuild = "1"
 wasm-bindgen-test = "0.3"
 leptos = { workspace = true, features = ["csr"] }
 js-sys.workspace = true
-web-sys = { workspace = true, features = ["Event", "EventInit", "KeyboardEventInit", "MouseEventInit", "WheelEventInit"] }
+web-sys = { workspace = true, features = ["DomRect", "Event", "EventInit", "KeyboardEventInit", "MouseEventInit", "WheelEventInit"] }
 
 [lints.rust]
 unused_qualifications = "warn"

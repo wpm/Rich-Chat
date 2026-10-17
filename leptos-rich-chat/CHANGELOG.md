@@ -7,6 +7,18 @@ version is 0, a minor release may change the API.
 
 ## [Unreleased]
 
+### Added
+
+- `selected` and `on_select` on `Transcript`, for a host that steps
+  through a finished conversation. `selected` names a message by id:
+  it is `rc-selected` and `aria-current`, outlined in
+  `--rc-selected-outline`; every message after it is `rc-later`, faded
+  to `--rc-later-opacity`; it scrolls into view whenever the selection
+  changes; and the transcript stops following its end while there is
+  one. `on_select` receives the id of a message the reader clicks,
+  though not through a link or a button in it, and makes the pane
+  `rc-selectable`.
+
 ## [0.2.1] - 2026-10-17
 
 ### Fixed

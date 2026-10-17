@@ -523,3 +523,148 @@ async fn a_press_the_browser_cancels_stops_steering() {
     settle().await;
     assert!(gap(&pane) <= END_SLACK, "still following: {}", gap(&pane));
 }
+
+/// A transcript of `count` messages in a pane 200 pixels tall, with the
+/// selection held by the test.
+struct Selectable<M: Mountable> {
+    _view: UnmountHandle<M>,
+    /// The scrolling element.
+    pane: HtmlElement,
+    messages: RwSignal<Vec<Message>>,
+    /// The ids the clicks reported.
+    chosen: Arc<Mutex<Vec<String>>>,
+}
+
+fn selectable(count: usize, selected: RwSignal<Option<String>>) -> Selectable<impl Mountable> {
+    let messages = RwSignal::new(Vec::new());
+    add(messages, count);
+    let (on_select, chosen) = recorder();
+    let (root, view) = mount(move || {
+        view! {
+            <RichChatStyle />
+            <div style="height: 200px">
+                <Transcript
+                    messages=messages
+                    selected=selected
+                    on_select=on_select
+                    warm_up=false
+                />
+            </div>
+        }
+    });
+    Selectable {
+        _view: view,
+        pane: find(&root, ".rc-messages"),
+        messages,
+        chosen,
+    }
+}
+
+/// Whether the message `id` lies wholly inside the pane's visible part.
+fn shown(pane: &HtmlElement, id: &str) -> bool {
+    let message = find(pane, &format!("[data-message-id=\"{id}\"]"));
+    let (inside, outside) = (
+        message.get_bounding_client_rect(),
+        pane.get_bounding_client_rect(),
+    );
+    inside.top() >= outside.top() - 1.0 && inside.bottom() <= outside.bottom() + 1.0
+}
+
+#[wasm_bindgen_test]
+fn a_click_on_a_message_reports_its_id() {
+    let selected = RwSignal::new(None);
+    let Selectable {
+        _view,
+        pane,
+        chosen,
+        ..
+    } = selectable(3, selected);
+    click(&find(&pane, "[data-message-id=\"1\"] p"));
+    assert_eq!(*chosen.lock().unwrap(), ["1"]);
+    assert_eq!(selected.get_untracked(), None, "the host decides");
+}
+
+#[wasm_bindgen_test]
+fn a_click_on_a_link_or_a_button_in_a_message_is_not_a_choice() {
+    let selected = RwSignal::new(None);
+    let messages = RwSignal::new(vec![Message::new(
+        "1",
+        "User",
+        "[a link](https://example.com)\n\n```\ncode\n```",
+    )]);
+    let (on_select, chosen) = recorder();
+    let (on_link, _links) = recorder();
+    let (root, _view) = mount(move || {
+        view! {
+            <Transcript
+                messages=messages
+                selected=selected
+                on_select=on_select
+                on_link=on_link
+                warm_up=false
+            />
+        }
+    });
+    click(&find(&root, "a"));
+    click(&find(&root, "button"));
+    assert!(chosen.lock().unwrap().is_empty());
+    click(&find(&root, ".rc-bubble"));
+    assert_eq!(*chosen.lock().unwrap(), ["1"]);
+}
+
+#[wasm_bindgen_test]
+async fn the_selected_message_scrolls_into_view_and_the_end_is_not_followed() {
+    let selected = RwSignal::new(Some("0".to_string()));
+    let Selectable {
+        _view,
+        pane,
+        messages,
+        ..
+    } = selectable(20, selected);
+    settle().await;
+    assert!(pane.scroll_height() > pane.client_height(), "it scrolls");
+    assert!(
+        shown(&pane, "0"),
+        "the first, not the end: {}",
+        pane.scroll_top()
+    );
+
+    selected.set(Some("15".to_string()));
+    settle().await;
+    assert!(shown(&pane, "15"), "scrolled to: {}", pane.scroll_top());
+    let top = pane.scroll_top();
+
+    // A message arriving does not take the pane to the end.
+    add(messages, 5);
+    settle().await;
+    assert_eq!(pane.scroll_top(), top, "stays on the selection");
+    assert!(
+        find(&pane, "[data-message-id=\"15\"]")
+            .class_list()
+            .contains("rc-selected")
+    );
+    assert!(
+        find(&pane, "[data-message-id=\"16\"]")
+            .class_list()
+            .contains("rc-later")
+    );
+
+    // Cleared, it follows the end again.
+    selected.set(None);
+    settle().await;
+    assert!(gap(&pane) <= END_SLACK, "following again: {}", gap(&pane));
+    assert!(!exists(&pane, ".rc-selected, .rc-later"));
+}
+
+#[wasm_bindgen_test]
+async fn a_cleared_selection_leaves_a_reader_who_scrolled_up_where_they_are() {
+    let selected = RwSignal::new(Some("15".to_string()));
+    let Selectable { _view, pane, .. } = selectable(20, selected);
+    settle().await;
+    assert!(pane.scroll_top() > 0, "on the selection");
+    scroll_by_hand(&pane, 0);
+    settle().await;
+    selected.set(None);
+    settle().await;
+    assert_eq!(pane.scroll_top(), 0, "left alone");
+}

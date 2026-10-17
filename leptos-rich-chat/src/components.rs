@@ -8,6 +8,7 @@
 //! [`RichChatStyle`] injects; see [`style`](crate::style) for what a host
 //! can replace.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
@@ -1138,6 +1139,8 @@ pub fn Chat(
                 empty=empty
                 thinking_label=thinking_label
                 warm_up=warm_up
+                selected=Signal::stored(None)
+                on_select=None
             />
             <Composer
                 on_send=on_send
@@ -1202,6 +1205,21 @@ pub fn Transcript(
     /// so the first code block renders without a pause. See [`warm_up`].
     #[prop(default = true)]
     warm_up: bool,
+    /// The id of the message the reader is on, for a host that steps
+    /// through a finished conversation. It is marked `rc-selected` and
+    /// `aria-current`, every message after it `rc-later`, and it is
+    /// scrolled into view whenever the selection changes. While there is
+    /// one, the transcript stops following its end; once it clears, the
+    /// transcript follows again unless the reader has scrolled up. An id
+    /// the transcript does not hold marks nothing. None by default.
+    #[prop(optional, into)]
+    selected: Signal<Option<String>>,
+    /// Called with a message's id when the reader clicks it, though not
+    /// when they click a link or a button in it. The transcript only
+    /// reports the click: the host decides what is selected. With it,
+    /// the pane is `div.rc-messages.rc-selectable`.
+    #[prop(into, optional_no_strip)]
+    on_select: Option<Callback<String>>,
 ) -> impl IntoView {
     view! {
         <div class="rc-chat">
@@ -1214,6 +1232,8 @@ pub fn Transcript(
                 empty=empty
                 thinking_label=thinking_label
                 warm_up=warm_up
+                selected=selected
+                on_select=on_select
             />
         </div>
     }
@@ -1231,10 +1251,24 @@ fn Messages(
     empty: Option<String>,
     thinking_label: String,
     warm_up: bool,
+    selected: Signal<Option<String>>,
+    on_select: Option<Callback<String>>,
 ) -> impl IntoView {
     let pane = NodeRef::<html::Div>::new();
     let follow = Follow::new(pane);
     follow.watch(pane);
+    follow.hold(selected);
+
+    // Where each message is, and where the selected one is, so that each
+    // message can tell whether it comes after the selection without
+    // searching the transcript itself.
+    let order = Memo::new(move |_| messages.with(|all| positions(all)));
+    let cut = Memo::new(move |_| {
+        selected.with(|id| {
+            id.as_ref()
+                .and_then(|id| order.with(|order| order.get(id).copied()))
+        })
+    });
 
     // Browser only: the timer does not exist off it, and a server render
     // has no grammars to warm.
@@ -1246,7 +1280,12 @@ fn Messages(
     let _ = warm_up;
 
     let pane_view = view! {
-        <div class="rc-messages" node_ref=pane on:scroll=move |event| follow.scrolled(event.time_stamp())>
+        <div
+            class="rc-messages"
+            class:rc-selectable=on_select.is_some()
+            node_ref=pane
+            on:scroll=move |event| follow.scrolled(event.time_stamp())
+        >
             <Show when=move || messages.read().is_empty()>
                 <div class="rc-empty">{empty.clone().unwrap_or_default()}</div>
             </Show>
@@ -1256,6 +1295,16 @@ fn Messages(
                 children=move |message| {
                     let wrapper = NodeRef::<html::Div>::new();
                     follow.watch(wrapper);
+                    let id = message.id.clone();
+                    let is_selected = {
+                        let id = id.clone();
+                        Memo::new(move |_| selected.with(|selected| selected.as_ref() == Some(&id)))
+                    };
+                    let later = {
+                        let id = id.clone();
+                        Memo::new(move |_| order.with(|order| is_later(order, cut.get(), &id)))
+                    };
+                    reveal_when_selected(wrapper, is_selected);
                     view! {
                         <MessageView
                             message=message
@@ -1265,6 +1314,16 @@ fn Messages(
                             on_link=on_link
                             node_ref=wrapper
                             thinking_label=thinking_label.clone()
+                            class:rc-selected=is_selected
+                            class:rc-later=later
+                            attr:aria-current=move || is_selected.get().then_some("true")
+                            on:click=move |event| {
+                                if let Some(on_select) = on_select
+                                    && selects(&event)
+                                {
+                                    on_select.run(id.clone());
+                                }
+                            }
                         />
                     }
                 }
@@ -1297,6 +1356,44 @@ fn Messages(
         .on(ev::pointerup, move |_| follow.pressed(false))
         .on(ev::pointercancel, move |_| follow.pressed(false));
     pane_view
+}
+
+/// Where each message is in `messages`, by id.
+fn positions(messages: &[Message]) -> HashMap<String, usize> {
+    messages
+        .iter()
+        .enumerate()
+        .map(|(at, message)| (message.id.clone(), at))
+        .collect()
+}
+
+/// Whether the message `id` comes after the selected one, which is at
+/// `cut` in `order` when there is one.
+fn is_later(order: &HashMap<String, usize>, cut: Option<usize>, id: &str) -> bool {
+    cut.zip(order.get(id)).is_some_and(|(cut, &at)| at > cut)
+}
+
+/// Whether a click on a message selects it: not when it lands on a link
+/// or a button inside, which do something of their own.
+fn selects(event: &ev::MouseEvent) -> bool {
+    event
+        .target()
+        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+        .is_none_or(|target| target.closest("a, button").ok().flatten().is_none())
+}
+
+/// Scrolls the message `node` into view, as little as it takes, each time
+/// it becomes the selected one.
+fn reveal_when_selected(node: NodeRef<html::Div>, selected: Memo<bool>) {
+    Effect::new(move || {
+        if selected.get()
+            && let Some(element) = node.get_untracked()
+        {
+            let options = web_sys::ScrollIntoViewOptions::new();
+            options.set_block(web_sys::ScrollLogicalPosition::Nearest);
+            element.scroll_into_view_with_scroll_into_view_options(&options);
+        }
+    });
 }
 
 /// The event `name`, listened to passively: the handler never prevents
@@ -1380,6 +1477,9 @@ struct Follow {
     last_input: StoredValue<f64>,
     /// The reader is pressing the pane itself: dragging its scrollbar.
     pressed: StoredValue<bool>,
+    /// The host has a message selected, which the pane stays on rather
+    /// than following the end.
+    held: StoredValue<bool>,
     /// Made on the first element watched, in the browser only.
     observer: StoredValue<Option<Observer>, LocalStorage>,
 }
@@ -1399,6 +1499,7 @@ impl Follow {
             last_top: StoredValue::new(0),
             last_input: StoredValue::new(f64::NEG_INFINITY),
             pressed: StoredValue::new(false),
+            held: StoredValue::new(false),
             observer: StoredValue::new_local(None),
         };
         on_cleanup(move || {
@@ -1439,7 +1540,7 @@ impl Follow {
 
     fn make_observer(self) -> Option<Observer> {
         let callback = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
-            if self.at_end.get_value() {
+            if self.at_end.get_value() && !self.held.get_value() {
                 self.to_end();
             }
         });
@@ -1448,6 +1549,23 @@ impl Follow {
             inner,
             _callback: callback,
         })
+    }
+
+    /// Stops following the end while `selected` holds a message, and
+    /// goes back to it when the selection clears, if the reader is there.
+    /// Held from the start when there is a selection already, before the
+    /// observer's first report could take the pane to the end.
+    fn hold(self, selected: Signal<Option<String>>) {
+        self.held
+            .set_value(selected.with_untracked(Option::is_some));
+        Effect::new(move || {
+            let held = selected.with(Option::is_some);
+            let was = self.held.get_value();
+            self.held.set_value(held);
+            if was && !held && self.at_end.get_value() {
+                self.to_end();
+            }
+        });
     }
 
     /// The reader gave the pane input that scrolls it up, at `at`.
@@ -2334,6 +2452,109 @@ mod tests {
         });
         assert_eq!(drawn.matches("class=\"badge\"").count(), 3, "{drawn}");
         assert!(drawn.contains("<b>them</b>"), "{drawn}");
+    }
+
+    /// The classes of each message in `out`, in order, one space apart.
+    fn message_classes(out: &str) -> Vec<String> {
+        attribute_values(out, "class")
+            .into_iter()
+            .map(|class| class.split_whitespace().collect::<Vec<_>>())
+            .filter(|words| words.contains(&"rc-message"))
+            .map(|words| words.join(" "))
+            .collect()
+    }
+
+    fn three() -> Vec<Message> {
+        vec![
+            Message::new("1", "me", "One"),
+            Message::new("2", "them", "Two"),
+            Message::new("3", "me", "Three"),
+        ]
+    }
+
+    #[test]
+    fn a_transcript_without_a_selection_marks_nothing() {
+        let out = html(|| view! { <Transcript messages=three() /> });
+        assert_eq!(
+            message_classes(&out),
+            ["rc-message", "rc-message", "rc-message"],
+            "{out}"
+        );
+        assert!(!out.contains("aria-current"), "{out}");
+        assert!(!out.contains("rc-selectable"), "{out}");
+    }
+
+    #[test]
+    fn the_selected_message_is_marked_and_the_ones_after_it_are_later() {
+        let out = html(|| view! { <Transcript messages=three() selected=Some("2".to_string()) /> });
+        assert_eq!(
+            message_classes(&out),
+            [
+                "rc-message",
+                "rc-message rc-selected",
+                "rc-message rc-later"
+            ],
+            "{out}"
+        );
+        assert_eq!(out.matches("aria-current=\"true\"").count(), 1, "{out}");
+        assert!(
+            out.contains("data-message-id=\"2\" aria-current=\"true\""),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn the_selection_follows_its_signal() {
+        let selected = RwSignal::new(Some("1".to_string()));
+        let first = html(|| view! { <Transcript messages=three() selected=selected /> });
+        assert_eq!(
+            message_classes(&first),
+            [
+                "rc-message rc-selected",
+                "rc-message rc-later",
+                "rc-message rc-later"
+            ],
+            "{first}"
+        );
+        selected.set(Some("3".to_string()));
+        let last = html(|| view! { <Transcript messages=three() selected=selected /> });
+        assert_eq!(
+            message_classes(&last),
+            ["rc-message", "rc-message", "rc-message rc-selected"],
+            "{last}"
+        );
+    }
+
+    #[test]
+    fn a_selection_the_transcript_does_not_hold_marks_nothing() {
+        let out = html(|| view! { <Transcript messages=three() selected=Some("9".to_string()) /> });
+        assert_eq!(
+            message_classes(&out),
+            ["rc-message", "rc-message", "rc-message"],
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn a_transcript_with_on_select_says_its_messages_are_selectable() {
+        let out = html(
+            || view! { <Transcript messages=three() on_select=Callback::new(|_: String| {}) /> },
+        );
+        assert!(
+            out.contains("<div class=\"rc-messages rc-selectable\">"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn later_is_after_the_cut_by_position() {
+        let order = positions(&three());
+        assert_eq!(order.get("2"), Some(&1));
+        assert!(!is_later(&order, Some(1), "1"));
+        assert!(!is_later(&order, Some(1), "2"));
+        assert!(is_later(&order, Some(1), "3"));
+        assert!(!is_later(&order, None, "3"), "no cut, nothing later");
+        assert!(!is_later(&order, Some(1), "9"), "an unknown id is not");
     }
 
     #[test]
