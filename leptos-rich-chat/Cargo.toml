@@ -59,6 +59,8 @@ leptos = { workspace = true, features = ["ssr"] }
 # app) enables it, Cargo unifies it into this crate's test build too; an
 # effect then spawns a task and panics without an executor to spawn on.
 any_spawner = { version = "0.3", features = ["futures-executor"] }
+# The tests of code that must not compile, in tests/ui.
+trybuild = "1"
 
 # The browser tests, which run the parts that need a DOM: wasm-bindgen-test
 # runs them in a headless browser, and Leptos's csr feature turns on the

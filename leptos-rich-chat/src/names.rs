@@ -64,18 +64,7 @@ impl Position {
 ///
 /// A look is made with [`Look::at`] and the methods after it, not by
 /// listing its fields, so that a field added later is not a breaking
-/// change:
-///
-/// ```compile_fail
-/// use leptos_rich_chat::{Look, Position};
-///
-/// let look = Look {
-///     position: Position::Left,
-///     background: None,
-///     foreground: None,
-///     properties: Vec::new(),
-/// };
-/// ```
+/// change.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub struct Look {
