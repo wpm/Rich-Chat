@@ -7,6 +7,8 @@ version is 0, a minor release may change the API.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-17
+
 ### Added
 
 - `selected` and `on_select` on `Transcript`, for a host that steps
@@ -83,7 +85,8 @@ them.
 - Styles in cascade layers, with every color and size a `--rc-*` custom
   property, so a host can restyle any of it.
 
-[Unreleased]: https://github.com/wpm/Rich-Chat/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/wpm/Rich-Chat/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/wpm/Rich-Chat/releases/tag/v0.2.2
 [0.2.1]: https://github.com/wpm/Rich-Chat/releases/tag/v0.2.1
 [0.2.0]: https://github.com/wpm/Rich-Chat/releases/tag/v0.2.0
 [0.1.0]: https://github.com/wpm/Rich-Chat/releases/tag/leptos-rich-chat-v0.1.0

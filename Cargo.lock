@@ -2309,7 +2309,7 @@ dependencies = [
 
 [[package]]
 name = "leptos-rich-chat"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "any_spawner",
  "js-sys",
