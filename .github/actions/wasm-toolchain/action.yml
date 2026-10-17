@@ -1,5 +1,5 @@
-# Everything a job needs to build the frontend, so that the CI, Pages and
-# Preview workflows set it up the same way: the toolchain with the wasm
+# Everything a job needs to build the frontend, so that the CI and Pages
+# workflows set it up the same way: the toolchain with the wasm
 # target, one cargo cache they all share, and Trunk. A workflow checks the
 # repository out first, then `uses: ./.github/actions/wasm-toolchain`.
 #
@@ -13,8 +13,8 @@ description: Rust with the wasm32 target, the shared cargo cache, and Trunk.
 inputs:
   cache-key:
     description: >-
-      Which cargo cache to use. The default is the one the CI, Pages and
-      Preview workflows share; the app release names its own, since its
+      Which cargo cache to use. The default is the one the CI and Pages
+      workflows share; the app release names its own, since its
       builds add every desktop dependency and would crowd out the rest.
     default: wasm
 runs:
@@ -23,7 +23,7 @@ runs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: wasm32-unknown-unknown
-    # The key is what makes the cache one cache across the three workflows.
+    # The key is what makes the cache one cache across the workflows.
     - uses: Swatinem/rust-cache@v2
       with:
         shared-key: ${{ inputs.cache-key }}
