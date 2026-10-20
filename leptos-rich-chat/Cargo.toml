@@ -4,6 +4,7 @@ version = "0.2.2"
 description = "Leptos chat components that render Markdown, LaTeX math, and syntax-highlighted code"
 readme = "README.md"
 homepage = "https://wpm.github.io/Rich-Chat/"
+documentation = "https://docs.rs/leptos-rich-chat"
 keywords = ["leptos", "chat", "markdown", "latex", "syntax-highlighting"]
 categories = ["gui", "wasm", "text-processing"]
 edition.workspace = true
@@ -63,25 +64,21 @@ leptos = { workspace = true, features = ["ssr"] }
 # turns on reactive effects, and if another crate in the same build (the
 # app) enables it, Cargo unifies it into this crate's test build too; an
 # effect then spawns a task and panics without an executor to spawn on.
-any_spawner = { version = "0.3", features = ["futures-executor"] }
+any_spawner = { workspace = true, features = ["futures-executor"] }
 # The tests of code that must not compile, in tests/ui.
-trybuild = "1"
+trybuild.workspace = true
 
 # The browser tests, which run the parts that need a DOM: wasm-bindgen-test
 # runs them in a headless browser, and Leptos's csr feature turns on the
 # effects that mount and watch elements. See .github/scripts/browser-tests.sh.
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen-test = "0.3"
+wasm-bindgen-test.workspace = true
 leptos = { workspace = true, features = ["csr"] }
 js-sys.workspace = true
 web-sys = { workspace = true, features = ["DomRect", "Event", "EventInit", "KeyboardEventInit", "MouseEventInit", "WheelEventInit"] }
 
-[lints.rust]
-unused_qualifications = "warn"
-missing_docs = "warn"
-
-[lints.clippy]
-all = "warn"
+[lints]
+workspace = true
 
 [[example]]
 name = "highlight_css"

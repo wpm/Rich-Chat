@@ -1,34 +1,4 @@
 //! The names a host's messages are from, and how each one's bubbles look.
-//!
-//! The crate has no idea who says what. A [`Message`](crate::Message)
-//! carries a `name`, which the host chooses, and the bubble carries it
-//! as a `data-name` attribute. What a name looks like is the host's too,
-//! declared in a [`Names`] table: where the bubbles sit and what colors
-//! they have. [`RichChatStyle`](crate::RichChatStyle) turns the table
-//! into rules per name, in the `rich-chat.theme` cascade layer, so a
-//! host's own stylesheet still wins over them. A name with no entry gets
-//! the plain bubble: on the left, in the theme's `--rc-bubble-*` colors.
-//!
-//! The default table has two names, `user` on the right in the theme's
-//! tint colors and `assistant` on the left, which suits a chat with a
-//! model. Anything else, a group chat or a transcript with notices in
-//! the middle, is a different table:
-//!
-//! ```
-//! use leptos_rich_chat::{Look, Names, Position};
-//!
-//! let names = Names::none()
-//!     .name("me", Look::at(Position::Right).background("#ddf4ff").foreground("#1f2328"))
-//!     .name("alice", Look::at(Position::Left).background("var(--alice)"))
-//!     .name("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
-//! ```
-//!
-//! Position and the two colors are what a [`Look`] sets itself, because
-//! they are what a stylesheet cannot express without knowing the name;
-//! a value more than the bubble needs is a custom property on it (see
-//! [`Look::property`]). Everything else about a name (its font size, an
-//! avatar, or that a `notice` shows no name over its bubble) is
-//! ordinary CSS against `.rc-message[data-name="…"]`.
 
 use std::fmt::Write;
 
@@ -131,8 +101,37 @@ fn is_custom_property(name: &str) -> bool {
 }
 
 /// The names the host's messages are from, each with its [`Look`], in
-/// the order they were added. [`Names::default`] is `user` and
-/// `assistant`.
+/// the order they were added.
+///
+/// The crate has no idea who says what. A [`Message`](crate::Message)
+/// carries a `name`, which the host chooses, and the bubble carries it
+/// as a `data-name` attribute. What a name looks like is the host's too,
+/// declared in this table: where the bubbles sit and what colors
+/// they have. [`RichChatStyle`](crate::RichChatStyle) turns the table
+/// into rules per name, in the `rich-chat.theme` cascade layer, so a
+/// host's own stylesheet still wins over them. A name with no entry gets
+/// the plain bubble: on the left, in the theme's `--rc-bubble-*` colors.
+///
+/// The default table, [`Names::default`], has two names, `user` on the right in the theme's
+/// tint colors and `assistant` on the left, which suits a chat with a
+/// model. Anything else, a group chat or a transcript with notices in
+/// the middle, is a different table:
+///
+/// ```
+/// use leptos_rich_chat::{Look, Names, Position};
+///
+/// let names = Names::none()
+///     .name("me", Look::at(Position::Right).background("#ddf4ff").foreground("#1f2328"))
+///     .name("alice", Look::at(Position::Left).background("var(--alice)"))
+///     .name("notice", Look::at(Position::Center).background("transparent").foreground("var(--rc-muted)"));
+/// ```
+///
+/// Position and the two colors are what a [`Look`] sets itself, because
+/// they are what a stylesheet cannot express without knowing the name;
+/// a value more than the bubble needs is a custom property on it (see
+/// [`Look::property`]). Everything else about a name (its font size, an
+/// avatar, or that a `notice` shows no name over its bubble) is
+/// ordinary CSS against `.rc-message[data-name="…"]`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Names {
     entries: Vec<(String, Look)>,

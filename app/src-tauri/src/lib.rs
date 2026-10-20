@@ -4,6 +4,7 @@
 #[cfg(all(target_os = "macos", debug_assertions))]
 mod dev_bundle;
 
+/// Opens the window and runs until it closes.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context = tauri::generate_context!();

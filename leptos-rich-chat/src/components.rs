@@ -77,7 +77,9 @@ pub fn RichChatStyle(
 /// renders inside Markdown read them from context instead, so provide
 /// one above the tree to change them everywhere:
 ///
-/// ```ignore
+/// ```no_run
+/// # use leptos::prelude::*;
+/// # use leptos_rich_chat::CodeLabels;
 /// provide_context(CodeLabels { copy: "Copier".into(), copied: "Copié".into() });
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
