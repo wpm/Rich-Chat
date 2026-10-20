@@ -4,10 +4,12 @@ version.workspace = true
 description = "A chat window for trying leptos-rich-chat: what you type comes back as a bubble"
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
-leptos-rich-chat = { path = "../leptos-rich-chat" }
+leptos-rich-chat.workspace = true
 leptos = { workspace = true, features = ["csr"] }
 console_error_panic_hook.workspace = true
 serde.workspace = true
@@ -26,4 +28,7 @@ web-sys = { workspace = true, features = [
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen-test = "0.3"
+wasm-bindgen-test.workspace = true
+
+[lints]
+workspace = true
