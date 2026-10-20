@@ -1,7 +1,7 @@
 //! Chat components for [Leptos](https://leptos.dev) that render Markdown,
 //! LaTeX math, and syntax-highlighted code.
 //!
-//! ```ignore
+//! ```no_run
 //! use leptos::prelude::*;
 //! use leptos_rich_chat::{Chat, Message, RichChatStyle};
 //!
