@@ -162,12 +162,30 @@ struct Composed<M: Mountable> {
     sent: Arc<Mutex<Vec<String>>>,
 }
 
-/// A composer holding `text`, on or off as `disabled` says.
+/// A composer holding `text`, on or off as `disabled` says, with its
+/// preview starting collapsed.
 fn composer(text: &str, disabled: RwSignal<bool>) -> Composed<impl Mountable> {
+    composer_with_preview(text, disabled, false)
+}
+
+/// A composer holding `text`, on or off as `disabled` says, with its
+/// preview starting expanded or collapsed as `preview_expanded` says.
+fn composer_with_preview(
+    text: &str,
+    disabled: RwSignal<bool>,
+    preview_expanded: bool,
+) -> Composed<impl Mountable> {
     let draft = RwSignal::new(text.to_string());
     let (on_send, sent) = recorder();
     let (root, view) = mount(move || {
-        view! { <Composer on_send=on_send draft=draft disabled=disabled /> }
+        view! {
+            <Composer
+                on_send=on_send
+                draft=draft
+                disabled=disabled
+                preview_expanded=preview_expanded
+            />
+        }
     });
     let input = find(&root, "textarea").unchecked_into();
     Composed {
@@ -230,6 +248,14 @@ async fn typing_previews_the_draft_and_fits_the_box_to_it() {
     type_into(&input, "*hi*\n\nand\n\nmore");
     frame().await;
     assert_eq!(draft.get_untracked(), "*hi*\n\nand\n\nmore");
+    let toggle = find(&root, ".rc-preview-toggle");
+    assert_eq!(
+        toggle.get_attribute("aria-expanded").unwrap(),
+        "false",
+        "the preview is there, collapsed"
+    );
+    click(&toggle);
+    sleep(0).await;
     assert!(exists(&root, ".rc-composer-preview em"));
     let height = HtmlElement::style(&input)
         .get_property_value("height")
@@ -238,17 +264,30 @@ async fn typing_previews_the_draft_and_fits_the_box_to_it() {
 }
 
 #[wasm_bindgen_test]
-async fn the_preview_collapses_and_expands() {
+async fn the_preview_expands_and_collapses() {
     let Composed { root, _view, .. } = composer("*hi*", RwSignal::new(false));
     let toggle = find(&root, ".rc-preview-toggle");
+    assert_eq!(toggle.get_attribute("aria-expanded").unwrap(), "false");
+    assert!(
+        !exists(&root, ".rc-composer-preview em"),
+        "starts collapsed"
+    );
+    click(&toggle);
+    sleep(0).await;
     assert_eq!(toggle.get_attribute("aria-expanded").unwrap(), "true");
+    assert!(exists(&root, ".rc-composer-preview em"), "the body comes");
     click(&toggle);
     sleep(0).await;
     assert_eq!(toggle.get_attribute("aria-expanded").unwrap(), "false");
-    assert!(!exists(&root, ".rc-composer-preview em"), "the body goes");
-    click(&toggle);
-    sleep(0).await;
-    assert!(exists(&root, ".rc-composer-preview em"), "and comes back");
+    assert!(!exists(&root, ".rc-composer-preview em"), "and goes again");
+}
+
+#[wasm_bindgen_test]
+fn the_preview_starts_expanded_when_the_host_says_so() {
+    let Composed { root, _view, .. } = composer_with_preview("*hi*", RwSignal::new(false), true);
+    let toggle = find(&root, ".rc-preview-toggle");
+    assert_eq!(toggle.get_attribute("aria-expanded").unwrap(), "true");
+    assert!(exists(&root, ".rc-composer-preview em"));
 }
 
 #[wasm_bindgen_test]
@@ -256,8 +295,6 @@ async fn alt_shift_p_reads_the_preview_and_escape_returns() {
     let Composed {
         root, input, _view, ..
     } = composer("*hi*", RwSignal::new(false));
-    click(&find(&root, ".rc-preview-toggle"));
-    sleep(0).await;
     input.focus().unwrap();
     // macOS reports the character Option+Shift+P makes, not P.
     assert!(!press(&input, "∏", "KeyP", true, true), "consumed");
