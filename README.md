@@ -63,6 +63,7 @@ features.
 | `placeholder`   | `String`                 | `"Write a message…"`                     | The text box's placeholder.                                                                              |
 | `hint`          | `String`                 | explains the keys                        | The line under the text box. `""` leaves it out.                                                         |
 | `preview`       | `bool`                   | `true`                                   | Whether the composer shows a live preview of the draft.                                                  |
+| `preview_expanded` | `bool`                | `false`                                  | Whether the preview starts expanded rather than collapsed to its heading. The reader's toggle holds after that. |
 | `preview_label` | `String`                 | `"Preview"`                              | The heading over the preview.                                                                            |
 | `preview_name`  | `Signal<String>`         | `""`, the theme's tint colors            | Whose bubble the preview looks like, by name.                                                            |
 | `send`          | view function            | the word "Send"                          | The send button's content, so it can be an icon.                                                         |
