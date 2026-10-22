@@ -727,8 +727,9 @@ fn preview_keys(_input: NodeRef<html::Textarea>) -> impl FnMut(ev::KeyboardEvent
 /// with unfinished constructs closed for display, and disappears when
 /// the box is empty. A button in its heading collapses it to that
 /// heading, for a draft whose preview (a long run of equations, say)
-/// would crowd the window; it opens expanded, and the choice holds until
-/// the composer is unmounted.
+/// would crowd the window. It starts collapsed unless the host passes
+/// `preview_expanded=true`, and either way the reader's choice holds
+/// until the composer is unmounted.
 ///
 /// The preview is the fair copy, and for a reader who does not see the
 /// screen it is the one place to find out what they wrote: the text box
@@ -835,6 +836,12 @@ pub fn Composer(
     /// Show the live preview.
     #[prop(default = true)]
     preview: bool,
+    /// Open the preview expanded rather than collapsed to its heading.
+    /// This is its starting state only: the button in its heading and
+    /// Alt+Shift+P change it as ever, and the reader's choice holds
+    /// while the composer is mounted.
+    #[prop(default = false)]
+    preview_expanded: bool,
     /// The heading over the preview.
     #[prop(default = "Preview".to_string(), into)]
     preview_label: String,
@@ -907,7 +914,7 @@ pub fn Composer(
         let name = preview_name.get();
         (!name.is_empty()).then_some(name)
     };
-    let expanded = RwSignal::new(true);
+    let expanded = RwSignal::new(preview_expanded);
     let options = StoredValue::new(options);
     // Stored, since the view is built once per set of attributes the host
     // passes and the preview's children are rebuilt every time it shows.
@@ -1093,6 +1100,10 @@ pub fn Chat(
     /// Show the live preview in the composer.
     #[prop(default = true)]
     preview: bool,
+    /// Open the preview expanded rather than collapsed to its heading.
+    /// See [`Composer`].
+    #[prop(default = false)]
+    preview_expanded: bool,
     /// The heading over the preview.
     #[prop(default = "Preview".to_string(), into)]
     preview_label: String,
@@ -1152,6 +1163,7 @@ pub fn Chat(
                 busy=busy
                 busy_label=busy_label
                 preview=preview
+                preview_expanded=preview_expanded
                 preview_label=preview_label
                 preview_name=preview_name
                 send=send_content(send)
@@ -1907,7 +1919,13 @@ mod tests {
         let draft = RwSignal::new(String::from("so $x^2"));
         let out = html(|| {
             view! {
-                <Composer on_send=|_text: String| {} draft=draft preview_name="me" preview_label="Draft" />
+                <Composer
+                    on_send=|_text: String| {}
+                    draft=draft
+                    preview_name="me"
+                    preview_label="Draft"
+                    preview_expanded=true
+                />
             }
         });
         assert!(
@@ -1938,7 +1956,9 @@ mod tests {
 
         // No name given leaves the attribute out; a blank draft has no
         // preview and nothing to send.
-        let plain = html(|| view! { <Composer on_send=|_text: String| {} draft=draft /> });
+        let plain = html(|| {
+            view! { <Composer on_send=|_text: String| {} draft=draft preview_expanded=true /> }
+        });
         assert!(
             plain.contains(
                 "<div role=\"region\" aria-label=\"Preview\" tabindex=\"-1\" \
@@ -1959,6 +1979,41 @@ mod tests {
         let off =
             html(|| view! { <Composer on_send=|_text: String| {} draft=draft preview=false /> });
         assert!(!off.contains("rc-composer-preview"), "{off}");
+    }
+
+    #[test]
+    fn the_preview_starts_collapsed_unless_the_host_says_otherwise() {
+        let draft = RwSignal::new(String::from("so $x^2"));
+        let out = html(|| view! { <Composer on_send=|_text: String| {} draft=draft /> });
+        assert!(
+            out.contains(
+                "<div role=\"region\" aria-label=\"Preview\" tabindex=\"-1\" \
+                 class=\"rc-composer-preview rc-collapsed\">"
+            ),
+            "the region is there, collapsed: {out}"
+        );
+        assert!(
+            out.contains("<span>Preview</span>"),
+            "to its heading: {out}"
+        );
+        assert!(
+            out.contains(
+                "<button type=\"button\" aria-expanded=\"false\" aria-label=\"Expand preview\" \
+                 class=\"rc-preview-toggle\">\u{25B8}</button>"
+            ),
+            "{out}"
+        );
+        assert!(!out.contains("rc-rich"), "and no body: {out}");
+        assert!(!out.contains("<math"), "{out}");
+
+        // The host that wants it open from the start says so.
+        let open = html(|| {
+            view! { <Composer on_send=|_text: String| {} draft=draft preview_expanded=true /> }
+        });
+        assert!(!open.contains("rc-collapsed"), "{open}");
+        assert!(open.contains("aria-expanded=\"true\""), "{open}");
+        assert!(open.contains("class=\"rc-rich"), "{open}");
+        assert!(open.contains("<math"), "{open}");
     }
 
     /// The opening tag of the first element of that name, attributes and
@@ -2024,7 +2079,11 @@ mod tests {
     #[test]
     fn a_busy_composer_keeps_the_box_and_the_preview_but_not_the_send() {
         let draft = RwSignal::new(String::from("so $x^2"));
-        let out = html(|| view! { <Composer on_send=|_text: String| {} draft=draft busy=true /> });
+        let out = html(|| {
+            view! {
+                <Composer on_send=|_text: String| {} draft=draft busy=true preview_expanded=true />
+            }
+        });
         assert!(
             out.starts_with("<div class=\"rc-composer rc-busy\">"),
             "the wait is there to style: {out}"
@@ -2145,7 +2204,16 @@ mod tests {
         let draft = RwSignal::new(String::from("**typed** before"));
         let disabled = RwSignal::new(false);
         let render = || {
-            html(|| view! { <Composer on_send=|_text: String| {} draft=draft disabled=disabled /> })
+            html(|| {
+                view! {
+                    <Composer
+                        on_send=|_text: String| {}
+                        draft=draft
+                        disabled=disabled
+                        preview_expanded=true
+                    />
+                }
+            })
         };
         let on = render();
         assert!(on.contains("rc-composer-preview"), "{on}");
@@ -2182,8 +2250,17 @@ mod tests {
         let draft = RwSignal::new(String::from("**bold**"));
         let busy = RwSignal::new(true);
         let none = Vec::<Message>::new();
-        let out =
-            html(|| view! { <Chat messages=none on_send=|_: String| {} draft=draft busy=busy /> });
+        let out = html(|| {
+            view! {
+                <Chat
+                    messages=none
+                    on_send=|_: String| {}
+                    draft=draft
+                    busy=busy
+                    preview_expanded=true
+                />
+            }
+        });
         assert!(out.contains("class=\"rc-composer rc-busy\""), "{out}");
         assert!(!opening_tag(&out, "textarea").contains("disabled"), "{out}");
         assert!(out.contains("<strong>bold</strong>"), "{out}");
@@ -2309,9 +2386,32 @@ mod tests {
     fn chat_hands_its_draft_to_the_composer() {
         let draft = RwSignal::new(String::from("**bold**"));
         let none = Vec::<Message>::new();
-        let out = html(|| view! { <Chat messages=none on_send=|_: String| {} draft=draft /> });
+        let out = html(|| {
+            view! { <Chat messages=none on_send=|_: String| {} draft=draft preview_expanded=true /> }
+        });
         assert!(out.contains("rc-composer-preview"), "{out}");
         assert!(out.contains("<strong>bold</strong>"), "{out}");
+    }
+
+    #[test]
+    fn chat_hands_preview_expanded_to_the_composer() {
+        let draft = RwSignal::new(String::from("**bold**"));
+        let none = Vec::<Message>::new();
+        let shut = html(|| view! { <Chat messages=none on_send=|_: String| {} draft=draft /> });
+        assert!(
+            shut.contains("class=\"rc-composer-preview rc-collapsed\""),
+            "collapsed by default: {shut}"
+        );
+        assert!(shut.contains("aria-expanded=\"false\""), "{shut}");
+        assert!(!shut.contains("<strong>"), "{shut}");
+
+        let none = Vec::<Message>::new();
+        let open = html(|| {
+            view! { <Chat messages=none on_send=|_: String| {} draft=draft preview_expanded=true /> }
+        });
+        assert!(!open.contains("rc-collapsed"), "{open}");
+        assert!(open.contains("aria-expanded=\"true\""), "{open}");
+        assert!(open.contains("<strong>bold</strong>"), "{open}");
     }
 
     #[test]
