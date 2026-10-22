@@ -7,6 +7,15 @@ version is 0, a minor release may change the API.
 
 ## [Unreleased]
 
+### Changed
+
+- The composer's preview starts collapsed to its heading rather than
+  expanded. `Composer` and `Chat` take `preview_expanded`, `false` by
+  default, for a host that wants it open from the first keystroke. It
+  is the starting state only: the button in the heading and Alt+Shift+P
+  change it as before, and the reader's choice holds while the composer
+  is mounted.
+
 ## [0.2.2] - 2026-10-17
 
 ### Added

@@ -4,8 +4,9 @@
 // Markdown, math, and code into the composer, and asserts what appears:
 // the four bubbles of the tour, the live preview, the sent bubble, fonts,
 // highlighting, the copy button, progressive rendering of an unfinished
-// equation, collapsing the preview, reaching the preview by key and
-// coming back, and a clean console. Then it works
+// equation, expanding the preview from the heading it starts collapsed
+// to and collapsing it again, reaching the preview by key and coming
+// back, and a clean console. Then it works
 // the app's controls: the users, who send as whom, the selected user's
 // bubble side and color changing every bubble of theirs, the window's
 // background changing the ground behind the bubbles and nothing of the
@@ -229,18 +230,25 @@ try {
     check(await page.$(`${math} .rc-codeblock`) === null, 'and no code block');
     await page.screenshot({ path: `${shots}/${colorScheme}-0-welcome.png` });
 
-    // Progressive rendering: an unfinished equation with unbalanced braces.
+    // The preview opens collapsed to its heading, as the app takes the
+    // library's default; its button expands it.
     await type(page, 'Progressive: $$\\sum_{k=1}^n k^2 = \\frac{n(n+1)(2n+');
-    check(await page.$('.rc-composer-preview math') !== null, 'unfinished $$ renders as math in the preview');
-    await page.screenshot({ path: `${shots}/${colorScheme}-1-draft-math.png` });
+    check((await page.$eval('.rc-preview-toggle', (el) => el.getAttribute('aria-expanded'))) === 'false', 'the preview starts collapsed');
+    check(await page.$('.rc-composer-preview.rc-collapsed .rc-composer-preview-label') !== null, 'to its heading');
+    check(await page.$('.rc-composer-preview .rc-rich') === null, 'with no body');
+    await page.screenshot({ path: `${shots}/${colorScheme}-1-preview-collapsed.png` });
+    await page.click('.rc-preview-toggle');
+    check((await page.$eval('.rc-preview-toggle', (el) => el.getAttribute('aria-expanded'))) === 'true', 'the button expands it');
 
-    // The preview opens expanded; its button collapses it to the heading and back.
-    check((await page.$eval('.rc-preview-toggle', (el) => el.getAttribute('aria-expanded'))) === 'true', 'the preview starts expanded');
+    // Progressive rendering: an unfinished equation with unbalanced braces.
+    check(await page.$('.rc-composer-preview math') !== null, 'unfinished $$ renders as math in the preview');
+    await page.screenshot({ path: `${shots}/${colorScheme}-1b-draft-math.png` });
+
+    // The button collapses it to the heading again, and back.
     await page.click('.rc-preview-toggle');
     check(await page.$('.rc-composer-preview .rc-rich') === null, 'the collapse button hides the preview body');
     check(await page.$('.rc-composer-preview.rc-collapsed .rc-composer-preview-label') !== null, 'but keeps its heading');
     check((await page.$eval('.rc-preview-toggle', (el) => el.getAttribute('aria-expanded'))) === 'false', 'and says so');
-    await page.screenshot({ path: `${shots}/${colorScheme}-1b-preview-collapsed.png` });
     await page.click('.rc-preview-toggle');
     check(await page.$('.rc-composer-preview math') !== null, 'and brings it back');
 
@@ -611,8 +619,10 @@ try {
     await page.keyboard.type('Written while **busy**');
     await page.waitForTimeout(150);
     check((await boxText(page)) === 'Written while **busy**', 'and takes what is typed into it');
-    check(await page.$('.rc-composer-preview strong') !== null, 'which the preview renders');
+    // A fresh page, so the preview starts collapsed; its toggle opens it.
     check(await page.$('.rc-preview-toggle') !== null, 'collapse toggle included');
+    await page.click('.rc-preview-toggle');
+    check(await page.$('.rc-composer-preview strong') !== null, 'which the preview renders');
     // The wait is spoken, not only shown: the send button is held rather
     // than disabled, and says why; a refused press fills the status line.
     const status = () => page.$eval('.rc-composer-status', (el) => el.textContent);

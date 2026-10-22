@@ -191,7 +191,11 @@ stylesheet, so a `Look` never sets a declaration of its own.
 
 The composer's preview takes the theme's tint colors, or those of the
 name given as `preview_name`, so it can look like the bubble about to be
-sent.
+sent. A button in its heading collapses it to that heading and expands
+it again, for a draft whose preview would crowd the window. It starts
+collapsed; `preview_expanded=true` on `Chat` or `Composer` starts it
+expanded. Either way that is only where it starts: the reader's choice
+holds while the composer is mounted.
 
 To write the name over every bubble, as a group chat does, give `Chat`
 (or `MessageView`) `show_names=true`, or a `Signal<bool>` for a switch
